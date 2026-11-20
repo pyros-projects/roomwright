@@ -20,8 +20,8 @@ console error, then runs four scripts:
   and deck screens, victory, endless, the gamepad mapping driven by a simulated pad, and the card
   coach (the first-draft walkthrough, one lesson per new thing, H to explain a card again), the
   knock back (what each knock calls, the dice, no loot, the shorter clock), and the mouse and touch
-  mapping driven by simulated events: walking by drag, the dash, the pause mark, taps on cards and
-  beside them. Simulated events are not a hand on a phone: they show that the mapping works, not
+  mapping driven by simulated events: walking toward the pointer, the `Mouse walk` option and its
+  drag, the dash, the pause mark, taps on cards and beside them. Simulated events are not a hand on a phone: they show that the mapping works, not
   how it feels. `RW.coach(false)` switches the coach off; the other checks and the bot run without it.
 - `tools/check-audio.js`: every sound effect and music track puts a signal on the master bus. It
   measures level, not whether it sounds good, and is skipped where the browser has no audio.

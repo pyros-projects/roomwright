@@ -19,9 +19,11 @@ function drawMap(g, x, y, cw, ch, live) {
     if (Math.floor(frameT * 4) & 1) { g.fillStyle = '#ffffff'; g.fillRect(Math.round(x + P.x / CWP * cw) - 1, Math.round(y + P.y / CHP * ch) - 1, 2, 2); }
   }
 }
-const HINTS = ['Move with WASD or the arrow keys, or hold the mouse button and drag. Your weapon swings by itself.', 'You carry a KEY. Push into any knocking door to use it.', '', 'A new room! Grab the BOON waiting inside.', 'Glints @ forge new keys. More rooms, more power.', 'Tap SPACE or right-click to dash through danger.'];
+const HINTS = ['Move with WASD or the arrow keys, or hold the mouse button to walk toward the pointer. Your weapon swings by itself.', 'You carry a KEY. Push into any knocking door to use it.', '', 'A new room! Grab the BOON waiting inside.', 'Glints @ forge new keys. More rooms, more power.', 'Tap SPACE or right-click to dash through danger.'];
 const TOUCH_HINTS = { 0: 'Drag on the left half to move. Your weapon swings by itself.', 5: 'Tap the right half to dash through danger.' };
-const hintFor = step => (Input.touch && TOUCH_HINTS[step]) || HINTS[step];   // a finger gets its own words for moving and dashing
+const DRAG_HINT = 'Move with WASD or the arrow keys, or hold the mouse button and drag. Your weapon swings by itself.';
+// a finger gets its own words for moving and dashing, and so does a mouse set to DRAG
+const hintFor = step => (Input.touch && TOUCH_HINTS[step]) || (step === 0 && Save.data.opts.mouse === 'drag' ? DRAG_HINT : HINTS[step]);
 function drawLoadout(g, x, y, P, slots) {   // weapons (with level) then charms; returns the x after the last icon
   for (let i = 0; i < (slots ? MAX_WEAPONS : P.weapons.length); i++) {
     const w = P.weapons[i];

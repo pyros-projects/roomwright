@@ -137,7 +137,7 @@ function drawBuild(g, cx, y, P, maxW) {    // centred row(s) of everything you c
   });
   return rows.length * 16;
 }
-function pauseItems() { const o = Save.data.opts; return [{ label: 'Resume' }, { label: 'Music', value: o.music }, { label: 'Sound', value: o.sfx }, { label: 'Screen shake', value: o.shake ? 'ON' : 'OFF' }, { label: 'Restart run' }, { label: 'Quit to title' }]; }
+function pauseItems() { const o = Save.data.opts; return [{ label: 'Resume' }, { label: 'Music', value: o.music }, { label: 'Sound', value: o.sfx }, { label: 'Screen shake', value: o.shake ? 'ON' : 'OFF' }, { label: 'Mouse walk', value: o.mouse === 'drag' ? 'DRAG' : 'TO POINTER' }, { label: 'Restart run' }, { label: 'Quit to title' }]; }
 function pauseLayout() { const items = pauseItems(), h = items.length * 14 + 84, y = Math.round(VH / 2 - h / 2); return { items, h, y, rects: menuRects(items.length, y + 36, 170) }; }
 function renderPause(g) {
   g.fillStyle = 'rgba(13,10,26,0.7)'; g.fillRect(0, 0, VW, VH);

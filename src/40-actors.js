@@ -165,7 +165,7 @@ function hurtPlayer(dmg, src) {
 
 // ---- player ----
 function updatePlayer(dt) {
-  const P = G.P, ax = Input.axis();
+  const P = G.P, ax = Input.axis(P.x - G.cam.x, P.y - 8 - G.cam.y);   // the camera centres on this point of the delver
   let mx = ax.x, my = ax.y;
   if (P.pose > 0) { P.pose -= dt; mx = my = 0; }
   if (G.leaving > 0) mx = my = 0;

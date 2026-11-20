@@ -70,7 +70,7 @@ it and is optional. Without it the game starts on the title screen.
 
 | | Keyboard and mouse | Gamepad | Touch |
 |---|---|---|---|
-| Move | WASD / arrows, or hold the left mouse button and drag | left stick / d-pad | drag on the left half |
+| Move | WASD / arrows, or hold the left mouse button: you walk toward the pointer | left stick / d-pad | drag on the left half |
 | Dash (brief invulnerability) | Space / Shift, or right-click | A or X | tap the right half |
 | Open a door | walk into it while holding a key | same | same |
 | Choose a card | Left/Right + Enter, or 1 2 3 4, or click | stick + A | tap the card |
@@ -84,6 +84,9 @@ it and is optional. Without it the game starts on the title screen.
 | Mute | M | | |
 | Skip the intro | Enter, Space or Esc, or click | A or B | tap |
 | Watch the intro again (title screen) | I, or click INTRO | | tap INTRO |
+
+With a mouse you can also walk by dragging, as on a touch screen: set `Mouse walk` to `DRAG` in the pause
+menu, then hold the button and drag. The game remembers the choice.
 
 The first draft walks you through a card: the room, the boon, the doors and the Stairwell. Later drafts
 explain one new thing each, the first time a card shows it. Weapons fire on their own. `index.html?seed=123` pins the run's random seed. Progress is saved in

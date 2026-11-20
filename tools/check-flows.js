@@ -21,7 +21,7 @@
     press('down'); press('down'); const sh0 = RW.Save.data.opts.shake; RW.step(30); press('ok'); ok('screen shake toggles', RW.Save.data.opts.shake !== sh0); press('ok');
     press('back'); ok('Esc resumes', RW.App.mode === 'play');
     press('mute'); ok('M mutes', RW.Save.data.opts.mute === 1 && RW.Snd.vol.sfx === 0); press('mute'); ok('M unmutes', RW.Save.data.opts.mute === 0 && RW.Snd.vol.sfx > 0);
-    const old = RW.G; RW.step(120); press('pause'); for (let i = 0; i < 4; i++) press('down'); RW.step(30); press('ok'); RW.step(60);
+    const old = RW.G; RW.step(120); press('pause'); for (let i = 0; i < 5; i++) press('down'); RW.step(30); press('ok'); RW.step(60);
     ok('restart run from pause', RW.App.mode === 'play' && RW.G !== old && RW.G.t < 1.5, 't=' + RW.G.t.toFixed(2));
     /* ---- drafting ---- */
     let G = RW.G, P = G.P; G.dir.calm = 1e9; G.dir.ti = 99; P.inv = 1e9; P.keys = 20;
@@ -38,7 +38,7 @@
     P.inv = 0; P.shield = 0; RW.hurtPlayer(99); RW.step(130); ok('death leads to game over', RW.App.mode === 'over');
     RW.step(40); press('ok'); RW.step(60); ok('try again starts a fresh run', RW.App.mode === 'play' && RW.G.rooms.length === 1 && RW.G.P.hp === 8 && RW.G.floor === 0);
     /* ---- quit to title, then the hero and deck screens ---- */
-    press('pause'); for (let i = 0; i < 5; i++) press('down'); RW.step(30); press('ok'); RW.step(60);
+    press('pause'); for (let i = 0; i < 6; i++) press('down'); RW.step(30); press('ok'); RW.step(60);
     ok('quit to title', RW.App.mode === 'title' && RW.G.rooms.length > 3, RW.G.rooms.length + ' showcase rooms');
     ok('the showcase never touches the save', Object.keys(RW.Save.data.rooms).length <= RW.STARTER_ROOMS.length + 1, Object.keys(RW.Save.data.rooms).length + ' cards');
     RW.step(30); press('ok'); ok('later runs go through the hero screen', RW.App.mode === 'prep', RW.App.mode);
@@ -131,20 +131,39 @@
     const at = (vx, vy) => ({ clientX: cbox.left + vx * cbox.width / V.VW, clientY: cbox.top + vy * cbox.height / V.VH });
     const mouse = (type, vx, vy, button = 0, buttons = 1) => cvs.dispatchEvent(new MouseEvent(type, { ...at(vx, vy), button, buttons, bubbles: true, cancelable: true }));
     const fresh = () => { RW.start(77, { hero: 'pip' }); G = RW.G; P = G.P; G.tut.step = 9; G.dir.calm = 1e9; G.dir.ti = 99; P.inv = 1e9; P.keys = 9; RW.step(5); };
-    const mx = V.VW / 2, my = V.VH * 0.6;
-    fresh(); let px0 = P.x; mouse('mousedown', mx, my); mouse('mousemove', mx + 40, my); RW.step(30);
-    ok('mouse: holding the left button and dragging walks', RW.Input.stick.on && P.x > px0 + 20, Math.round(P.x - px0) + 'px');
+    const here = () => ({ x: P.x - G.cam.x, y: P.y - 8 - G.cam.y }), lead = RW.Input.lead, stick = RW.Input.stick;   // here: the delver on screen
+    const settle = () => { mouse('mouseup', 0, 0, 0, 0); RW.step(90); };                // let go and let the camera catch up
+    fresh(); settle(); let at0 = here(), px0 = P.x, py0 = P.y;
+    ok('mouse: walking toward the pointer is the default', RW.Save.data.opts.mouse === 'point' && RW.pauseLayout().items[4].value === 'TO POINTER', RW.Save.data.opts.mouse);
+    mouse('mousedown', at0.x + 60, at0.y); RW.step(30);
+    ok('mouse: holding the left button walks toward the pointer', lead.on && P.x > px0 + 20 && Math.abs(P.y - py0) < 4, Math.round(P.x - px0) + ',' + Math.round(P.y - py0) + 'px');
+    ok('mouse: nothing is drawn for it: no stick', !stick.on);
     ok('mouse: a press in a run is no click', RW.App.mode === 'play' && !RW.Input.mouse.click);
-    let py0 = P.y; mouse('mousemove', mx, my - 40); RW.step(30); ok('mouse: the drag steers', P.y < py0 - 20, Math.round(P.y - py0) + 'px');
-    mouse('mouseup', mx, my - 40, 0, 0); RW.step(2); px0 = P.x; py0 = P.y; RW.step(20);
-    ok('mouse: letting go stops', !RW.Input.stick.on && Math.hypot(P.x - px0, P.y - py0) < 1, Math.hypot(P.x - px0, P.y - py0).toFixed(1) + 'px');
-    mouse('mousedown', mx, my); mouse('mousemove', mx + 40, my); RW.step(5); mouse('mousemove', mx + 60, my, 0, 0); RW.step(2);
-    ok('mouse: a release the page never saw still lets go', !RW.Input.stick.on);
-    RW.step(40); P.dashCd = 0; mouse('mousedown', mx, my, 2, 2); RW.step(2); ok('mouse: the right button dashes', P.dashCd > 0, P.dashCd.toFixed(2)); mouse('mouseup', mx, my, 2, 0);
+    at0 = here(); py0 = P.y; mouse('mousemove', at0.x, at0.y - 60); RW.step(30); ok('mouse: the walk follows the pointer', P.y < py0 - 20, Math.round(P.y - py0) + 'px');
+    settle(); px0 = P.x; py0 = P.y; RW.step(20);
+    ok('mouse: letting go stops', !lead.on && Math.hypot(P.x - px0, P.y - py0) < 1, Math.hypot(P.x - px0, P.y - py0).toFixed(1) + 'px');
+    at0 = here(); mouse('mousedown', at0.x + 2, at0.y - 2); RW.step(30); ok('mouse: with the pointer on the delver it stands', lead.on && Math.hypot(P.x - px0, P.y - py0) < 1, Math.hypot(P.x - px0, P.y - py0).toFixed(1) + 'px');
+    mouse('mousemove', at0.x + 60, at0.y, 0, 0); RW.step(2); ok('mouse: a release the page never saw still lets go', !lead.on);
+    settle(); at0 = here(); px0 = P.x; mouse('mousedown', at0.x - 60, 8); RW.step(30); ok('mouse: a press on the top strip walks too', P.x < px0 - 10, Math.round(P.x - px0) + 'px');
+    settle(); P.dashCd = 0; mouse('mousedown', V.VW / 2, V.VH * 0.6, 2, 2); RW.step(2); ok('mouse: the right button dashes', P.dashCd > 0, P.dashCd.toFixed(2)); mouse('mouseup', 0, 0, 2, 0);
     RW.step(40); RW.openDraft(G.sealed[0]); RW.step(40); let cr = RW.draftLayout().rects[1], rooms0 = G.rooms.length;
-    mouse('mousedown', cr.x + cr.w / 2, cr.y + cr.h / 2); RW.step(3); mouse('mouseup', cr.x + cr.w / 2, cr.y + cr.h / 2, 0, 0);
-    ok('mouse: a click on a card still builds it, and starts no stick', RW.App.mode === 'play' && G.rooms.length === rooms0 + 1 && !RW.Input.stick.on, RW.App.mode + ', ' + G.rooms.length + ' rooms');
-    ok('hints: keys and mouse on a desk', /WASD/.test(RW.hintFor(0)) && /mouse/.test(RW.hintFor(0)) && /SPACE/.test(RW.hintFor(5)), RW.hintFor(0));
+    mouse('mousedown', cr.x + cr.w / 2, cr.y + cr.h / 2); RW.step(3);
+    ok('mouse: a click on a card still builds it, and starts no walk', RW.App.mode === 'play' && G.rooms.length === rooms0 + 1 && !lead.on && !stick.on, RW.App.mode + ', ' + G.rooms.length + ' rooms');
+    ok('hints: keys and the pointer on a desk', /WASD/.test(RW.hintFor(0)) && /toward the pointer/.test(RW.hintFor(0)) && /SPACE/.test(RW.hintFor(5)), RW.hintFor(0));
+    /* the other way to walk with a mouse: the pause menu's "Mouse walk" on DRAG makes the button a stick, as a finger has */
+    settle(); RW.step(60); press('pause'); for (let i = 0; i < 4; i++) press('down'); RW.step(30); press('ok');
+    ok('mouse: the pause menu switches the walk to DRAG and saves it', RW.Save.data.opts.mouse === 'drag' && JSON.parse(localStorage.getItem(RW.Save.KEY)).opts.mouse === 'drag' && RW.pauseLayout().items[4].value === 'DRAG', RW.Save.data.opts.mouse);
+    press('back'); ok('hints: DRAG has its own words', /and drag/.test(RW.hintFor(0)), RW.hintFor(0));
+    fresh(); RW.step(20);                 // a new run, back in the middle of the first room: the walks above ended at a wall
+    const mx = V.VW / 2, my = V.VH * 0.6; px0 = P.x; mouse('mousedown', mx, my); mouse('mousemove', mx + 40, my); RW.step(30);
+    ok('mouse, DRAG: holding and dragging walks, with the stick shown', stick.on && !lead.on && P.x > px0 + 20, Math.round(P.x - px0) + 'px');
+    py0 = P.y; mouse('mousemove', mx, my - 40); RW.step(30); ok('mouse, DRAG: the drag steers', P.y < py0 - 20, Math.round(P.y - py0) + 'px');
+    mouse('mouseup', mx, my - 40, 0, 0); RW.step(2); px0 = P.x; py0 = P.y; RW.step(20);
+    ok('mouse, DRAG: letting go stops', !stick.on && Math.hypot(P.x - px0, P.y - py0) < 1, Math.hypot(P.x - px0, P.y - py0).toFixed(1) + 'px');
+    mouse('mousedown', mx, my); mouse('mousemove', mx + 40, my); RW.step(5); mouse('mousemove', mx + 60, my, 0, 0); RW.step(2);
+    ok('mouse, DRAG: a release the page never saw still lets go', !stick.on);
+    press('pause'); for (let i = 0; i < 4; i++) press('down'); RW.step(30); press('ok'); press('back');
+    ok('mouse: the pause menu switches back', RW.Save.data.opts.mouse === 'point' && RW.App.mode === 'play', RW.Save.data.opts.mouse);
     if (typeof Touch === 'function' && typeof TouchEvent === 'function') {
       const touch = (type, pts) => { const ts = pts.map(([id, vx, vy]) => new Touch({ identifier: id, target: cvs, ...at(vx, vy) })); cvs.dispatchEvent(new TouchEvent(type, { changedTouches: ts, touches: type === 'touchstart' || type === 'touchmove' ? ts : [], bubbles: true, cancelable: true })); };
       const lx = V.VW * 0.25, ly = V.VH * 0.7, rx = V.VW * 0.8, ry = V.VH * 0.6;

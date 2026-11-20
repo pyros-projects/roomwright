@@ -9,7 +9,7 @@ const Save = {
   data: null,
   fresh() {
     const rooms = {}; for (const id of STARTER_ROOMS) rooms[id] = 1;
-    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0 }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {} };
+    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0, mouse: 'point' }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {} };
   },
   load() {
     this.data = this.fresh();
@@ -189,15 +189,15 @@ const MODES = {
     if (Input.hit('back') || Input.hit('pause')) { App.mode = 'play'; sfx('back'); return; }
     const adj = (i, dir, wrap) => {
       const stepv = v => { let n = Math.round(v * 5) + dir; if (wrap && n > 5) n = 0; return clamp(n, 0, 5) / 5; };
-      if (i === 1) o.music = stepv(o.music); else if (i === 2) o.sfx = stepv(o.sfx); else if (i === 3) o.shake = o.shake ? 0 : 1; else return;
-      o.mute = 0; Save.apply(); Save.store(); sfx('tick');
+      if (i === 1) o.music = stepv(o.music); else if (i === 2) o.sfx = stepv(o.sfx); else if (i === 3) o.shake = o.shake ? 0 : 1; else if (i === 4) o.mouse = o.mouse === 'drag' ? 'point' : 'drag'; else return;
+      if (i !== 4) o.mute = 0; Save.apply(); Save.store(); sfx('tick');
     };
     if (Input.hit('left')) adj(App.sel, -1); if (Input.hit('right')) adj(App.sel, 1);
     const a = menuNav(L_.items.length, L_.rects);
     if (a === 0) { App.mode = 'play'; sfx('ok'); }
-    else if (a >= 1 && a <= 3) adj(a, 1, true);
-    else if (a === 4) { sfx('ok'); startFade(() => startRun()); }
-    else if (a === 5) { sfx('back'); startFade(toTitle); }
+    else if (a >= 1 && a <= 4) adj(a, 1, true);
+    else if (a === 5) { sfx('ok'); startFade(() => startRun()); }
+    else if (a === 6) { sfx('back'); startFade(toTitle); }
   },
   descend() {
     if (App.modeT > 0.5 && (Input.confirm() || Input.mouse.click)) { sfx('ok'); startFade(arriveNextFloor); }

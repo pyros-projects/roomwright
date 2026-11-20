@@ -12,29 +12,37 @@ const Input = (() => {
   const act = e => CODE[e.code] || KEY[(e.key || '').toLowerCase()];
   const mouse = { x: -99, y: -99, click: false, moved: false };
   const stick = { on: false, id: -1, ox: 0, oy: 0, x: 0, y: 0 };
+  const lead = { on: false, x: 0, y: 0 };   // the pointer the delver walks toward while the left button is held, in view pixels
   let padX = 0, padY = 0, touch = false; const padPrev = {};
   addEventListener('keydown', e => {
     const a = act(e); if (!a) return; e.preventDefault(); Snd.ensure();
     if (e.repeat) return; if (!down.has(a)) pressed.add(a); down.add(a);
   });
   addEventListener('keyup', e => { const a = act(e); if (a) down.delete(a); });
-  addEventListener('blur', () => { down.clear(); stick.on = false; stick.x = stick.y = 0; });
+  addEventListener('blur', () => { down.clear(); stick.on = false; stick.x = stick.y = 0; lead.on = false; });
   const toView = e => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * VW / r.width, y: (e.clientY - r.top) * VH / r.height }; };
   cv.addEventListener('mousemove', e => { const p = toView(e); mouse.x = p.x; mouse.y = p.y; mouse.moved = true; });
-  // In a run the left button is a stick, as a finger is: hold it and drag to walk; the right button dashes.
-  // Everywhere else, and on the top strip of the HUD, a press is a click.
+  // In a run the left button walks: hold it and the delver walks toward the pointer, with nothing drawn over the
+  // game. The pause menu's "Mouse walk" can make it a stick instead, as a finger has: hold and drag (DRAG).
+  // The right button dashes. Everywhere else a press is a click, and on a touch screen so is the HUD's top strip.
   const tilt = p => { let dx = (p.x - stick.ox) / 22, dy = (p.y - stick.oy) / 22; const l = Math.hypot(dx, dy); if (l > 1) { dx /= l; dy /= l; } stick.x = l < 0.2 ? 0 : dx; stick.y = l < 0.2 ? 0 : dy; };
   const drop = () => { stick.on = false; stick.x = stick.y = 0; };
   cv.addEventListener('mousedown', e => {
     const p = toView(e); mouse.x = p.x; mouse.y = p.y; Snd.ensure(); cv.focus(); e.preventDefault();
-    if (App.mode === 'play' && p.y > 30) {
+    if (App.mode === 'play' && (p.y > 30 || !touch)) {
       if (e.button === 2) pressed.add('dash');
-      else if (e.button === 0 && !stick.on) { stick.on = true; stick.id = 'mouse'; stick.ox = p.x; stick.oy = p.y; stick.x = stick.y = 0; }
+      else if (e.button !== 0) return;
+      else if (Save.data.opts.mouse !== 'drag') { lead.on = true; lead.x = p.x; lead.y = p.y; }
+      else if (!stick.on) { stick.on = true; stick.id = 'mouse'; stick.ox = p.x; stick.oy = p.y; stick.x = stick.y = 0; }
     } else mouse.click = true;
   });
-  // on the window, because the drag may leave the canvas; a release the page never saw shows as no button held
-  addEventListener('mousemove', e => { if (stick.on && stick.id === 'mouse') { if (e.buttons & 1) tilt(toView(e)); else drop(); } });
-  addEventListener('mouseup', e => { if (e.button === 0 && stick.on && stick.id === 'mouse') drop(); });
+  // on the window, because the pointer may leave the canvas; a release the page never saw shows as no button held
+  addEventListener('mousemove', e => {
+    const held = e.buttons & 1;
+    if (lead.on) { if (held) { const p = toView(e); lead.x = p.x; lead.y = p.y; } else lead.on = false; }
+    if (stick.on && stick.id === 'mouse') { if (held) tilt(toView(e)); else drop(); }
+  });
+  addEventListener('mouseup', e => { if (e.button !== 0) return; lead.on = false; if (stick.on && stick.id === 'mouse') drop(); });
   cv.addEventListener('contextmenu', e => e.preventDefault());
   cv.addEventListener('touchstart', e => {
     e.preventDefault(); Snd.ensure(); touch = true;
@@ -69,11 +77,16 @@ const Input = (() => {
     }
   }
   return {
-    down, pressed, mouse, stick, poll,
+    down, pressed, mouse, stick, lead, poll,
     get touch() { return touch; },
     hit: a => pressed.has(a),
     confirm: () => pressed.has('ok') || pressed.has('dash'),
-    axis() { let x = (down.has('right') ? 1 : 0) - (down.has('left') ? 1 : 0) + padX + stick.x, y = (down.has('down') ? 1 : 0) - (down.has('up') ? 1 : 0) + padY + stick.y; const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; } return { x, y }; },
+    // ox, oy: where the delver stands on screen. Toward a held pointer the walk slows over the last 12 pixels and stops within 4.
+    axis(ox, oy) {
+      let x = (down.has('right') ? 1 : 0) - (down.has('left') ? 1 : 0) + padX + stick.x, y = (down.has('down') ? 1 : 0) - (down.has('up') ? 1 : 0) + padY + stick.y;
+      if (lead.on && ox !== undefined) { const dx = lead.x - ox, dy = lead.y - oy, d = Math.hypot(dx, dy), k = clamp((d - 4) / 8, 0, 1); if (k > 0) { x += dx / d * k; y += dy / d * k; } }
+      const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; } return { x, y };
+    },
     endFrame() { pressed.clear(); mouse.click = false; mouse.moved = false; },
     inRect: (r) => mouse.x >= r.x && mouse.x < r.x + r.w && mouse.y >= r.y && mouse.y < r.y + r.h,
   };
