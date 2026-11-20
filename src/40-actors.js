@@ -11,7 +11,7 @@ function newRun(seed, opts = {}) {
   let deck = (opts.deck || hero.deck).filter(id => ROOM_TYPES[id] && ROOM_TYPES[id].tier !== 'x');
   if (deck.length < 3) deck = hero.deck.slice();
   G = {
-    seed, hero: hero.id, deck, floor: 0, F: FLOORS[0], t: 0, tRun: 0, nextId: 1,
+    seed, hero: hero.id, deck, stakes: clamp(opts.stakes | 0, 0, STAKES.length), floor: 0, F: FLOORS[0], t: 0, tRun: 0, nextId: 1,
     rooms: [], cells: new Array(GRID * GRID).fill(null), sealed: [], jams: [],
     flags: new Uint8Array(GWT * GHT).fill(F_ALL), tag: new Uint8Array(GWT * GHT), tagRoom: new Uint16Array(GWT * GHT),
     distG: new Uint16Array(GWT * GHT).fill(65535), nextG: new Int32Array(GWT * GHT), distF: new Uint16Array(GWT * GHT).fill(65535), nextF: new Int32Array(GWT * GHT), flowTile: -1, flowT: -9,
@@ -278,7 +278,7 @@ function spawnMon(type, x, y, hpMul) {
   const e = { def, type, id: G.nextId++, x, y, r: def.r, fr: Math.min(def.r, 5.5), hp: 1, max: 1, kx: 0, ky: 0, flash: 0, anim: rr(0, 3), wob: rr(0, TAU), face: 1,
     emerge: 0, evx: 0, evy: 0, slow: 0, slowT: 0, stun: 0, burnT: 0, burn: 0, burnTick: 0, chill: 0, mark: 0, markT: 0, dead: false, moonT: -9, gl: -1,
     shootT: def.shot ? rr(def.shot.cd[0], def.shot.cd[1]) : 0, st: 0, stT: 0, cx: 0, cy: 0, goal: null, life: 0, boon: null, keys: 1 };
-  e.max = e.hp = Math.max(1, Math.round(def.hp * (def.boss ? 1 : CURVE.hp(G.floor, G.t / 60)) * (hpMul || 1)));
+  e.max = e.hp = Math.max(1, Math.round(def.hp * (def.boss ? 1 : CURVE.hp(G.floor, G.t / 60)) * (hpMul || 1) * (stake(5) ? 1.2 : 1)));
   G.mons.push(e); return e;
 }
 const HC = 32, HW = Math.ceil(GWT * T / HC), HH = Math.ceil(GHT * T / HC);
@@ -360,7 +360,7 @@ function killMon(e) {
   EBY = firing;
   if (def.mimic) { for (let i = 0; i < e.keys; i++) dropPick('key', e.x, e.y); if (e.boon) G.boons.push({ x: e.x, y: e.y, boon: e.boon, mul: e.boonMul || 1, t: 0 }); G.shake = Math.max(G.shake, 4); }
   if (def.elite) { G.stats.elites++; if (!def.mimic && !e.noLoot) { dropPick('heart', e.x, e.y); if (charm('magpie')) dropPick('key', e.x, e.y); } }
-  else if (!def.boss && !e.noLoot && rand() < 0.012 * (HEROES[G.hero].hearts || 1) && P.hp < P.maxHp) dropPick('heart', e.x, e.y);
+  else if (!def.boss && !e.noLoot && rand() < 0.012 * (HEROES[G.hero].hearts || 1) * (stake(4) ? 0.5 : 1) && P.hp < P.maxHp) dropPick('heart', e.x, e.y);
   if (def.boss) bossDied(e);
 }
 function fireEBullet(x, y, dx, dy, sp, spr, life) { if (G.ebullets.length < 180) G.ebullets.push({ x, y, vx: dx * sp, vy: dy * sp, t: 0, spr: spr || 's_ebullet', life: life || 7, by: EBY }); }

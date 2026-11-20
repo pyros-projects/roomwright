@@ -28,7 +28,7 @@ function bossFury(e, dt) {
   return 1 + F.step * (e.fury || 0);
 }
 function clockLimit() {               // seconds until the warden comes for you on its own
-  let c = G.F.clock;
+  let c = G.F.clock * (stake(6) ? 0.75 : 1);
   if (G.rooms.some(r => r.type === 'observ' && roomLive(r))) c *= 1 + [0.12, 0.2, 0.28][roomLevel('observ') - 1];
   return Math.max(45, c - G.fstat.wrath);   // every knock back after the first shortens it
 }
@@ -44,7 +44,7 @@ function emitFrom(d, q) {               // q: a monster id, or { id, rage } for 
   return e;
 }
 function fireEvent(ev) {
-  const mixl = G.F.mix(G.t), d = nearDoor(); if (!d) return;
+  const mixl = floorMix(), d = nearDoor(); if (!d) return;
   if (ev === 'breach') {
     banner('KNOCK KNOCK!', 'Something is forcing a door.', '#ff9ec4', 2.6); sfx('breach');
     for (let i = 0, n = 10 + Math.floor(G.t / 28) + G.floor * 3; i < n; i++) d.queue.push(wpick(mixl, x => x[1])[0]);
@@ -68,10 +68,10 @@ function summonBoss(fromRoom) {
     else { e = spawnMon(id, P.x, P.y - 80); e.emerge = 0.9; }
   }
   // a warden woken early is weaker (and so are you); one that had to come and find you is furious
-  e.max = e.hp = Math.round(def.hp * wardenShare() * (D.overstay ? 1.25 : 1)); if (D.overstay) e.rage = true;
+  e.max = e.hp = Math.round(def.hp * wardenShare() * (D.overstay ? 1.25 : 1) * (stake(5) ? 1.2 : 1)); if (D.overstay || stake(1)) e.rage = true;
   D.boss = e; e.st = 0; e.stT = 2.4; e.ang = 0;
   scatterHorde(e);
-  banner(def.name, D.overstay ? 'you overstayed: it is furious' : def.sub, '#ff7a7a', 3.2); sfx('roar'); Snd.music('boss'); G.shake = 9;
+  banner(def.name, D.overstay ? 'you overstayed: it is furious' : stake(1) ? 'enraged from the first step' : def.sub, '#ff7a7a', 3.2); sfx('roar'); Snd.music('boss'); G.shake = 9;
   return e;
 }
 function bossDied(e) {
@@ -104,17 +104,18 @@ function updateDirector(dt) {
   }
   if (D.calm > 0) { D.calm -= dt; return; }
   const fight = D.boss && !D.bossDead;
-  for (const id in F.pests) {                                           // pests go for the floor plan
-    const [first, every] = F.pests[id]; if (D.pestT[id] === undefined) D.pestT[id] = first;
+  const pests = stake(2) && G.floor === 0 ? Object.assign({ sapper: [150, 85] }, F.pests) : F.pests, soon = stake(2) ? 0.7 : 1;
+  for (const id in pests) {                                             // pests go for the floor plan
+    const [first, every] = pests[id]; if (D.pestT[id] === undefined) D.pestT[id] = first * soon;
     if (G.t < D.pestT[id]) continue;
-    D.pestT[id] = G.t + every * rr(0.8, 1.25);
+    D.pestT[id] = G.t + every * soon * rr(0.8, 1.25);
     const d = nearDoor(); if (d && !fight) d.queue.push(id);
   }
   let doors = 0, queued = 0; for (const d of G.sealed) { if (d.room.reveal >= 1) doors++; queued += d.queue.length; }
   const rate = CURVE.rate(G.floor, m) * CURVE.pressure(doors, charm('wedge'), G.floor) * dreadMul() * (fight ? 0.4 : 1);
   D.acc = Math.min(8, D.acc + rate * dt);
   if (D.acc >= 1 && G.mons.length + queued < CURVE.cap(G.floor, m)) {
-    const n = Math.min(Math.floor(D.acc), CURVE.group(G.floor, m)), mixl = F.mix(G.t); D.acc -= n;
+    const n = Math.min(Math.floor(D.acc), CURVE.group(G.floor, m)), mixl = floorMix(); D.acc -= n;
     if (doors) { const d = wpick(G.sealed.filter(d => d.room.reveal >= 1), doorWeight); for (let i = 0; i < n; i++) d.queue.push(wpick(mixl, x => x[1])[0]); }
     else {                            // no sealed doors left: the dark squeezes through cracks in the floor
       const room = G.curRoom || G.rooms[0];
@@ -240,7 +241,7 @@ const BOSS_AI = {
       if (e.stT <= 0) {
         const res = e.room && e.wall >= 0 ? breachWall(e.room, e.wall) : null;
         if (res === 'door') {
-          const d = G.sealed.find(q => q.room === e.room && q.dir === e.wall), mixl = G.F.mix(G.t);
+          const d = G.sealed.find(q => q.room === e.room && q.dir === e.wall), mixl = floorMix();
           if (d) for (let i = 0; i < (rage ? 9 : 6); i++) d.queue.push(wpick(mixl, x => x[1])[0]);
           sfx('crack'); G.shake = Math.max(G.shake, 6); const p = doorPos(e.room, e.wall); burst(p.x, p.y, 22, PAL.t, 110);
           banner('THE WALL GIVES WAY', 'The Unmaker opened a new door.', '#e3bd88', 2.2);

@@ -73,7 +73,7 @@ const KNOCK = [{ n: 8, elites: 0, dice: 0, big: 0, clock: 0 }, { n: 18, elites: 
 const knockTier = () => Math.min(G.fstat.knocks, KNOCK.length - 1);
 function knockBack() {
   const D = G.draft; if (!D) return false;
-  const d = D.door, k = G.fstat.knocks, K = KNOCK[knockTier()], mixl = G.F.mix(G.t), more = Math.max(0, k - (KNOCK.length - 1));
+  const d = D.door, k = G.fstat.knocks, K = KNOCK[knockTier()], mixl = floorMix(), more = Math.max(0, k - (KNOCK.length - 1));
   const n = K.n + G.floor * Math.round(K.n / 4) + more * 6, elites = Math.min(3, K.elites + more), big = Math.min(3, K.big + more);
   G.fstat.knocks++; G.fstat.wrath += K.clock; d.cards = makeCards(d); d.hold = true;
   for (let i = 0; i < K.dice; i++) d.queue.push({ id: 'die', rage: true });

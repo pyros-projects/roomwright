@@ -9,7 +9,8 @@ const Save = {
   data: null,
   fresh() {
     const rooms = {}; for (const id of STARTER_ROOMS) rooms[id] = 1;
-    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0, mouse: 'point' }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {}, census: [] };
+    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0, mouse: 'point' }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {}, census: [],
+      stakes: {}, stake: {} };          // Stakes per delver: the highest step won (0 = the plain game), and the step chosen for the next run
   },
   load() {
     this.data = this.fresh();
@@ -23,6 +24,9 @@ const Save = {
         for (const id in s.decks || {}) if (HEROES[id] && Array.isArray(s.decks[id])) d.decks[id] = s.decks[id].filter(r => typeof r === 'string');
         Object.assign(d.tips, s.tips);
         if (Array.isArray(s.census)) d.census = s.census.filter(r => r && typeof r === 'object').slice(-CENSUS_MAX);
+        for (const id in s.stakes || {}) if (HEROES[id]) d.stakes[id] = clamp(s.stakes[id] | 0, 0, STAKES.length);
+        if (!s.stakes && d.wins > 0) for (const id in d.heroes) d.stakes[id] = 0;       // a save from before Stakes that has won: the first step is open
+        for (const id in s.stake || {}) if (HEROES[id]) d.stake[id] = clamp(s.stake[id] | 0, 0, stakesOpen(id));
       } else { const old = JSON.parse(localStorage.getItem('roomwright.v1')); if (old && old.opts) Object.assign(this.data.opts, old.opts); }   // keep v0.1 volume settings
     } catch (e) { /* storage unavailable or corrupt: play without persistence */ }
     this.apply();
@@ -30,6 +34,9 @@ const Save = {
   store() { try { localStorage.setItem(this.KEY, JSON.stringify(this.data)); } catch (e) { /* ignore */ } },
   apply() { const o = this.data.opts; Snd.vol.music = o.mute ? 0 : o.music; Snd.vol.sfx = o.mute ? 0 : o.sfx; Snd.applyVol(); Intro.vol(); },
 };
+// Stakes: the highest step this delver may play (one above the highest won; 0 until a first win), and the step chosen
+const stakesOpen = id => { const won = Save.data.stakes[id]; return won === undefined ? 0 : Math.min(STAKES.length, won + 1); };
+const stakeOf = id => clamp(Save.data.stake[id] | 0, 0, stakesOpen(id));
 // the deck a hero will bring: their saved list, cleaned up and topped up to DECK_SIZE from cards you own
 function deckFor(hid) {
   const own = Save.data.rooms, hero = HEROES[hid], out = [];
@@ -71,7 +78,7 @@ function floorBanner() { banner('FLOOR ' + (G.floor + 1) + ': ' + G.F.name.toUpp
 function startRun(seed, opts = {}) {
   if (seed === undefined) { const q = new URLSearchParams(location.search).get('seed'); seed = q !== null && q !== '' && isFinite(+q) ? +q : (Math.random() * 2147483647) | 0; }   // ?seed=123 pins the run
   const hero = opts.hero && HEROES[opts.hero] ? opts.hero : Save.data.hero;
-  newRun(seed, { hero, deck: opts.deck || fullDeck(hero), tutorial: Save.data.runs < 2 });
+  newRun(seed, { hero, deck: opts.deck || fullDeck(hero), tutorial: Save.data.runs < 2, stakes: opts.stakes === undefined ? stakeOf(hero) : opts.stakes });
   Save.data.runs++; Save.store();
   App.mode = 'play'; App.sel = 0; App.record = false; Snd.music(G.F.music);
   floorBanner();
@@ -81,7 +88,7 @@ function startRun(seed, opts = {}) {
 const CENSUS_MAX = 20;
 function runRecord(win) {
   const P = G.P, S = G.stats;
-  return { v: VERSION, hero: G.hero, seed: G.seed, won: !!win, floor: G.floor + 1, minute: Math.round(G.t / 6) / 10, time: Math.round(G.tRun),
+  return { v: VERSION, hero: G.hero, stakes: G.stakes, seed: G.seed, won: !!win, floor: G.floor + 1, minute: Math.round(G.t / 6) / 10, time: Math.round(G.tRun),
     by: G.hits.map(h => h.by), doors: G.sealed.length, rooms: G.fstat.rooms, drafted: S.rooms,
     weapons: P.weapons.map(w => w.id + (w.evo ? '*' : w.lv)).join(' '),
     top: tallyList().slice(0, 3).map(t => t.key + ' ' + Math.round(t.share * 100)).join(', '), roomShare: Math.round(tallyShare('r') * 100) };
@@ -90,7 +97,13 @@ function endRun(win) {
   const b = Save.data.best, S = G.stats, depth = G.floor + 1, c = Save.data.census;
   c.push(runRecord(win)); while (c.length > CENSUS_MAX) c.shift();
   App.record = Save.data.runs > 1 && (depth > b.floor || (depth === b.floor && Math.floor(G.tRun) > b.time));
-  b.time = Math.max(b.time, Math.floor(G.tRun)); b.rooms = Math.max(b.rooms, S.rooms); b.kills = Math.max(b.kills, S.kills); b.floor = Math.max(b.floor, depth); if (win) Save.data.wins++;
+  b.time = Math.max(b.time, Math.floor(G.tRun)); b.rooms = Math.max(b.rooms, S.rooms); b.kills = Math.max(b.kills, S.kills); b.floor = Math.max(b.floor, depth);
+  App.stakesNew = 0;
+  if (win) {                          // a win at a step opens the next one for this delver, and sets it for the next run
+    const d = Save.data, had = stakesOpen(G.hero); d.wins++;
+    d.stakes[G.hero] = Math.max(d.stakes[G.hero] === undefined ? -1 : d.stakes[G.hero], G.stakes);
+    if (stakesOpen(G.hero) > had) { App.stakesNew = stakesOpen(G.hero); d.stake[G.hero] = App.stakesNew; }
+  }
   Save.store(); App.mode = win ? 'win' : 'over'; App.sel = 0;
 }
 // walking onto the open stairs
@@ -150,7 +163,12 @@ const MODES = {
     G.t += dt; updateDoors(dt); updateSmall(dt);
     const P_ = App.prep, n = HERO_ORDER.length, id = HERO_ORDER[P_.i], own = heroOwned(id), m = Input.mouse;
     let go = Input.hit('ok') || (App.modeT > 0.4 && Input.hit('dash')), edit = Input.hit('alt'), step = (Input.hit('right') ? 1 : 0) - (Input.hit('left') ? 1 : 0);
-    if (m.click && App.modeT > 0.3) { const h = 188, y = Math.round(VH / 2 - h / 2); if (m.y < y + 100 && m.x < VW / 2 - 40) step = 1; else if (m.y >= y + 100 && m.y < y + 150) edit = true; else go = true; }
+    const L_ = prepLayout(id), top = stakesOpen(id); let turn = top && own ? (Input.hit('up') ? 1 : 0) - (Input.hit('down') ? 1 : 0) : 0;
+    if (m.click && App.modeT > 0.3) {
+      if (m.y < L_.sy && m.x < VW / 2 - 40) step = 1; else if (L_.sk && m.y >= L_.sy && m.y < L_.sy + L_.sk) turn = stakeOf(id) >= top ? -top : 1;   // a tap goes up a step, and from the top back to none
+      else if (m.y >= L_.dy - 6 && m.y < L_.dy + 44) edit = true; else go = true;
+    }
+    if (turn && own) { Save.data.stake[id] = clamp(stakeOf(id) + turn, 0, top); Save.store(); sfx('tick'); }
     if (step) { P_.i = (P_.i + step + n) % n; sfx('tick'); }
     if (Input.hit('back')) { App.mode = 'title'; sfx('back'); return; }
     if (edit && own) { App.deck.cur = 0; App.deck.msgT = 0; App.mode = 'deck'; sfx('ok'); return; }

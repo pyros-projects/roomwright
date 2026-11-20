@@ -41,6 +41,20 @@ const CURVE = {
   costKeep: 0.5,                                                                          // share of key-cost progress kept when you descend
 };
 
+// Stakes: a ladder for players who get through. A win at a step unlocks the next one for that delver. Each step
+// adds one rule and keeps the ones before it. stake(n) asks whether step n's rule is in force in this run.
+const STAKES = [
+  'Wardens arrive enraged.',
+  'Pests come from the first floor on, and sooner.',
+  'Dice roll in with the waves.',
+  'Hearts drop half as often.',
+  'Monsters are a fifth tougher.',
+  'The dread clock runs a quarter faster.',
+];
+const stake = n => (G.stakes || 0) >= n;
+// the monsters a wave draws from right now: the floor's mix, plus dice from the third step of Stakes
+function floorMix() { const l = G.F.mix(G.t); if (stake(3) && G.t >= 120) l.push(['die', 0.45]); return l; }
+
 // Heroes: a starting weapon, a perk and a default deck (10 room cards). `sig` is unlocked with them.
 // Perk knobs: rooms = room power multiplier, hearts = heart drop rate multiplier (other perks are in 40-actors.js).
 const HEROES = {

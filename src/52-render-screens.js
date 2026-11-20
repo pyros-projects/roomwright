@@ -152,7 +152,9 @@ function drawTally(g, x, y, w) {
   if (rest >= 0.005) txt(g, '+' + Math.round(rest * 100) + '%', lx, y + 4, '#5d667c');
 }
 function pauseItems() { const o = Save.data.opts; return [{ label: 'Resume' }, { label: 'Music', value: o.music }, { label: 'Sound', value: o.sfx }, { label: 'Screen shake', value: o.shake ? 'ON' : 'OFF' }, { label: 'Mouse walk', value: o.mouse === 'drag' ? 'DRAG' : 'TO POINTER' }, { label: 'Restart run' }, { label: 'Quit to title' }]; }
-function pauseLayout() { const items = pauseItems(), h = items.length * 14 + 102, y = Math.round(VH / 2 - h / 2); return { items, h, y, rects: menuRects(items.length, y + 36, 170) }; }
+function pauseLayout() { const items = pauseItems(), h = items.length * 14 + 102 + (G.stakes ? 20 : 0), y = Math.round(VH / 2 - h / 2); return { items, h, y, rects: menuRects(items.length, y + 36, 170) }; }
+// one line for the Stakes in force: the step, its own rule, and how many came before it
+const stakesLine = n => 'STAKES ' + n + ': ' + STAKES[n - 1] + (n > 1 ? '  (and the ' + (n - 1) + ' before it)' : '');
 function renderPause(g) {
   g.fillStyle = 'rgba(13,10,26,0.7)'; g.fillRect(0, 0, VW, VH);
   const L_ = pauseLayout(), y = L_.y, P = G.P, hero = HEROES[G.hero];
@@ -160,8 +162,10 @@ function renderPause(g) {
   txs(g, 'PAUSED', VW / 2, y + 8, '#ffd95e', 0.5);
   txt(g, hero.name + ' the ' + hero.title + '  -  ' + G.F.name + '  -  ' + fmtTime(G.tRun), VW / 2, y + 21, '#9aa3b5', 0.5);
   drawMenu(g, L_.items, L_.rects, App.sel);
-  drawBuild(g, VW / 2, y + L_.h - 62, P, 200);
-  drawTally(g, VW / 2 - 100, y + L_.h - 30, 200);
+  const sk = G.stakes ? 20 : 0;       // two lines for the Stakes in force: the step, and the rule it adds
+  drawBuild(g, VW / 2, y + L_.h - 62 - sk, P, 200);
+  drawTally(g, VW / 2 - 100, y + L_.h - 30 - sk, 200);
+  if (sk) { txt(g, 'STAKES ' + G.stakes + (G.stakes > 1 ? ': every rule up to' : ':'), VW / 2, y + L_.h - 32, '#ff9ec4', 0.5); txt(g, STAKES[G.stakes - 1], VW / 2, y + L_.h - 22, '#fff8e8', 0.5); }
   txt(g, 'M mutes everything', VW / 2, y + L_.h - 11, '#5d667c', 0.5);
 }
 function endItems() { return App.mode === 'win' ? [{ label: 'Keep delving (endless)' }, { label: 'New run' }, { label: 'Back to title' }] : [{ label: 'Try again' }, { label: 'Back to title' }]; }
@@ -180,8 +184,10 @@ function renderEnd(g) {
   txo(g, win ? 'THE KNOCKING STOPS' : 'THE DARK GOT IN', VW / 2, y + 9, win ? '#ffd95e' : '#ff9ec4', '#1a1426', 0.5, 2);
   txt(g, win ? 'Three floors, three wardens, one very good floor plan.' : 'Every door you opened was a choice. Choose again?', VW / 2, y + 30, '#d8dbe6', 0.5);
   const rows = [['Reached', G.F.name], ['Time', fmtTime(G.tRun)], ['Rooms drafted', String(S.rooms)], ['Monsters felled', String(S.kills)], ['Weapons evolved', String(S.evos)]];
-  rows.forEach((r, i) => { txt(g, r[0], x + 14, y + 46 + i * 10, '#9aa3b5'); txt(g, r[1], x + 128, y + 46 + i * 10, '#fff8e8', 1); });
-  if (App.record) txt(g, 'NEW BEST!', x + 14, y + 98, (Math.floor(frameT * 4) & 1) ? '#ffd95e' : '#f6923a');
+  if (G.stakes) rows.push(['Stakes', String(G.stakes)]);
+  rows.forEach((r, i) => { txt(g, r[0], x + 14, y + 44 + i * 9, '#9aa3b5'); txt(g, r[1], x + 128, y + 44 + i * 9, r[0] === 'Stakes' ? '#ff9ec4' : '#fff8e8', 1); });
+  if (App.stakesNew) txt(g, 'STAKES ' + App.stakesNew + ' IS OPEN', x + 14, y + 100, (Math.floor(frameT * 4) & 1) ? '#ff9ec4' : '#fff8e8');
+  else if (App.record) txt(g, 'NEW BEST!', x + 14, y + 100, (Math.floor(frameT * 4) & 1) ? '#ffd95e' : '#f6923a');
   // the dungeon you built on this floor
   let x0 = 9, x1 = 0, y0 = 9, y1 = 0; for (const r of G.rooms) { x0 = Math.min(x0, r.cx); x1 = Math.max(x1, r.cx); y0 = Math.min(y0, r.cy); y1 = Math.max(y1, r.cy); }
   const cw = Math.min(14, Math.floor(118 / (x1 - x0 + 1))), ch = Math.min(10, Math.floor(60 / (y1 - y0 + 1)), Math.round(cw * 0.72)), mw = (x1 - x0 + 1) * cw, mh = (y1 - y0 + 1) * ch;
@@ -212,8 +218,10 @@ function renderDescend(g) {
 
 // ---- choose your delver ----
 function heroOwned(id) { return !!Save.data.heroes[id]; }
+// the hero screen's boxes: sk is the height of the Stakes lines (0 until this delver has won), sy their top, dy the deck's
+function prepLayout(id) { const sk = heroOwned(id) && stakesOpen(id) ? 22 : 0, h = 188 + sk, y = Math.round(VH / 2 - h / 2); return { sk, h, y, sy: y + 101, dy: y + 106 + sk }; }
 function renderPrep(g) {
-  const t = frameT, id = HERO_ORDER[App.prep.i], hero = HEROES[id], own = heroOwned(id), deck = deckFor(id), w = Math.min(360, VW - 24), h = 188, x = Math.round(VW / 2 - w / 2), y = Math.round(VH / 2 - h / 2);
+  const t = frameT, id = HERO_ORDER[App.prep.i], hero = HEROES[id], own = heroOwned(id), deck = deckFor(id), w = Math.min(360, VW - 24), L_ = prepLayout(id), h = L_.h, x = Math.round(VW / 2 - w / 2), y = L_.y;
   renderWorld(g); g.fillStyle = 'rgba(13,10,26,0.8)'; g.fillRect(0, 0, VW, VH);
   panel(g, x, y, w, h);
   txs(g, 'CHOOSE YOUR DELVER', VW / 2, y + 8, '#ffd95e', 0.5);
@@ -230,8 +238,16 @@ function renderPrep(g) {
     txt(g, 'Starts with ' + wd.name, tx + 23, y + 51, '#ffd95e'); txt(g, wd.desc, tx + 23, y + 60, '#9aa3b5');
     let ty = y + 74; for (const ln of wrapText(hero.perk, w - 104)) { txt(g, ln, tx, ty, '#b5e85a'); ty += 9; }
   } else { let ty = y + 52; for (const ln of wrapText('To unlock: ' + hero.how, w - 104)) { txt(g, ln, tx, ty, '#ff9ec4'); ty += 9; } }
+  // the Stakes: one pip per step (lit: chosen, dim: open, dark: still locked) and the rule the chosen step adds
+  if (L_.sk) {
+    const n = stakeOf(id), top = stakesOpen(id), sy = L_.sy; g.fillStyle = '#4c5a84'; g.fillRect(x + 10, sy, w - 20, 1);
+    txt(g, 'STAKES', x + 14, sy + 5, n ? '#ff9ec4' : '#9aa3b5'); let px2 = x + 14 + textW('STAKES') + 6;
+    for (let i = 1; i <= STAKES.length; i++) { g.fillStyle = '#0d0a1a'; g.fillRect(px2, sy + 4, 7, 7); g.fillStyle = i <= n ? '#ff6a9a' : i <= top ? '#6a5a84' : '#2a2246'; g.fillRect(px2 + 1, sy + 5, 5, 5); px2 += 9; }
+    txt(g, Input.touch ? 'tap to change' : 'UP / DOWN', x + w - 14, sy + 5, '#5d667c', 1);
+    txt(g, n ? stakesLine(n).slice(('STAKES ' + n + ': ').length) : 'The game as it is. A step up adds one rule.', x + 14, sy + 14, n ? '#fff8e8' : '#9aa3b5');
+  }
   // their deck
-  const dy = y + 106; g.fillStyle = '#4c5a84'; g.fillRect(x + 10, dy - 6, w - 20, 1);
+  const dy = L_.dy; g.fillStyle = '#4c5a84'; g.fillRect(x + 10, dy - 6, w - 20, 1);
   txt(g, 'DECK', x + 14, dy, '#9aa3b5'); txt(g, deck.length + '/' + DECK_SIZE + '  Drafts deal these, plus one room native to the floor.', x + 14 + textW('DECK  '), dy, '#5d667c');
   let lx = Math.round(VW / 2 - deck.length * 10);
   for (const rid of deck) { const el = ELEMENTS[ROOM_TYPES[rid].el]; g.fillStyle = '#0d0a1a'; g.fillRect(lx, dy + 12, 19, 21); g.fillStyle = '#2a2246'; g.fillRect(lx + 1, dy + 13, 17, 19); g.fillStyle = el.col; g.fillRect(lx + 1, dy + 30, 17, 2); ds(g, SPR['i_' + rid], lx + 9, dy + 21); lx += 20; }

@@ -240,6 +240,35 @@
     ok('every hero starts with a weapon that can evolve in their own deck', Object.values(RW.HEROES).every(h => h.deck.indexOf(RW.WEAPONS[h.weapon].evo.room) >= 0), Object.values(RW.HEROES).map(h => h.weapon + '>' + RW.WEAPONS[h.weapon].evo.room).join(' '));
     fresh(390, { hero: 'pip', deck: ['ember', 'frost', 'hall', 'spikes', 'vault', 'library', 'garden', 'guardian', 'fountain', 'cross'] }); RW.openDraft(G.sealed[0]);
     const cds = G.draft.cards; ok('drafts deal deck cards plus one floor native', cds.length === 3 && G.deck.indexOf(cds[0].type) >= 0 && G.deck.indexOf(cds[1].type) >= 0 && RW.FLOORS[0].natives.indexOf(cds[2].type) >= 0, cds.map(c => c.type).join(','));
+    /* ---- Stakes: one rule per step, and each rule is in force from its step on ---- */
+    {
+      const at = (n, seed) => { fresh(seed || 471, { stakes: n }); G.endless = false; return G; };
+      at(0); ok('stakes: a run without them has none of the rules', G.stakes === 0 && !RW.stake(1) && RW.STAKES.length === 6);
+      at(99); ok('stakes: the step is kept within the ladder', G.stakes === 6, G.stakes);
+      // 1: wardens arrive enraged
+      at(0); G.t = 60; const calmBoss = RW.summonBoss(null); at(1); G.t = 60; const angry = RW.summonBoss(null);
+      ok('stakes 1: wardens arrive enraged', !calmBoss.rage && angry.rage === true && !G.dir.overstay);
+      // 2: pests from the first floor on, and sooner
+      const pestsBy = (n, secs) => { at(n, 472); G.dir.calm = 0; G.dir.ti = 99; G.t = secs; RW.step(3); return G.sealed.reduce((a, d) => a.concat(d.queue), []).concat(G.mons.map(m => m.type)); };
+      const p0 = pestsBy(0, 110), p2 = pestsBy(2, 110), l0 = pestsBy(0, 108), l2 = pestsBy(2, 108);
+      ok('stakes 2: a Sapper on the first floor, where there was none', !p0.includes('sapper') && p2.includes('sapper'), p2.filter(x => x === 'sapper' || x === 'latch').join(','));
+      ok('stakes 2: and the Latchling comes sooner', !l0.includes('latch') && l2.includes('latch'));
+      // 3: dice roll in with the waves
+      at(2); G.t = 130; const m2 = RW.floorMix().map(x => x[0]); at(3); G.t = 100; const early = RW.floorMix().map(x => x[0]); G.t = 130; const m3 = RW.floorMix().map(x => x[0]);
+      ok('stakes 3: dice join the waves after two minutes on a floor', !m2.includes('die') && !early.includes('die') && m3.includes('die'), m3.join(','));
+      // 4: hearts drop half as often (the same 5000 kills, hurt, with and without the rule)
+      const hearts = n => { at(n, 473); P.hp = 1; let c = 0; for (let i = 0; i < 5000; i++) { const e = RW.spawnMon('bat', P.x + 300, P.y); RW.killMon(e); } for (const p of G.picks) if (p.k === 'heart') c++; G.mons.length = 0; return c; };
+      const h0 = hearts(0), h4 = hearts(4);
+      ok('stakes 4: hearts drop half as often', h0 > 30 && h4 > h0 * 0.3 && h4 < h0 * 0.7, h0 + ' -> ' + h4 + ' in 5000 kills');
+      // 5: monsters are a fifth tougher, wardens too
+      at(4); G.t = 60; const b4 = RW.spawnMon('bones', P.x + 200, P.y).max, w4 = RW.summonBoss(null).max; at(5); G.t = 60; const b5 = RW.spawnMon('bones', P.x + 200, P.y).max, w5 = RW.summonBoss(null).max;
+      ok('stakes 5: monsters and wardens are a fifth tougher', Math.abs(b5 / b4 - 1.2) < 0.06 && Math.abs(w5 / w4 - 1.2) < 0.01, b4 + ' -> ' + b5 + ', ' + w4 + ' -> ' + w5);
+      // 6: the dread clock runs a quarter faster
+      at(5); const c5 = RW.clockLimit(); at(6); const c6 = RW.clockLimit();
+      ok('stakes 6: the dread clock runs a quarter faster', Math.abs(c6 / c5 - 0.75) < 1e-9, c5 + ' -> ' + c6);
+      ok('stakes: the run record names the step', RW.record(false).stakes === 6);
+      ok('stakes: every rule fits one line of the hero screen', RW.STAKES.every(t => RW.textW(t) <= 330), Math.max(...RW.STAKES.map(t => RW.textW(t))) + 'px');
+    }
     /* ---- door pressure bites harder the deeper you are ---- */
     {
       const pr = (doors, f) => RW.CURVE.pressure(doors, 0, f), step = f => +(pr(5, f) - pr(4, f)).toFixed(3);

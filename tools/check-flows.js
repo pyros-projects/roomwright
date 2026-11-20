@@ -125,6 +125,27 @@
     ok('knock back: a loaded die breaks into two dice with no loot', !!bigd && G.mons.filter(m => m.type === 'die' && m.noLoot).length >= 2 && G.picks.length === picks0, bigd ? G.mons.length - mons0 : 'no loaded die');
     G.mons.forEach(m => RW.killMon(m)); kd.queue.length = 0; RW.step(3);
     RW.enterFloor(1); ok('knock back: a new floor forgives', G.fstat.knocks === 0 && G.fstat.wrath === 0 && RW.knockTier() === 0);
+    /* ---- Stakes: a win opens a step for that delver, the hero screen sets it, the run plays at it ---- */
+    const winNow = () => { G = RW.G; P = G.P; RW.enterFloor(2); G.dir.calm = 1e9; RW.step(30); RW.summonBoss(null); RW.step(90); const w = G.dir.boss; w.emerge = 0; w.hp = 1; RW.hurtMon(w, 5, 0, 0, 0, 'room'); until(() => RW.App.mode === 'win', 900); RW.step(40); };
+    const toHeroes = () => { press('down'); press('down'); press('ok'); RW.step(60); press('ok'); RW.step(40); };   // from the victory screen: back to the title, on to the hero screen
+    RW.coach(false); localStorage.removeItem(RW.Save.KEY); RW.Save.load(); RW.Save.data.runs = 3; RW.toTitle(); RW.step(40); press('ok'); RW.step(40);
+    ok('stakes: before a first win the hero screen has no Stakes lines', RW.App.mode === 'prep' && RW.prepLayout('pip').sk === 0 && RW.stakesOpen('pip') === 0, RW.App.mode);
+    press('up'); ok('stakes: and UP changes nothing', RW.stakeOf('pip') === 0);
+    press('ok'); RW.step(60); ok('stakes: the plain game is step 0', RW.App.mode === 'play' && RW.G.stakes === 0, RW.App.mode + ' ' + RW.G.stakes);
+    winNow(); ok('stakes: a win opens the first step for that delver and sets it', RW.App.mode === 'win' && RW.Save.data.stakes.pip === 0 && RW.stakesOpen('pip') === 1 && RW.stakeOf('pip') === 1 && RW.App.stakesNew === 1 && RW.stakesOpen('wick') === 0, JSON.stringify(RW.Save.data.stakes));
+    toHeroes(); ok('stakes: the hero screen shows the Stakes lines now, in a taller panel', RW.App.mode === 'prep' && RW.prepLayout('pip').sk > 0 && RW.prepLayout('pip').h > 188 && RW.prepLayout('pip').h <= RW.view().VH, RW.App.mode + ' ' + RW.prepLayout('pip').h);
+    press('down'); const stA = RW.stakeOf('pip'); press('down'); const stB = RW.stakeOf('pip'); press('up'); const stC = RW.stakeOf('pip'); press('up');
+    ok('stakes: DOWN and UP move the step between none and the highest open', stA === 0 && stB === 0 && stC === 1 && RW.stakeOf('pip') === 1, [stA, stB, stC, RW.stakeOf('pip')].join(','));
+    ok('stakes: the choice is saved', JSON.parse(localStorage.getItem(RW.Save.KEY)).stake.pip === 1);
+    press('right'); press('up'); ok('stakes: a delver who has not won has none', RW.prepLayout('wick').sk === 0 && RW.stakeOf('wick') === 0); press('left');
+    press('ok'); RW.step(60); ok('stakes: the run plays at the chosen step', RW.App.mode === 'play' && RW.G.stakes === 1 && RW.stake(1) && !RW.stake(2), RW.App.mode + ' ' + RW.G.stakes);
+    press('pause'); ok('stakes: the pause menu has a line for the step', RW.App.mode === 'pause' && RW.pauseLayout().h === RW.pauseLayout().items.length * 14 + 122 && RW.pauseLayout().h <= RW.view().VH, RW.pauseLayout().h); press('back');
+    winNow(); ok('stakes: a win at step 1 opens step 2', RW.Save.data.stakes.pip === 1 && RW.stakesOpen('pip') === 2 && RW.stakeOf('pip') === 2 && RW.App.stakesNew === 2 && RW.record(true).stakes === 1, JSON.stringify(RW.Save.data.stakes));
+    RW.Save.data.stake.pip = 0; RW.Save.store(); toHeroes(); press('ok'); RW.step(60); winNow();
+    ok('stakes: a win below the highest step opens nothing new', RW.stakesOpen('pip') === 2 && RW.App.stakesNew === 0 && RW.stakeOf('pip') === 0);
+    { const old = JSON.parse(localStorage.getItem(RW.Save.KEY)); delete old.stakes; delete old.stake; localStorage.setItem(RW.Save.KEY, JSON.stringify(old)); RW.Save.load(); }
+    ok('stakes: a save from before Stakes that has won opens the first step for its delvers', RW.Save.data.wins > 0 && RW.stakesOpen('pip') === 1 && RW.stakeOf('pip') === 0, JSON.stringify(RW.Save.data.stakes));
+    RW.Save.data.stakes.pip = 1; RW.Save.data.stake.pip = 0; RW.Save.store(); RW.toTitle(); RW.step(40);
     /* ---- mouse and touch: simulated events exercise the mapping (not a real hand). Last, because one touch
             switches the labels to their touch wording for the rest of the page's life. ---- */
     const cvs = document.getElementById('game'), V = RW.view(), cbox = cvs.getBoundingClientRect();
@@ -164,6 +185,9 @@
     ok('mouse, DRAG: a release the page never saw still lets go', !stick.on);
     press('pause'); for (let i = 0; i < 4; i++) press('down'); RW.step(30); press('ok'); press('back');
     ok('mouse: the pause menu switches back', RW.Save.data.opts.mouse === 'point' && RW.App.mode === 'play', RW.Save.data.opts.mouse);
+    RW.toTitle(); RW.step(40); press('ok'); RW.step(40); { const L = RW.prepLayout('pip'), cx = V.VW / 2, cy = L.sy + 9; const seq = [];
+      for (let i = 0; i < 3; i++) { mouse('mousedown', cx, cy); RW.step(3); mouse('mouseup', cx, cy, 0, 0); seq.push(RW.stakeOf('pip')); }
+      ok('stakes, mouse: a click on the Stakes lines goes up a step, and from the top back to none', RW.App.mode === 'prep' && seq.join() === '1,2,0', seq.join()); }
     if (typeof Touch === 'function' && typeof TouchEvent === 'function') {
       const touch = (type, pts) => { const ts = pts.map(([id, vx, vy]) => new Touch({ identifier: id, target: cvs, ...at(vx, vy) })); cvs.dispatchEvent(new TouchEvent(type, { changedTouches: ts, touches: type === 'touchstart' || type === 'touchmove' ? ts : [], bubbles: true, cancelable: true })); };
       const lx = V.VW * 0.25, ly = V.VH * 0.7, rx = V.VW * 0.8, ry = V.VH * 0.6;
@@ -181,6 +205,9 @@
       ok('touch: a tap beside the cards steps back', RW.App.mode === 'play' && G.rooms.length === rooms0, RW.App.mode);
       RW.step(70); RW.openDraft(G.sealed[0]); RW.step(40); cr = RW.draftLayout().rects[0]; touch('touchstart', [[7, cr.x + cr.w / 2, cr.y + cr.h / 2]]); RW.step(3); touch('touchend', [[7, 0, 0]]);
       ok('touch: a tap on a card builds it, and starts no stick', RW.App.mode === 'play' && G.rooms.length === rooms0 + 1 && !RW.Input.stick.on, RW.App.mode + ', ' + G.rooms.length + ' rooms');
+      RW.toTitle(); RW.step(40); touch('touchstart', [[8, V.VW / 2, V.VH / 2]]); RW.step(3); touch('touchend', [[8, 0, 0]]); RW.step(40);
+      { const L = RW.prepLayout('pip'), cx = V.VW / 2, cy = L.sy + 9, seq = []; for (let i = 0; i < 3; i++) { touch('touchstart', [[9, cx, cy]]); RW.step(3); touch('touchend', [[9, 0, 0]]); seq.push(RW.stakeOf('pip')); }
+        ok('stakes, touch: a tap on the Stakes lines does the same', RW.App.mode === 'prep' && seq.join() === '1,2,0', RW.App.mode + ' ' + seq.join()); }
     } else out.push('SKIP touch checks: this browser has no Touch constructor');
   } catch (e) { out.push('EXCEPTION ' + String(e && e.stack || e).slice(0, 500)); }
   try { localStorage.setItem(RW.Save.KEY, saved); RW.Save.load(); RW.toTitle(); } catch (e) { /* ignore */ }
