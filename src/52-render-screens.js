@@ -137,8 +137,21 @@ function drawBuild(g, cx, y, P, maxW) {    // centred row(s) of everything you c
   });
   return rows.length * 16;
 }
+// The damage tally as one row: what did the work so far, largest first. An icon and its share; the line under
+// the icon says what it is (gold: a weapon, blue: a room, green: a charm). What does not fit is summed at the end.
+function drawTally(g, x, y, w) {
+  const list = tallyList(); if (!list.length) return;
+  txt(g, 'DAMAGE', x, y + 4, '#9aa3b5'); let lx = x + textW('DAMAGE') + 8, rest = 0, full = false;
+  list.forEach((t, i) => {
+    const s = Math.round(t.share * 100) + '%', ew = 18 + textW(s) + 6, room = i < list.length - 1 ? 26 : 0;
+    if (full || !t.icon || lx + ew > x + w - room) { if (t.icon) full = true; rest += t.share; return; }
+    ds(g, t.icon, lx + 8, y + 8); g.fillStyle = t.kind === 'r' ? '#9cecf2' : t.kind === 'c' ? '#b5e85a' : '#ffd95e'; g.fillRect(lx + 2, y + 16, 12, 1);
+    txt(g, s, lx + 18, y + 4, '#fff8e8'); lx += ew;
+  });
+  if (rest >= 0.005) txt(g, '+' + Math.round(rest * 100) + '%', lx, y + 4, '#5d667c');
+}
 function pauseItems() { const o = Save.data.opts; return [{ label: 'Resume' }, { label: 'Music', value: o.music }, { label: 'Sound', value: o.sfx }, { label: 'Screen shake', value: o.shake ? 'ON' : 'OFF' }, { label: 'Mouse walk', value: o.mouse === 'drag' ? 'DRAG' : 'TO POINTER' }, { label: 'Restart run' }, { label: 'Quit to title' }]; }
-function pauseLayout() { const items = pauseItems(), h = items.length * 14 + 84, y = Math.round(VH / 2 - h / 2); return { items, h, y, rects: menuRects(items.length, y + 36, 170) }; }
+function pauseLayout() { const items = pauseItems(), h = items.length * 14 + 102, y = Math.round(VH / 2 - h / 2); return { items, h, y, rects: menuRects(items.length, y + 36, 170) }; }
 function renderPause(g) {
   g.fillStyle = 'rgba(13,10,26,0.7)'; g.fillRect(0, 0, VW, VH);
   const L_ = pauseLayout(), y = L_.y, P = G.P, hero = HEROES[G.hero];
@@ -146,11 +159,12 @@ function renderPause(g) {
   txs(g, 'PAUSED', VW / 2, y + 8, '#ffd95e', 0.5);
   txt(g, hero.name + ' the ' + hero.title + '  -  ' + G.F.name + '  -  ' + fmtTime(G.tRun), VW / 2, y + 21, '#9aa3b5', 0.5);
   drawMenu(g, L_.items, L_.rects, App.sel);
-  drawBuild(g, VW / 2, y + L_.h - 44, P, 200);
+  drawBuild(g, VW / 2, y + L_.h - 62, P, 200);
+  drawTally(g, VW / 2 - 100, y + L_.h - 30, 200);
   txt(g, 'M mutes everything', VW / 2, y + L_.h - 11, '#5d667c', 0.5);
 }
 function endItems() { return App.mode === 'win' ? [{ label: 'Keep delving (endless)' }, { label: 'New run' }, { label: 'Back to title' }] : [{ label: 'Try again' }, { label: 'Back to title' }]; }
-function endLayout() { const items = endItems(), h = 186 + (items.length - 2) * 14, y = Math.max(2, Math.round(VH / 2 - h / 2)); return { items, h, y, rects: menuRects(items.length, y + h - items.length * 14 - 8, 170) }; }
+function endLayout() { const items = endItems(), h = 206 + (items.length - 2) * 14, y = Math.max(2, Math.round(VH / 2 - h / 2)); return { items, h, y, rects: menuRects(items.length, y + h - items.length * 14 - 8, 170) }; }
 function drawNewCards(g, x, y, w, label) {   // cards and heroes unlocked this run
   const n = G.newCards.length + G.newHeroes.length; if (!n) return 0;
   txt(g, label, x, y, '#9cecf2'); let lx = x + textW(label) + 6;
@@ -172,7 +186,8 @@ function renderEnd(g) {
   const cw = Math.min(14, Math.floor(118 / (x1 - x0 + 1))), ch = Math.min(10, Math.floor(60 / (y1 - y0 + 1)), Math.round(cw * 0.72)), mw = (x1 - x0 + 1) * cw, mh = (y1 - y0 + 1) * ch;
   g.fillStyle = '#141028'; g.fillRect(x + 138, y + 44, 120, 64);
   drawMap(g, x + 138 + ((120 - mw) >> 1) - x0 * cw, y + 44 + ((64 - mh) >> 1) - y0 * ch, cw, ch, false);
-  drawBuild(g, VW / 2, y + 110, P, 240);
+  drawTally(g, x + 14, y + 110, 242);
+  drawBuild(g, VW / 2, y + 128, P, 240);
   drawNewCards(g, x + 14, y + L_.h - L_.items.length * 14 - 22, 240, 'UNLOCKED');
   drawMenu(g, L_.items, L_.rects, App.sel);
 }

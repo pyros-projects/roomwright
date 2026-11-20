@@ -9,7 +9,7 @@ const Save = {
   data: null,
   fresh() {
     const rooms = {}; for (const id of STARTER_ROOMS) rooms[id] = 1;
-    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0, mouse: 'point' }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {} };
+    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0, mouse: 'point' }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {}, census: [] };
   },
   load() {
     this.data = this.fresh();
@@ -22,6 +22,7 @@ const Save = {
         if (HEROES[s.hero] && d.heroes[s.hero]) d.hero = s.hero;
         for (const id in s.decks || {}) if (HEROES[id] && Array.isArray(s.decks[id])) d.decks[id] = s.decks[id].filter(r => typeof r === 'string');
         Object.assign(d.tips, s.tips);
+        if (Array.isArray(s.census)) d.census = s.census.filter(r => r && typeof r === 'object').slice(-CENSUS_MAX);
       } else { const old = JSON.parse(localStorage.getItem('roomwright.v1')); if (old && old.opts) Object.assign(this.data.opts, old.opts); }   // keep v0.1 volume settings
     } catch (e) { /* storage unavailable or corrupt: play without persistence */ }
     this.apply();
@@ -75,8 +76,19 @@ function startRun(seed, opts = {}) {
   App.mode = 'play'; App.sel = 0; App.record = false; Snd.music(G.F.music);
   floorBanner();
 }
+// The census: what a run looked like when it ended. The save keeps the last CENSUS_MAX runs (RW.census() prints them),
+// and the self-play bot reads the same record. Nothing here leaves the browser.
+const CENSUS_MAX = 20;
+function runRecord(win) {
+  const P = G.P, S = G.stats;
+  return { v: VERSION, hero: G.hero, seed: G.seed, won: !!win, floor: G.floor + 1, minute: Math.round(G.t / 6) / 10, time: Math.round(G.tRun),
+    by: G.hits.map(h => h.by), doors: G.sealed.length, rooms: G.fstat.rooms, drafted: S.rooms,
+    weapons: P.weapons.map(w => w.id + (w.evo ? '*' : w.lv)).join(' '),
+    top: tallyList().slice(0, 3).map(t => t.key + ' ' + Math.round(t.share * 100)).join(', '), roomShare: Math.round(tallyShare('r') * 100) };
+}
 function endRun(win) {
-  const b = Save.data.best, S = G.stats, depth = G.floor + 1;
+  const b = Save.data.best, S = G.stats, depth = G.floor + 1, c = Save.data.census;
+  c.push(runRecord(win)); while (c.length > CENSUS_MAX) c.shift();
   App.record = Save.data.runs > 1 && (depth > b.floor || (depth === b.floor && Math.floor(G.tRun) > b.time));
   b.time = Math.max(b.time, Math.floor(G.tRun)); b.rooms = Math.max(b.rooms, S.rooms); b.kills = Math.max(b.kills, S.kills); b.floor = Math.max(b.floor, depth); if (win) Save.data.wins++;
   Save.store(); App.mode = win ? 'win' : 'over'; App.sel = 0;

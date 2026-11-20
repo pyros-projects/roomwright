@@ -231,7 +231,7 @@ const BOSS_AI = {
       }
     } else if (e.st === 5) {          // falling masonry: get out of the circles
       if (e.stT <= 0) {
-        for (const p of e.pts) { G.fxs.push({ k: 'boom', x: p[0], y: p[1], R: 17, t: 0, d: 0.3 }); burst(p[0], p[1], 5, PAL.g, 70); if (Math.hypot(P.x - p[0], P.y - p[1]) < 16 && P.dashT <= 0) hurtPlayer(2); }
+        for (const p of e.pts) { G.fxs.push({ k: 'boom', x: p[0], y: p[1], R: 17, t: 0, d: 0.3 }); burst(p[0], p[1], 5, PAL.g, 70); if (Math.hypot(P.x - p[0], P.y - p[1]) < 16 && P.dashT <= 0) hurtPlayer(2, null, 'unmaker'); }
         e.pts = null; sfx('boom'); G.shake = Math.max(G.shake, 5); e.st = 0; e.stT = rr(1.3, 2.0);
       }
     } else if (e.st === 4) {          // three aimed fans
@@ -262,6 +262,7 @@ function updateRooms(dt) {
   const P = G.P, cur = G.curRoom, sh = steelHaste(), cap = CURVE.cap(G.floor, G.t / 60);
   const inRoom = (room, fn) => { for (const e of G.mons) if (!e.dead && e.emerge <= 0 && roomAt(e.x, e.y) === room) fn(e); };
   for (const room of G.rooms) {
+    BY = 'r:' + room.type;
     if (room.reveal < 1) { room.reveal = Math.min(1, room.reveal + dt / 0.9); if (room.reveal >= 1) onRoomReady(room); continue; }
     if (room.hexT > 0) { room.hexT -= dt; if (room.hexT <= 0 && room.type === 'library') recalc(); continue; }   // hexed: switched off
     room.timer += dt;
@@ -391,4 +392,5 @@ function updateRooms(dt) {
         break;
     }
   }
+  BY = null;
 }

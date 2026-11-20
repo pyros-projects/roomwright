@@ -2681,6 +2681,10 @@ function computeFlow(force) {
 /* ============================== 10 ACTORS ============================= */
 // G holds the whole run. newRun() sets up what persists between floors (the hero, weapons,
 // charms, room levels, stats); enterFloor() rebuilds everything that belongs to one floor.
+// The damage tally and the census need to know who did it. BY is whoever deals damage to monsters right now:
+// 'w:<weapon>', 'r:<room type>', 'c:<charm>' or 'm:<monster>'. Shots, zones, patches and burns remember the BY that
+// made them. EBY is the monster that is acting, so its bullets and clouds can be named when they hit the delver.
+let BY = null, EBY = null;
 function newRun(seed, opts = {}) {
   rand = RNG(seed);
   const hero = HEROES[opts.hero] || HEROES.pip;
@@ -2694,6 +2698,7 @@ function newRun(seed, opts = {}) {
     P: null, mons: [], shots: [], ebullets: [], picks: [], boons: [], patches: [], zones: [], allies: [], mats: [], parts: [], texts: [], fxs: [],
     cam: { x: 0, y: 0 }, shake: 0, freeze: 0, banner: null, flashT: 0, curRoom: null, roomLabel: null, tipQ: [], tipT: 0, tipText: '',
     dir: null, fstat: null, stats: { kills: 0, rooms: 0, keys: 0, dmg: 0, hurt: 0, elites: 0, evos: 0, floors: 0 },
+    tally: {}, hits: [],              // damage dealt per source (see BY), and the last three hits the delver took
     combo: 0, comboT: 0, roomLv: {}, owned: {}, newCards: [], newHeroes: [],
     tut: { step: opts.tutorial ? 0 : 9, moved: 0, t: 0 }, over: false, won: false, endless: false, endT: 0, draft: null,
     stairs: null, bossDown: false, leaving: 0, hearthPortal: null,
@@ -2753,6 +2758,20 @@ function updateBuffs(dt) {
   if (live && room.type === 'cross') s *= 1 + 0.15 * roomMul(room);
   P.mightEff = m; P.hasteEff = h; P.speedEff = s;
 }
+// The damage tally as a list, largest first: what did the work in this run. kind: w(eapon), r(oom), c(harm), x (the rest).
+function tallyList() {
+  const total = G.stats.dmg || 1, out = [];
+  for (const key in G.tally) {
+    const kind = key[0], id = key.slice(2), dmg = G.tally[key]; let name = 'other', icon = null;
+    if (kind === 'w' && WEAPONS[id]) { const w = G.P.weapons.find(w => w.id === id); name = w ? weaponName(w) : WEAPONS[id].name; icon = w ? weaponIcon(w) : SPR['i_' + id]; }
+    else if (kind === 'r' && ROOM_TYPES[id]) { name = ROOM_TYPES[id].name; icon = SPR['i_' + id]; }
+    else if (kind === 'c' && CHARMS[id]) { name = CHARMS[id].name; icon = SPR['i_' + id]; }
+    else if (key === 'x:burn') name = 'burning';
+    out.push({ key, kind: icon ? kind : 'x', name, icon, dmg, share: dmg / total });
+  }
+  return out.sort((a, b) => b.dmg - a.dmg);
+}
+const tallyShare = kind => { let n = 0; for (const k in G.tally) if (k[0] === kind) n += G.tally[k]; return n / (G.stats.dmg || 1); };
 function banner(text, sub, col, dur) { G.banner = { text, sub: sub || '', col: col || '#fff8e8', t: 0, d: dur || 2 }; }
 function floatText(x, y, s, col) { G.texts.push({ x, y, s, col: col || '#fff8e8', t: 0, d: 1.2 }); }
 // one-time coaching tips (remembered in the save, shown in the hint bar)
@@ -2822,11 +2841,13 @@ function heal(n) {
   return P.hp > before;
 }
 function addShield(max) { const P = G.P; if (P.shield >= max) return false; P.shield++; sfx('shield'); sparkle(P.x, P.y - 10, 10, PAL.b); floatText(P.x, P.y - 24, '+shield', '#9cecf2'); return true; }
-// src = the monster that touched you, if any (for the Thorned Vest)
-function hurtPlayer(dmg, src) {
+// src = the monster that touched you, if any (for the Thorned Vest); cause = what to call it in the census when
+// it was not a touch (a bullet's or a cloud's owner)
+function hurtPlayer(dmg, src, cause) {
   const P = G.P; if (P.inv > 0 || G.over || G.won || G.freeze > 0 || G.leaving > 0) return false;
   if (P.dodge > 0 && rand() < P.dodge) { P.inv = 0.5; floatText(P.x, P.y - 24, 'Lucky!', '#b5e85a'); sfx('shield'); return false; }
-  if (src && charm('vest')) hurtMon(src, 12 * charm('vest') * P.mightEff, 0, 0, 0, 'room');
+  if (src && charm('vest')) { const was = BY; BY = 'c:vest'; hurtMon(src, 12 * charm('vest') * P.mightEff, 0, 0, 0, 'room'); BY = was; }
+  G.hits.push({ by: cause || (src && src.type) || 'unknown', floor: G.floor, t: Math.round(G.t) }); if (G.hits.length > 3) G.hits.shift();
   P.inv = 1.0 + P.invBonus; P.hurtT = 0.35; G.shake = Math.max(G.shake, 5); G.flashT = 0.3; sfx('hurt');
   if (P.shield > 0) { P.shield--; burst(P.x, P.y - 6, 8, PAL.b); return true; }
   P.hp -= dmg; G.stats.hurt += dmg; burst(P.x, P.y - 6, 8, PAL.r);
@@ -2975,7 +2996,7 @@ function hurtMon(e, dmg, kx, ky, kb = 1, src) {
   if (!src) {
     if (P.crit > 0 && rand() < P.crit) { dmg *= 2; crit = true; }
     const er = P.charms.emberring, fr = P.charms.frostring;
-    if (er) { e.burnT = 2.2; e.burn = 3 * er * P.might; }
+    if (er) { e.burnT = 2.2; e.burn = 3 * er * P.might; e.burnBy = 'c:emberring'; }
     if (fr) { e.slow = Math.max(e.slowT > 0 ? e.slow : 0, 0.08 + 0.09 * fr); e.slowT = 1.5; }
   }
   const room = roomAt(e.x, e.y);
@@ -2983,6 +3004,7 @@ function hurtMon(e, dmg, kx, ky, kb = 1, src) {
   if (e.markT > 0) dmg *= 1 + e.mark;                                  // stuck in Royal Jelly
   if (e.burnT > 0 && src !== 'dot' && P.charms.tinder) dmg *= 1 + 0.15 * P.charms.tinder;
   dmg = Math.max(1, Math.round(dmg)); e.hp -= dmg; e.flash = 0.1; G.stats.dmg += dmg;
+  const by = BY || (src === 'room' ? 'r:other' : src === 'dot' ? 'x:burn' : 'w:other'); G.tally[by] = (G.tally[by] || 0) + dmg;
   if (e.def.mimic && e.st === 0) { e.st = 1; sfx('breach'); }
   const res = e.def.boss ? 0 : e.def.heavy ? 0.25 : 1;
   e.kx += kx * kb * res; e.ky += ky * kb * res;
@@ -3001,25 +3023,27 @@ function dropGlint(x, y, v) {
   dropPick('glint', x, y, v);
 }
 // lingering ground effects. kind: 'fire' / 'spore' hurt you; 'flame' / 'cloud' / 'honey' / 'drift' hurt monsters (and may slow them or make them 'sticky': hurt more by everything)
-function addZone(x, y, r, d, kind, dmg, extra) { if (G.zones.length < 70) G.zones.push(Object.assign({ x, y, r, t: 0, d, kind, dmg: dmg || 0, tick: 0.2, slow: 0, sticky: 0 }, extra)); }
+function addZone(x, y, r, d, kind, dmg, extra) { if (G.zones.length < 70) G.zones.push(Object.assign({ x, y, r, t: 0, d, kind, dmg: dmg || 0, tick: 0.2, slow: 0, sticky: 0, by: BY, mby: EBY }, extra)); }
 function killMon(e) {
   if (e.dead) return; e.dead = true; const def = e.def, P = G.P, room = roomAt(e.x, e.y); G.stats.kills++;
   burst(e.x, e.y - 4, def.elite ? 18 : 6, def.col, def.elite ? 90 : 60); sfx('kill');
   let gl = e.noLoot ? 0 : def.glint;      // a pack called by a knock back carries nothing
   if (room && roomLive(room)) {
     if (room.type === 'grave') gl *= 1 + roomLevel('grave');
-    if (room.type === 'fairy') addZone(e.x, e.y, 20, 3, 'cloud', 6 * roomPow(room));
+    if (room.type === 'fairy') { const was = BY; BY = 'r:fairy'; addZone(e.x, e.y, 20, 3, 'cloud', 6 * roomPow(room)); BY = was; }
   }
   if (gl) dropGlint(e.x, e.y, gl);
   if (def.split) for (let i = 0; i < def.split; i++) { const a = i / def.split * TAU + 0.4, s = spawnMon(def.into || 'slime', e.x + Math.cos(a) * 6, e.y + Math.sin(a) * 6); s.kx = Math.cos(a) * 110; s.ky = Math.sin(a) * 110; s.noLoot = e.noLoot; s.haste = e.haste; }
+  const firing = EBY; EBY = e.type;
   if (def.ember) addZone(e.x, e.y, 13, 2.6, 'fire');
   if (def.burst) for (let i = 0; i < def.burst; i++) { const a = i / def.burst * TAU + 0.3; fireEBullet(e.x, e.y - 3, Math.cos(a), Math.sin(a), 74, 's_spore', 1.6); }
+  EBY = firing;
   if (def.mimic) { for (let i = 0; i < e.keys; i++) dropPick('key', e.x, e.y); if (e.boon) G.boons.push({ x: e.x, y: e.y, boon: e.boon, mul: e.boonMul || 1, t: 0 }); G.shake = Math.max(G.shake, 4); }
   if (def.elite) { G.stats.elites++; if (!def.mimic && !e.noLoot) { dropPick('heart', e.x, e.y); if (charm('magpie')) dropPick('key', e.x, e.y); } }
   else if (!def.boss && !e.noLoot && rand() < 0.012 * (HEROES[G.hero].hearts || 1) && P.hp < P.maxHp) dropPick('heart', e.x, e.y);
   if (def.boss) bossDied(e);
 }
-function fireEBullet(x, y, dx, dy, sp, spr, life) { if (G.ebullets.length < 180) G.ebullets.push({ x, y, vx: dx * sp, vy: dy * sp, t: 0, spr: spr || 's_ebullet', life: life || 7 }); }
+function fireEBullet(x, y, dx, dy, sp, spr, life) { if (G.ebullets.length < 180) G.ebullets.push({ x, y, vx: dx * sp, vy: dy * sp, t: 0, spr: spr || 's_ebullet', life: life || 7, by: EBY }); }
 function fireFan(e, sp, n, spr, P) {
   const a0 = Math.atan2(P.y - 4 - (e.y - 4), P.x - e.x);
   for (let i = 0; i < n; i++) { const a = a0 + (i - (n - 1) / 2) * 0.28; fireEBullet(e.x, e.y - 4, Math.cos(a), Math.sin(a), sp, spr); }
@@ -3034,11 +3058,11 @@ function flowTarget(e, fly, P) {
 function updateMons(dt) {
   const P = G.P, mons = G.mons;
   for (let i = 0, n = mons.length; i < n; i++) {
-    const e = mons[i]; if (e.dead) continue; const def = e.def;
+    const e = mons[i]; if (e.dead) continue; const def = e.def; EBY = e.type;
     e.anim += dt; e.life += dt; if (e.flash > 0) e.flash -= dt;
     if (e.emerge > 0) { e.emerge -= dt; e.x += e.evx * dt; e.y += e.evy * dt; continue; }
     if (e.markT > 0) e.markT -= dt;
-    if (e.burnT > 0) { e.burnT -= dt; e.burnTick -= dt; if (e.burnTick <= 0) { e.burnTick = 0.5; hurtMon(e, e.burn * 0.5, 0, 0, 0, 'dot'); if (e.dead) continue; part(e.x + (fxr() - 0.5) * 6, e.y - 6, 0, -26, 0.3, fxr() < 0.5 ? PAL.o : PAL.y, 1); } }
+    if (e.burnT > 0) { e.burnT -= dt; e.burnTick -= dt; if (e.burnTick <= 0) { e.burnTick = 0.5; BY = e.burnBy || null; hurtMon(e, e.burn * 0.5, 0, 0, 0, 'dot'); BY = null; if (e.dead) continue; part(e.x + (fxr() - 0.5) * 6, e.y - 6, 0, -26, 0.3, fxr() < 0.5 ? PAL.o : PAL.y, 1); } }
     if (def.boss) { BOSS_AI[def.id](e, dt); continue; }
     const dxp = P.x - e.x, dyp = P.y - e.y, dp = Math.hypot(dxp, dyp) || 1, room = roomAt(e.x, e.y), live = roomLive(room);
     if (live && room.type === 'glacier' && e.gl !== room.id) { e.gl = room.id; e.stun = Math.max(e.stun, 1.2 * (0.5 + 0.5 * roomMul(room))); sfx('freeze'); }
@@ -3075,8 +3099,8 @@ function updateMons(dt) {
         sp = 0; e.stT -= dt; e.flash = (Math.floor(e.stT * 20) & 1) ? 0.05 : 0;
         if (e.stT <= 0) {
           G.fxs.push({ k: 'boom', x: e.x, y: e.y, R: 30, t: 0, d: 0.3 }); sfx('boom'); G.shake = Math.max(G.shake, 3); burst(e.x, e.y, 10, PAL.o, 90);
-          if (dp < 32) hurtPlayer(2);
-          nearMons(e.x, e.y, 30, o => { if (o !== e && Math.hypot(o.x - e.x, o.y - e.y) < 30 + o.r) hurtMon(o, 30 * CURVE.hp(G.floor, G.t / 60), 0, 0, 0, 'room'); });
+          if (dp < 32) hurtPlayer(2, null, 'bomber');
+          BY = 'm:bomber'; nearMons(e.x, e.y, 30, o => { if (o !== e && Math.hypot(o.x - e.x, o.y - e.y) < 30 + o.r) hurtMon(o, 30 * CURVE.hp(G.floor, G.t / 60), 0, 0, 0, 'room'); }); BY = null;
           killMon(e); continue;
         }
       }
@@ -3117,6 +3141,7 @@ function updateMons(dt) {
     if (Math.abs(dx) > 0.25 && sp > 0) e.face = dx > 0 ? 1 : -1;
     if (dp < e.r + P.r + 1) hurtPlayer(def.dmg, e);
   }
+  EBY = null;
 }
 // Latchlings lock a doorway of the room they arrive in; Sappers tunnel through one of its bare walls.
 // returns [x, y, standStill] to steer by, null to behave like a normal chaser, or 'gone' once the job is done.
@@ -3156,7 +3181,7 @@ function pestAct(e, dt, room, ai) {
 }
 
 // ---- shots, bullets, patches, zones, allies, pickups, fx ----
-function shoot(o) { G.shots.push(Object.assign({ t: 0, hits: null, rehit: 0, pierce: 0, bounces: 0, r: 3, inf: 0, kb: 1, src: undefined }, o)); }
+function shoot(o) { G.shots.push(Object.assign({ t: 0, hits: null, rehit: 0, pierce: 0, bounces: 0, r: 3, inf: 0, kb: 1, src: undefined, by: BY }, o)); }
 function explode(x, y, R, dmg, src) {
   G.fxs.push({ k: 'boom', x, y, R, t: 0, d: 0.3 }); G.shake = Math.max(G.shake, 2.5); sfx('boom'); burst(x, y, 10, PAL.o, 90);
   nearMons(x, y, R, e => { const dx = e.x - x, dy = e.y - 3 - y, d = Math.hypot(dx, dy); if (d < R + e.r) hurtMon(e, dmg, dx / (d || 1) * 90, dy / (d || 1) * 90, 1, src); });
@@ -3164,7 +3189,7 @@ function explode(x, y, R, dmg, src) {
 function updateShots(dt) {
   const S = G.shots, P = G.P;
   for (let i = S.length - 1; i >= 0; i--) {
-    const s = S[i]; s.t += dt; let dead = false;
+    const s = S[i]; s.t += dt; let dead = false; BY = s.by;
     if (s.k === 'bomb') {
       const f = clamp(s.t / s.d, 0, 1); s.x = lerp(s.sx, s.tx, f); s.y = lerp(s.sy, s.ty, f); s.z = Math.sin(f * Math.PI) * 30;
       if (s.t >= s.d) {
@@ -3220,29 +3245,31 @@ function updateShots(dt) {
       S[i] = S[S.length - 1]; S.pop();
     }
   }
+  BY = null;
 }
 function updateEBullets(dt) {
   const B = G.ebullets, P = G.P;
   for (let i = B.length - 1; i >= 0; i--) {
     const b = B[i]; b.t += dt; b.x += b.vx * dt; b.y += b.vy * dt;
     let dead = b.t > b.life || blocked(b.x, b.y, F_SHOT);
-    if (!dead && P.inv <= 0 && Math.abs(b.x - P.x) < 5 && Math.abs(b.y - (P.y - 4)) < 6) { hurtPlayer(1); dead = true; }
+    if (!dead && P.inv <= 0 && Math.abs(b.x - P.x) < 5 && Math.abs(b.y - (P.y - 4)) < 6) { hurtPlayer(1, null, b.by || 'a bullet'); dead = true; }
     if (dead) { B[i] = B[B.length - 1]; B.pop(); }
   }
 }
 function updatePatches(dt) {
   const A_ = G.patches;
   for (let i = A_.length - 1; i >= 0; i--) {
-    const p = A_[i]; p.life -= dt; p.tick -= dt;
+    const p = A_[i]; p.life -= dt; p.tick -= dt; BY = p.by;
     if (p.tick <= 0) { p.tick = 0.4; nearMons(p.x, p.y, p.r, e => { if (e.def.fly || e.def.phase) return; const dx = e.x - p.x, dy = e.y - p.y; if (dx * dx + dy * dy < (p.r + e.r) * (p.r + e.r)) { hurtMon(e, p.dmg, 0, 0, 0); e.slow = Math.max(e.slowT > 0 ? e.slow : 0, p.slow); e.slowT = 0.6; } }); }
     if (p.life <= 0) A_.splice(i, 1);
   }
+  BY = null;
 }
 function updateZones(dt) {
   const Z = G.zones, P = G.P;
   for (let i = Z.length - 1; i >= 0; i--) {
-    const z = Z[i]; z.t += dt; z.tick -= dt;
-    if (z.kind === 'fire' || z.kind === 'spore') { if (z.t > 0.35 && Math.hypot(P.x - z.x, P.y - z.y) < z.r + 2 && P.dashT <= 0) hurtPlayer(1); }
+    const z = Z[i]; z.t += dt; z.tick -= dt; BY = z.by;
+    if (z.kind === 'fire' || z.kind === 'spore') { if (z.t > 0.35 && Math.hypot(P.x - z.x, P.y - z.y) < z.r + 2 && P.dashT <= 0) hurtPlayer(1, null, z.mby || z.kind); }
     else if (z.tick <= 0) { z.tick = 0.4; nearMons(z.x, z.y, z.r, e => {
       if (e.dead || Math.hypot(e.x - z.x, e.y - z.y) >= z.r + e.r) return;
       if (z.sticky) { e.mark = z.sticky; e.markT = 0.7; }
@@ -3251,6 +3278,7 @@ function updateZones(dt) {
     }); }
     if (z.t >= z.d) { Z[i] = Z[Z.length - 1]; Z.pop(); }
   }
+  BY = null;
 }
 // guard bees: each one hunts whatever is in its room, and circles its hive when the room is quiet
 function updateAllies(dt) {
@@ -3262,7 +3290,7 @@ function updateAllies(dt) {
     if (b.tg) { tx = b.tg.x; ty = b.tg.y - 5; }
     const dx = tx - b.x, dy = ty - b.y, d = Math.hypot(dx, dy) || 1, sp = b.tg ? 130 : 50;
     b.x += dx / d * Math.min(d, sp * dt); b.y += dy / d * Math.min(d, sp * dt);
-    if (b.tg && d < 7 && b.cd <= 0) { b.cd = 0.5; hurtMon(b.tg, 6 * roomPow(room), 0, 0, 0, 'room'); sfx('sting'); }
+    if (b.tg && d < 7 && b.cd <= 0) { b.cd = 0.5; BY = 'r:apiary'; hurtMon(b.tg, 6 * roomPow(room), 0, 0, 0, 'room'); BY = null; sfx('sting'); }
   }
 }
 function syncBees() {                 // every Apiary keeps (1 + its level) bees
@@ -3328,7 +3356,7 @@ function lash(a, st) {
     const px = x + ca * R * k / 3.4, py = P.y + sa * R * k / 3.4;
     if (blocked(px, py, F_WALK) || G.patches.some(q => Math.abs(q.x - px) < 9 && Math.abs(q.y - py) < 7)) continue;
     if (G.patches.length > 48) G.patches.shift();
-    G.patches.push({ x: px, y: py, r: 10, dmg: st.dmg * 0.35 * P.mightEff, life: 3, max: 3, tick: 0.15, slow: 0.3, big: false });
+    G.patches.push({ x: px, y: py, r: 10, dmg: st.dmg * 0.35 * P.mightEff, life: 3, max: 3, tick: 0.15, slow: 0.3, big: false, by: BY });
   }
   G.fxs.push({ k: 'lash', a, R, t: 0, d: 0.2, rose: st.thorn }); sfx('swing');
 }
@@ -3393,7 +3421,7 @@ const WUPD = {
     if (w.cd > 0) return;
     const c = []; for (const e of G.mons) if (!e.dead && e.emerge <= 0 && (e.x - P.x) * (e.x - P.x) + (e.y - P.y) * (e.y - P.y) < 140 * 140) c.push(e);
     if (!c.length) { w.cd = 0.2; return; }
-    for (let i = 0, n = st.n + P.extra; i < n; i++) { const t = pick(c); G.shots.push({ k: 'bomb', x: P.x, y: P.y - 6, z: 0, sx: P.x, sy: P.y - 6, tx: t.x + rr(-6, 6), ty: t.y + rr(-6, 6), t: -i * 0.12, d: 0.5, R: st.r * P.area, dmg: st.dmg * P.mightEff, fire: st.fire }); }
+    for (let i = 0, n = st.n + P.extra; i < n; i++) { const t = pick(c); G.shots.push({ k: 'bomb', x: P.x, y: P.y - 6, z: 0, sx: P.x, sy: P.y - 6, tx: t.x + rr(-6, 6), ty: t.y + rr(-6, 6), t: -i * 0.12, d: 0.5, R: st.r * P.area, dmg: st.dmg * P.mightEff, fire: st.fire, by: BY }); }
     w.cd = st.cd * P.hasteEff;
   },
   bell(w, st, P) {
@@ -3420,7 +3448,7 @@ const WUPD = {
     if (w.cd > 0) return; w.cd = st.cd * P.hasteEff;
     for (const q of G.patches) if (Math.abs(q.x - P.x) < 9 && Math.abs(q.y - P.y) < 7) { q.life = q.max = st.life; q.dmg = st.dmg * P.mightEff; return; }   // refresh, never stack
     if (G.patches.length > 48) G.patches.shift();
-    G.patches.push({ x: P.x + rr(-3, 3), y: P.y + rr(-2, 2), r: st.r * P.area, dmg: st.dmg * P.mightEff, life: st.life, max: st.life, tick: 0.15, slow: st.slow, big: st.evo });
+    G.patches.push({ x: P.x + rr(-3, 3), y: P.y + rr(-2, 2), r: st.r * P.area, dmg: st.dmg * P.mightEff, life: st.life, max: st.life, tick: 0.15, slow: st.slow, big: st.evo, by: BY });
   },
   frostfan(w, st, P) {
     if (w.cd > 0) return;
@@ -3467,7 +3495,7 @@ const WUPD = {
       m.x += dx / d * Math.min(d, sp * dt); m.y += dy / d * Math.min(d, sp * dt); m.face = dx > 0 ? 1 : -1;
       if (m.tg && m.cd <= 0 && d < 8) {
         hurtMon(m.tg, st.dmg * P.mightEff, dx / d * 40, dy / d * 40);
-        if (st.burn && !m.tg.dead) { m.tg.burnT = 2.2; m.tg.burn = st.dmg * 0.35 * P.mightEff; }
+        if (st.burn && !m.tg.dead) { m.tg.burnT = 2.2; m.tg.burn = st.dmg * 0.35 * P.mightEff; m.tg.burnBy = BY; }
         m.cd = st.cd * P.hasteEff; m.tg = null;
       }
     }
@@ -3510,7 +3538,7 @@ const WUPD = {
     const R = st.r * P.area; if (!nearestMon(P.x, P.y - 3, R + 6, false)) { w.cd = 0.15; return; }
     nearMons(P.x, P.y - 3, R, e => {
       const dx = e.x - P.x, dy = e.y - P.y, d = Math.hypot(dx, dy); if (d > R + e.r) return;
-      if (hurtMon(e, st.dmg * P.mightEff, dx / (d || 1) * st.kb, dy / (d || 1) * st.kb) && st.scald && !e.dead) { e.burnT = 2.2; e.burn = st.dmg * 0.3 * P.mightEff; }
+      if (hurtMon(e, st.dmg * P.mightEff, dx / (d || 1) * st.kb, dy / (d || 1) * st.kb) && st.scald && !e.dead) { e.burnT = 2.2; e.burn = st.dmg * 0.3 * P.mightEff; e.burnBy = BY; }
     });
     if (st.scald) { const B = G.ebullets; for (let i = B.length - 1; i >= 0; i--) if (Math.hypot(B[i].x - P.x, B[i].y - P.y) < R) { B[i] = B[B.length - 1]; B.pop(); } }
     G.fxs.push({ k: 'tide', x: P.x, y: P.y - 2, R, hot: st.scald, t: 0, d: 0.32 }); sfx('splash'); w.cd = st.cd * P.hasteEff;
@@ -3521,7 +3549,7 @@ const WUPD = {
     if (!c.length) { w.cd = 0.2; return; }
     for (let i = 0, n = st.n + P.extra; i < n; i++) {
       const t = pick(c);
-      G.shots.push({ k: 'bomb', pot: { r: st.r * P.area, life: st.life, slow: st.slow, sticky: st.sticky || 0 }, x: P.x, y: P.y - 6, z: 0, sx: P.x, sy: P.y - 6, tx: t.x + rr(-5, 5), ty: t.y + rr(-5, 5), t: -i * 0.15, d: 0.55, R: 0, dmg: st.dmg * P.mightEff });
+      G.shots.push({ k: 'bomb', pot: { r: st.r * P.area, life: st.life, slow: st.slow, sticky: st.sticky || 0 }, x: P.x, y: P.y - 6, z: 0, sx: P.x, sy: P.y - 6, tx: t.x + rr(-5, 5), ty: t.y + rr(-5, 5), t: -i * 0.15, d: 0.55, R: 0, dmg: st.dmg * P.mightEff, by: BY });
     }
     w.cd = st.cd * P.hasteEff;
   },
@@ -3574,7 +3602,7 @@ const WUPD = {
     nearMons(P.x, P.y - 3, R, e => {
       const dx = e.x - P.x, dy = e.y - P.y, d = Math.hypot(dx, dy); if (d > R + e.r) return;
       if (d > 9 && Math.abs(angDiff(Math.atan2(dy, dx), a)) > st.arc / 2) return;
-      if (hurtMon(e, st.dmg * P.mightEff, dx / (d || 1) * 10, dy / (d || 1) * 10) && !e.dead) { e.burnT = 2.2; e.burn = st.burn * P.mightEff; }
+      if (hurtMon(e, st.dmg * P.mightEff, dx / (d || 1) * 10, dy / (d || 1) * 10) && !e.dead) { e.burnT = 2.2; e.burn = st.burn * P.mightEff; e.burnBy = BY; }
     });
     G.fxs.push({ k: 'breath', a, R, arc: st.arc, t: 0, d: st.tick * P.hasteEff + 0.06, seed: (fxr() * 999) | 0 });
     for (let i = 0; i < 2; i++) { const fa = a + (fxr() - 0.5) * st.arc; part(P.x + Math.cos(fa) * R * 0.8, P.y - 4 + Math.sin(fa) * R * 0.8, Math.cos(fa) * 30, Math.sin(fa) * 30 - 14, 0.35, fxr() < 0.5 ? PAL.o : PAL.g, 1); }
@@ -3618,7 +3646,8 @@ function evolveCheck() {
 }
 function updateWeapons(dt) {
   const P = G.P; if (G.over) return;
-  for (const w of P.weapons) { w.cd -= dt; WUPD[w.id](w, wStat(w), P, dt); }
+  for (const w of P.weapons) { w.cd -= dt; BY = 'w:' + w.id; WUPD[w.id](w, wStat(w), P, dt); }
+  BY = null;
   evolveCheck();
 }
 
@@ -3855,7 +3884,7 @@ const BOSS_AI = {
       }
     } else if (e.st === 5) {          // falling masonry: get out of the circles
       if (e.stT <= 0) {
-        for (const p of e.pts) { G.fxs.push({ k: 'boom', x: p[0], y: p[1], R: 17, t: 0, d: 0.3 }); burst(p[0], p[1], 5, PAL.g, 70); if (Math.hypot(P.x - p[0], P.y - p[1]) < 16 && P.dashT <= 0) hurtPlayer(2); }
+        for (const p of e.pts) { G.fxs.push({ k: 'boom', x: p[0], y: p[1], R: 17, t: 0, d: 0.3 }); burst(p[0], p[1], 5, PAL.g, 70); if (Math.hypot(P.x - p[0], P.y - p[1]) < 16 && P.dashT <= 0) hurtPlayer(2, null, 'unmaker'); }
         e.pts = null; sfx('boom'); G.shake = Math.max(G.shake, 5); e.st = 0; e.stT = rr(1.3, 2.0);
       }
     } else if (e.st === 4) {          // three aimed fans
@@ -3886,6 +3915,7 @@ function updateRooms(dt) {
   const P = G.P, cur = G.curRoom, sh = steelHaste(), cap = CURVE.cap(G.floor, G.t / 60);
   const inRoom = (room, fn) => { for (const e of G.mons) if (!e.dead && e.emerge <= 0 && roomAt(e.x, e.y) === room) fn(e); };
   for (const room of G.rooms) {
+    BY = 'r:' + room.type;
     if (room.reveal < 1) { room.reveal = Math.min(1, room.reveal + dt / 0.9); if (room.reveal >= 1) onRoomReady(room); continue; }
     if (room.hexT > 0) { room.hexT -= dt; if (room.hexT <= 0 && room.type === 'library') recalc(); continue; }   // hexed: switched off
     room.timer += dt;
@@ -4015,6 +4045,7 @@ function updateRooms(dt) {
         break;
     }
   }
+  BY = null;
 }
 
 /* =============================== 13 DRAFT ============================= */
@@ -4808,8 +4839,21 @@ function drawBuild(g, cx, y, P, maxW) {    // centred row(s) of everything you c
   });
   return rows.length * 16;
 }
+// The damage tally as one row: what did the work so far, largest first. An icon and its share; the line under
+// the icon says what it is (gold: a weapon, blue: a room, green: a charm). What does not fit is summed at the end.
+function drawTally(g, x, y, w) {
+  const list = tallyList(); if (!list.length) return;
+  txt(g, 'DAMAGE', x, y + 4, '#9aa3b5'); let lx = x + textW('DAMAGE') + 8, rest = 0, full = false;
+  list.forEach((t, i) => {
+    const s = Math.round(t.share * 100) + '%', ew = 18 + textW(s) + 6, room = i < list.length - 1 ? 26 : 0;
+    if (full || !t.icon || lx + ew > x + w - room) { if (t.icon) full = true; rest += t.share; return; }
+    ds(g, t.icon, lx + 8, y + 8); g.fillStyle = t.kind === 'r' ? '#9cecf2' : t.kind === 'c' ? '#b5e85a' : '#ffd95e'; g.fillRect(lx + 2, y + 16, 12, 1);
+    txt(g, s, lx + 18, y + 4, '#fff8e8'); lx += ew;
+  });
+  if (rest >= 0.005) txt(g, '+' + Math.round(rest * 100) + '%', lx, y + 4, '#5d667c');
+}
 function pauseItems() { const o = Save.data.opts; return [{ label: 'Resume' }, { label: 'Music', value: o.music }, { label: 'Sound', value: o.sfx }, { label: 'Screen shake', value: o.shake ? 'ON' : 'OFF' }, { label: 'Mouse walk', value: o.mouse === 'drag' ? 'DRAG' : 'TO POINTER' }, { label: 'Restart run' }, { label: 'Quit to title' }]; }
-function pauseLayout() { const items = pauseItems(), h = items.length * 14 + 84, y = Math.round(VH / 2 - h / 2); return { items, h, y, rects: menuRects(items.length, y + 36, 170) }; }
+function pauseLayout() { const items = pauseItems(), h = items.length * 14 + 102, y = Math.round(VH / 2 - h / 2); return { items, h, y, rects: menuRects(items.length, y + 36, 170) }; }
 function renderPause(g) {
   g.fillStyle = 'rgba(13,10,26,0.7)'; g.fillRect(0, 0, VW, VH);
   const L_ = pauseLayout(), y = L_.y, P = G.P, hero = HEROES[G.hero];
@@ -4817,11 +4861,12 @@ function renderPause(g) {
   txs(g, 'PAUSED', VW / 2, y + 8, '#ffd95e', 0.5);
   txt(g, hero.name + ' the ' + hero.title + '  -  ' + G.F.name + '  -  ' + fmtTime(G.tRun), VW / 2, y + 21, '#9aa3b5', 0.5);
   drawMenu(g, L_.items, L_.rects, App.sel);
-  drawBuild(g, VW / 2, y + L_.h - 44, P, 200);
+  drawBuild(g, VW / 2, y + L_.h - 62, P, 200);
+  drawTally(g, VW / 2 - 100, y + L_.h - 30, 200);
   txt(g, 'M mutes everything', VW / 2, y + L_.h - 11, '#5d667c', 0.5);
 }
 function endItems() { return App.mode === 'win' ? [{ label: 'Keep delving (endless)' }, { label: 'New run' }, { label: 'Back to title' }] : [{ label: 'Try again' }, { label: 'Back to title' }]; }
-function endLayout() { const items = endItems(), h = 186 + (items.length - 2) * 14, y = Math.max(2, Math.round(VH / 2 - h / 2)); return { items, h, y, rects: menuRects(items.length, y + h - items.length * 14 - 8, 170) }; }
+function endLayout() { const items = endItems(), h = 206 + (items.length - 2) * 14, y = Math.max(2, Math.round(VH / 2 - h / 2)); return { items, h, y, rects: menuRects(items.length, y + h - items.length * 14 - 8, 170) }; }
 function drawNewCards(g, x, y, w, label) {   // cards and heroes unlocked this run
   const n = G.newCards.length + G.newHeroes.length; if (!n) return 0;
   txt(g, label, x, y, '#9cecf2'); let lx = x + textW(label) + 6;
@@ -4843,7 +4888,8 @@ function renderEnd(g) {
   const cw = Math.min(14, Math.floor(118 / (x1 - x0 + 1))), ch = Math.min(10, Math.floor(60 / (y1 - y0 + 1)), Math.round(cw * 0.72)), mw = (x1 - x0 + 1) * cw, mh = (y1 - y0 + 1) * ch;
   g.fillStyle = '#141028'; g.fillRect(x + 138, y + 44, 120, 64);
   drawMap(g, x + 138 + ((120 - mw) >> 1) - x0 * cw, y + 44 + ((64 - mh) >> 1) - y0 * ch, cw, ch, false);
-  drawBuild(g, VW / 2, y + 110, P, 240);
+  drawTally(g, x + 14, y + 110, 242);
+  drawBuild(g, VW / 2, y + 128, P, 240);
   drawNewCards(g, x + 14, y + L_.h - L_.items.length * 14 - 22, 240, 'UNLOCKED');
   drawMenu(g, L_.items, L_.rects, App.sel);
 }
@@ -5004,7 +5050,7 @@ const Save = {
   data: null,
   fresh() {
     const rooms = {}; for (const id of STARTER_ROOMS) rooms[id] = 1;
-    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0, mouse: 'point' }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {} };
+    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0, mouse: 'point' }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {}, census: [] };
   },
   load() {
     this.data = this.fresh();
@@ -5017,6 +5063,7 @@ const Save = {
         if (HEROES[s.hero] && d.heroes[s.hero]) d.hero = s.hero;
         for (const id in s.decks || {}) if (HEROES[id] && Array.isArray(s.decks[id])) d.decks[id] = s.decks[id].filter(r => typeof r === 'string');
         Object.assign(d.tips, s.tips);
+        if (Array.isArray(s.census)) d.census = s.census.filter(r => r && typeof r === 'object').slice(-CENSUS_MAX);
       } else { const old = JSON.parse(localStorage.getItem('roomwright.v1')); if (old && old.opts) Object.assign(this.data.opts, old.opts); }   // keep v0.1 volume settings
     } catch (e) { /* storage unavailable or corrupt: play without persistence */ }
     this.apply();
@@ -5070,8 +5117,19 @@ function startRun(seed, opts = {}) {
   App.mode = 'play'; App.sel = 0; App.record = false; Snd.music(G.F.music);
   floorBanner();
 }
+// The census: what a run looked like when it ended. The save keeps the last CENSUS_MAX runs (RW.census() prints them),
+// and the self-play bot reads the same record. Nothing here leaves the browser.
+const CENSUS_MAX = 20;
+function runRecord(win) {
+  const P = G.P, S = G.stats;
+  return { v: VERSION, hero: G.hero, seed: G.seed, won: !!win, floor: G.floor + 1, minute: Math.round(G.t / 6) / 10, time: Math.round(G.tRun),
+    by: G.hits.map(h => h.by), doors: G.sealed.length, rooms: G.fstat.rooms, drafted: S.rooms,
+    weapons: P.weapons.map(w => w.id + (w.evo ? '*' : w.lv)).join(' '),
+    top: tallyList().slice(0, 3).map(t => t.key + ' ' + Math.round(t.share * 100)).join(', '), roomShare: Math.round(tallyShare('r') * 100) };
+}
 function endRun(win) {
-  const b = Save.data.best, S = G.stats, depth = G.floor + 1;
+  const b = Save.data.best, S = G.stats, depth = G.floor + 1, c = Save.data.census;
+  c.push(runRecord(win)); while (c.length > CENSUS_MAX) c.shift();
   App.record = Save.data.runs > 1 && (depth > b.floor || (depth === b.floor && Math.floor(G.tRun) > b.time));
   b.time = Math.max(b.time, Math.floor(G.tRun)); b.rooms = Math.max(b.rooms, S.rooms); b.kills = Math.max(b.kills, S.kills); b.floor = Math.max(b.floor, depth); if (win) Save.data.wins++;
   Save.store(); App.mode = win ? 'win' : 'over'; App.sel = 0;
@@ -5351,7 +5409,9 @@ window.RW = {
   start(seed, opts) { startRun(seed, opts); },                         // opts: { hero, deck }
   manual(on) { App.manual = !!on; },
   coach(on) { App.coach = !!on; },                                     // false = no card lessons in drafts (the checks and the bot use this)
-  coachPlan, cardPart, stairsLocked, knockBack, knockTier, KNOCK, draftLayout, pauseLayout, hintFor, view: () => ({ VW, VH, SCALE }),                                   // true = the page stops ticking itself; drive it with step()
+  coachPlan, cardPart, stairsLocked, knockBack, knockTier, KNOCK, draftLayout, pauseLayout, hintFor, view: () => ({ VW, VH, SCALE }),
+  tallyList, tallyShare, record: runRecord, endLayout,                 // the damage tally, and the census record of the run as it stands
+  census() { const c = Save.data.census; if (console.table) console.table(c.map(r => Object.assign({}, r, { by: r.by.join(' < ') }))); return c; },                                   // true = the page stops ticking itself; drive it with step()
   step(n = 1) { for (let i = 0; i < n; i++) { tick(STEP); Input.endFrame(); } },
   hold(a, on) { if (on) Input.down.add(a); else Input.down.delete(a); },
   press(a) { Input.pressed.add(a); },
@@ -5363,6 +5423,7 @@ window.RW = {
     return { mode: App.mode, floor: G.floor, t: +G.t.toFixed(1), tRun: +G.tRun.toFixed(1), hp: P.hp, maxHp: P.maxHp, shield: P.shield, keys: P.keys, glints: Math.round(P.glints), keyCost: P.keyCost, forged: P.forged,
       rooms: G.rooms.length, drafted: G.stats.rooms, sealed: G.sealed.length, jams: G.jams.length, mons: G.mons.length, kills: G.stats.kills, picks: G.picks.length, boons: G.boons.length,
       weapons: P.weapons.map(w => w.id + (w.evo ? '*' : w.lv)).join(' '), charms: Object.entries(P.charms).map(([k, v]) => k + v).join(' '), roomLv: Object.entries(G.roomLv).filter(e => e[1] > 1).map(e => e[0] + e[1]).join(' '),
+      dmg: G.stats.dmg, roomShare: +tallyShare('r').toFixed(3), tally: tallyList().map(t => ({ key: t.key, dmg: t.dmg, share: +t.share.toFixed(3) })),
       x: Math.round(P.x), y: Math.round(P.y), over: G.over, won: G.won, bossDown: G.bossDown, boss: G.dir.boss ? Math.round(G.dir.boss.hp) : null, stairs: G.stairs ? (G.stairs.open ? 'open' : 'shut') : null, tut: G.tut.step };
   },
   sheet(scale = 4) {                                                   // toggles a contact sheet of every sprite (art review)

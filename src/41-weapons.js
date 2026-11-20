@@ -30,7 +30,7 @@ function lash(a, st) {
     const px = x + ca * R * k / 3.4, py = P.y + sa * R * k / 3.4;
     if (blocked(px, py, F_WALK) || G.patches.some(q => Math.abs(q.x - px) < 9 && Math.abs(q.y - py) < 7)) continue;
     if (G.patches.length > 48) G.patches.shift();
-    G.patches.push({ x: px, y: py, r: 10, dmg: st.dmg * 0.35 * P.mightEff, life: 3, max: 3, tick: 0.15, slow: 0.3, big: false });
+    G.patches.push({ x: px, y: py, r: 10, dmg: st.dmg * 0.35 * P.mightEff, life: 3, max: 3, tick: 0.15, slow: 0.3, big: false, by: BY });
   }
   G.fxs.push({ k: 'lash', a, R, t: 0, d: 0.2, rose: st.thorn }); sfx('swing');
 }
@@ -95,7 +95,7 @@ const WUPD = {
     if (w.cd > 0) return;
     const c = []; for (const e of G.mons) if (!e.dead && e.emerge <= 0 && (e.x - P.x) * (e.x - P.x) + (e.y - P.y) * (e.y - P.y) < 140 * 140) c.push(e);
     if (!c.length) { w.cd = 0.2; return; }
-    for (let i = 0, n = st.n + P.extra; i < n; i++) { const t = pick(c); G.shots.push({ k: 'bomb', x: P.x, y: P.y - 6, z: 0, sx: P.x, sy: P.y - 6, tx: t.x + rr(-6, 6), ty: t.y + rr(-6, 6), t: -i * 0.12, d: 0.5, R: st.r * P.area, dmg: st.dmg * P.mightEff, fire: st.fire }); }
+    for (let i = 0, n = st.n + P.extra; i < n; i++) { const t = pick(c); G.shots.push({ k: 'bomb', x: P.x, y: P.y - 6, z: 0, sx: P.x, sy: P.y - 6, tx: t.x + rr(-6, 6), ty: t.y + rr(-6, 6), t: -i * 0.12, d: 0.5, R: st.r * P.area, dmg: st.dmg * P.mightEff, fire: st.fire, by: BY }); }
     w.cd = st.cd * P.hasteEff;
   },
   bell(w, st, P) {
@@ -122,7 +122,7 @@ const WUPD = {
     if (w.cd > 0) return; w.cd = st.cd * P.hasteEff;
     for (const q of G.patches) if (Math.abs(q.x - P.x) < 9 && Math.abs(q.y - P.y) < 7) { q.life = q.max = st.life; q.dmg = st.dmg * P.mightEff; return; }   // refresh, never stack
     if (G.patches.length > 48) G.patches.shift();
-    G.patches.push({ x: P.x + rr(-3, 3), y: P.y + rr(-2, 2), r: st.r * P.area, dmg: st.dmg * P.mightEff, life: st.life, max: st.life, tick: 0.15, slow: st.slow, big: st.evo });
+    G.patches.push({ x: P.x + rr(-3, 3), y: P.y + rr(-2, 2), r: st.r * P.area, dmg: st.dmg * P.mightEff, life: st.life, max: st.life, tick: 0.15, slow: st.slow, big: st.evo, by: BY });
   },
   frostfan(w, st, P) {
     if (w.cd > 0) return;
@@ -169,7 +169,7 @@ const WUPD = {
       m.x += dx / d * Math.min(d, sp * dt); m.y += dy / d * Math.min(d, sp * dt); m.face = dx > 0 ? 1 : -1;
       if (m.tg && m.cd <= 0 && d < 8) {
         hurtMon(m.tg, st.dmg * P.mightEff, dx / d * 40, dy / d * 40);
-        if (st.burn && !m.tg.dead) { m.tg.burnT = 2.2; m.tg.burn = st.dmg * 0.35 * P.mightEff; }
+        if (st.burn && !m.tg.dead) { m.tg.burnT = 2.2; m.tg.burn = st.dmg * 0.35 * P.mightEff; m.tg.burnBy = BY; }
         m.cd = st.cd * P.hasteEff; m.tg = null;
       }
     }
@@ -212,7 +212,7 @@ const WUPD = {
     const R = st.r * P.area; if (!nearestMon(P.x, P.y - 3, R + 6, false)) { w.cd = 0.15; return; }
     nearMons(P.x, P.y - 3, R, e => {
       const dx = e.x - P.x, dy = e.y - P.y, d = Math.hypot(dx, dy); if (d > R + e.r) return;
-      if (hurtMon(e, st.dmg * P.mightEff, dx / (d || 1) * st.kb, dy / (d || 1) * st.kb) && st.scald && !e.dead) { e.burnT = 2.2; e.burn = st.dmg * 0.3 * P.mightEff; }
+      if (hurtMon(e, st.dmg * P.mightEff, dx / (d || 1) * st.kb, dy / (d || 1) * st.kb) && st.scald && !e.dead) { e.burnT = 2.2; e.burn = st.dmg * 0.3 * P.mightEff; e.burnBy = BY; }
     });
     if (st.scald) { const B = G.ebullets; for (let i = B.length - 1; i >= 0; i--) if (Math.hypot(B[i].x - P.x, B[i].y - P.y) < R) { B[i] = B[B.length - 1]; B.pop(); } }
     G.fxs.push({ k: 'tide', x: P.x, y: P.y - 2, R, hot: st.scald, t: 0, d: 0.32 }); sfx('splash'); w.cd = st.cd * P.hasteEff;
@@ -223,7 +223,7 @@ const WUPD = {
     if (!c.length) { w.cd = 0.2; return; }
     for (let i = 0, n = st.n + P.extra; i < n; i++) {
       const t = pick(c);
-      G.shots.push({ k: 'bomb', pot: { r: st.r * P.area, life: st.life, slow: st.slow, sticky: st.sticky || 0 }, x: P.x, y: P.y - 6, z: 0, sx: P.x, sy: P.y - 6, tx: t.x + rr(-5, 5), ty: t.y + rr(-5, 5), t: -i * 0.15, d: 0.55, R: 0, dmg: st.dmg * P.mightEff });
+      G.shots.push({ k: 'bomb', pot: { r: st.r * P.area, life: st.life, slow: st.slow, sticky: st.sticky || 0 }, x: P.x, y: P.y - 6, z: 0, sx: P.x, sy: P.y - 6, tx: t.x + rr(-5, 5), ty: t.y + rr(-5, 5), t: -i * 0.15, d: 0.55, R: 0, dmg: st.dmg * P.mightEff, by: BY });
     }
     w.cd = st.cd * P.hasteEff;
   },
@@ -276,7 +276,7 @@ const WUPD = {
     nearMons(P.x, P.y - 3, R, e => {
       const dx = e.x - P.x, dy = e.y - P.y, d = Math.hypot(dx, dy); if (d > R + e.r) return;
       if (d > 9 && Math.abs(angDiff(Math.atan2(dy, dx), a)) > st.arc / 2) return;
-      if (hurtMon(e, st.dmg * P.mightEff, dx / (d || 1) * 10, dy / (d || 1) * 10) && !e.dead) { e.burnT = 2.2; e.burn = st.burn * P.mightEff; }
+      if (hurtMon(e, st.dmg * P.mightEff, dx / (d || 1) * 10, dy / (d || 1) * 10) && !e.dead) { e.burnT = 2.2; e.burn = st.burn * P.mightEff; e.burnBy = BY; }
     });
     G.fxs.push({ k: 'breath', a, R, arc: st.arc, t: 0, d: st.tick * P.hasteEff + 0.06, seed: (fxr() * 999) | 0 });
     for (let i = 0; i < 2; i++) { const fa = a + (fxr() - 0.5) * st.arc; part(P.x + Math.cos(fa) * R * 0.8, P.y - 4 + Math.sin(fa) * R * 0.8, Math.cos(fa) * 30, Math.sin(fa) * 30 - 14, 0.35, fxr() < 0.5 ? PAL.o : PAL.g, 1); }
@@ -320,6 +320,7 @@ function evolveCheck() {
 }
 function updateWeapons(dt) {
   const P = G.P; if (G.over) return;
-  for (const w of P.weapons) { w.cd -= dt; WUPD[w.id](w, wStat(w), P, dt); }
+  for (const w of P.weapons) { w.cd -= dt; BY = 'w:' + w.id; WUPD[w.id](w, wStat(w), P, dt); }
+  BY = null;
   evolveCheck();
 }

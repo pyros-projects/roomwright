@@ -240,6 +240,38 @@
     ok('every hero starts with a weapon that can evolve in their own deck', Object.values(RW.HEROES).every(h => h.deck.indexOf(RW.WEAPONS[h.weapon].evo.room) >= 0), Object.values(RW.HEROES).map(h => h.weapon + '>' + RW.WEAPONS[h.weapon].evo.room).join(' '));
     fresh(390, { hero: 'pip', deck: ['ember', 'frost', 'hall', 'spikes', 'vault', 'library', 'garden', 'guardian', 'fountain', 'cross'] }); RW.openDraft(G.sealed[0]);
     const cds = G.draft.cards; ok('drafts deal deck cards plus one floor native', cds.length === 3 && G.deck.indexOf(cds[0].type) >= 0 && G.deck.indexOf(cds[1].type) >= 0 && RW.FLOORS[0].natives.indexOf(cds[2].type) >= 0, cds.map(c => c.type).join(','));
+    /* ---- the damage tally and the census ---- */
+    {
+      // a run with a weapon, a damage room and a burn: every point of damage has an owner, and the shares add up
+      fresh(303); G.dir.calm = 1e9; const ember = build('ember', [1, 0, 0, 0]);
+      for (let i = 0; i < 6; i++) RW.spawnMon('slime', P.x + 18 + i * 3, P.y); RW.step(240);
+      for (let i = 0; i < 8; i++) RW.spawnMon('bones', ember.px + 150 + i * 6, ember.py + 120); tp(ember.px + 168, ember.py + 150); RW.step(300);
+      const list = RW.tallyList(), sum = list.reduce((a, t) => a + t.dmg, 0), keys = list.map(t => t.key);
+      ok('tally: every point of damage has an owner', sum === G.stats.dmg && sum > 0, sum + ' of ' + G.stats.dmg);
+      ok('tally: the shares add up to the whole', Math.abs(list.reduce((a, t) => a + t.share, 0) - 1) < 1e-9);
+      ok('tally: the starting weapon and the Ember Hall are both named', keys.includes('w:keyblade') && keys.includes('r:ember'), keys.join(' '));
+      ok('tally: nothing is left unnamed here', !keys.some(k => /other|x:/.test(k)), keys.join(' '));
+      ok('tally: largest first, and the room share is the rooms\' part', list.every((t, i) => !i || list[i - 1].dmg >= t.dmg) && Math.abs(RW.tallyShare('r') - list.filter(t => t.kind === 'r').reduce((a, t) => a + t.share, 0)) < 1e-9, RW.tallyShare('r').toFixed(2));
+      ok('tally: RW.state() carries it', RW.state().tally.length === list.length && RW.state().dmg === G.stats.dmg);
+      // shots, zones and burns keep their owner after the weapon that made them has moved on
+      fresh(304); P.weapons.length = 0; RW.applyBoon({ kind: 'w', id: 'bomb' }); for (let i = 0; i < 6; i++) RW.spawnMon('bones', P.x + 40 + i * 4, P.y - 20); RW.step(300);
+      ok('tally: a bomb in the air is still the bombs\'', Object.keys(G.tally).join() === 'w:bomb', Object.keys(G.tally).join());
+      fresh(305); P.weapons.length = 0; RW.applyBoon({ kind: 'w', id: 'pepper' }); for (let i = 0; i < 4; i++) RW.spawnMon('tin', P.x + 30, P.y + i * 6 - 9); RW.step(200);
+      ok('tally: a burn belongs to what lit it', Object.keys(G.tally).join() === 'w:pepper', Object.keys(G.tally).join());
+      // the census: what hit the delver, and the record of a run that ended
+      fresh(306); P.inv = 0; G.hits.length = 0; const bat = RW.spawnMon('bat', P.x + 3, P.y); RW.step(8);
+      ok('census: a touch is named after the monster', G.hits.length === 1 && G.hits[0].by === 'bat', JSON.stringify(G.hits));
+      RW.killMon(bat); P.inv = 0; const sh = RW.spawnMon('spore', P.x + 60, P.y); sh.shootT = 0; RW.step(120);
+      ok('census: a bullet is named after who fired it', G.hits.some(h => h.by === 'spore'), JSON.stringify(G.hits.map(h => h.by)));
+      RW.killMon(sh); G.hits.length = 0; for (let i = 0; i < 5; i++) { P.inv = 0; P.hp = 8; RW.hurtPlayer(1, null, 'test' + i); }
+      ok('census: only the last three hits are kept, oldest first', G.hits.map(h => h.by).join() === 'test2,test3,test4', G.hits.map(h => h.by).join());
+      const before = RW.Save.data.census.length; P.inv = 0; P.shield = 0; P.hp = 1; G.endless = false; RW.hurtPlayer(5, null, 'the last straw'); RW.step(140);
+      const rec = RW.Save.data.census[RW.Save.data.census.length - 1];
+      ok('census: a run that ends leaves a record', RW.App.mode === 'over' && RW.Save.data.census.length === Math.min(20, before + 1) && rec && rec.floor === 1 && rec.won === false && rec.by[rec.by.length - 1] === 'the last straw' && rec.doors === G.sealed.length && /keyblade1/.test(rec.weapons), JSON.stringify(rec));
+      ok('census: it is in the save, and RW.census() returns it', JSON.parse(localStorage.getItem(RW.Save.KEY)).census.length === RW.Save.data.census.length && RW.census() === RW.Save.data.census);
+      for (let i = 0; i < 25; i++) RW.Save.data.census.push(rec); RW.Save.store(); RW.Save.load();
+      ok('census: the save keeps the last 20 runs', RW.Save.data.census.length === 20, RW.Save.data.census.length);
+    }
     ok('no NaN anywhere', isFinite(P.x) && isFinite(P.y) && isFinite(P.glints) && G.mons.every(e => isFinite(e.x)));
   } catch (e) { res.push('EXCEPTION ' + String(e && e.stack || e).slice(0, 600)); }
   try { localStorage.setItem(RW.Save.KEY, saved); RW.Save.load(); } catch (e) { /* ignore */ }

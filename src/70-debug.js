@@ -6,7 +6,9 @@ window.RW = {
   start(seed, opts) { startRun(seed, opts); },                         // opts: { hero, deck }
   manual(on) { App.manual = !!on; },
   coach(on) { App.coach = !!on; },                                     // false = no card lessons in drafts (the checks and the bot use this)
-  coachPlan, cardPart, stairsLocked, knockBack, knockTier, KNOCK, draftLayout, pauseLayout, hintFor, view: () => ({ VW, VH, SCALE }),                                   // true = the page stops ticking itself; drive it with step()
+  coachPlan, cardPart, stairsLocked, knockBack, knockTier, KNOCK, draftLayout, pauseLayout, hintFor, view: () => ({ VW, VH, SCALE }),
+  tallyList, tallyShare, record: runRecord, endLayout,                 // the damage tally, and the census record of the run as it stands
+  census() { const c = Save.data.census; if (console.table) console.table(c.map(r => Object.assign({}, r, { by: r.by.join(' < ') }))); return c; },                                   // true = the page stops ticking itself; drive it with step()
   step(n = 1) { for (let i = 0; i < n; i++) { tick(STEP); Input.endFrame(); } },
   hold(a, on) { if (on) Input.down.add(a); else Input.down.delete(a); },
   press(a) { Input.pressed.add(a); },
@@ -18,6 +20,7 @@ window.RW = {
     return { mode: App.mode, floor: G.floor, t: +G.t.toFixed(1), tRun: +G.tRun.toFixed(1), hp: P.hp, maxHp: P.maxHp, shield: P.shield, keys: P.keys, glints: Math.round(P.glints), keyCost: P.keyCost, forged: P.forged,
       rooms: G.rooms.length, drafted: G.stats.rooms, sealed: G.sealed.length, jams: G.jams.length, mons: G.mons.length, kills: G.stats.kills, picks: G.picks.length, boons: G.boons.length,
       weapons: P.weapons.map(w => w.id + (w.evo ? '*' : w.lv)).join(' '), charms: Object.entries(P.charms).map(([k, v]) => k + v).join(' '), roomLv: Object.entries(G.roomLv).filter(e => e[1] > 1).map(e => e[0] + e[1]).join(' '),
+      dmg: G.stats.dmg, roomShare: +tallyShare('r').toFixed(3), tally: tallyList().map(t => ({ key: t.key, dmg: t.dmg, share: +t.share.toFixed(3) })),
       x: Math.round(P.x), y: Math.round(P.y), over: G.over, won: G.won, bossDown: G.bossDown, boss: G.dir.boss ? Math.round(G.dir.boss.hp) : null, stairs: G.stairs ? (G.stairs.open ? 'open' : 'shut') : null, tut: G.tut.step };
   },
   sheet(scale = 4) {                                                   // toggles a contact sheet of every sprite (art review)

@@ -1,12 +1,20 @@
 // Self-play bot for Roomwright.
 // Inject into the page (e.g. `agent-browser eval --stdin < tools/selfplay-bot.js`), then call:
 //   BOT.full(seed, maxSeconds, opts)   play one whole run in fast-forward (deterministic) -> summary object
-//                                      opts: { hero, deck, skill }
+//                                      opts: { hero, deck, skill, policy, persona }
+//                                      policy: how it picks a draft card. 'score' (its own reading of the card, the
+//                                      default), 'random', or 'first' (always the left card). The gap between them
+//                                      is the pick gap: how much the draft decides (docs/checks.md).
+//   BOT.batch(first, n, maxSeconds, opts)   play seeds first..first+n-1 and keep the rows; BOT.report(label) prints them
 //   BOT.run(seconds)                   advance the current run by N seconds of game time   -> RW.state()
 //   BOT.tick()                         one decision; call it every frame to let the bot play in real time
 // The bot only uses what a player has: hold left/right/up/down, press dash / ok, and picking a draft card.
-// It is a deliberately mediocre player (greedy, timid near doors) and is used to catch crashes and
-// to sanity-check the difficulty curve, not to find optimal play.
+// Two personas (opts.persona):
+//   'kiter'  the first bot, a deliberately mediocre player: greedy, timid near doors, slow to read a warden. It
+//            catches crashes and shows what a newcomer's first runs look like.
+//   'dodger' walks every heading 0.8 s into the future against where the bullets, the monsters and the warden's
+//            attacks will be, takes the one that stays unhurt longest, and dashes when no walk does. It stands
+//            for a practised player. Neither is the truth alone: the gap between them is what movement is worth.
 (() => {
   const { T, GWT, GHT } = RW.K, PM = RW.K.F_WALK | RW.K.F_PLAYER;
   const dist = new Uint16Array(GWT * GHT), q = new Int32Array(GWT * GHT);
@@ -35,12 +43,13 @@
     return out;
   }
   const B = window.BOT = {
-    goal: null, goalT: 0, log: [], picks: [], skill: 1, rs: 1, lastK: -1, pickK: -1,
+    goal: null, goalT: 0, log: [], picks: [], skill: 1, rs: 1, lastK: -1, pickK: -1, policy: 'score', persona: 'kiter', rows: [], held: 8, holdT: 0,
     rnd() { B.rs = (B.rs * 1103515245 + 12345) & 0x7fffffff; return B.rs / 0x7fffffff; },
     wantStairs(G) { const D = G.draft; return D.stairs && (G.fstat.rooms >= 11 || G.t > RW.clockLimit() * 0.75); },
     pickCard(G) {
       const P = G.P, D = G.draft; let best = 0, bs = -1e9;
-      D.cards.forEach((c, i) => {
+      if (B.policy === 'random') best = Math.floor(B.rnd() * D.cards.length);
+      else if (B.policy !== 'first') D.cards.forEach((c, i) => {
         let s = B.rnd() * 0.5; const b = c.boon;
         if (c.hidden) s += 3.5;
         else if (b.kind === 'w') { const own = P.weapons.find(w => w.id === b.id); s += own ? 3 : (P.weapons.length < 4 ? [1.5, 3, 4][RW.evoReach(b.id)] : 0); }   // like a player reading the card: a weapon whose room is out of reach is worth less
@@ -84,6 +93,72 @@
       // 7) idle near the middle of the current room
       const r = G.curRoom; return { k: 'idle', x: r.px + 168 + Math.sin(G.t * 0.7) * 60, y: r.py + 120 + Math.cos(G.t * 0.9) * 40 };
     },
+    // ---- the dodger ----
+    // When does a walk in direction (dx, dy) first get hurt? Returns [seconds until the first hit (9 = none in sight),
+    // how crowded the place is where the walk ends]. dash: the walk starts with a dash (fast, and unhurt for 0.3 s).
+    walk(G, T_, dx, dy, dash) {
+      const P = G.P, sp = P.speedEff, DT = 0.1, N = 8; let px = P.x, py = P.y, free = Math.max(P.inv, dash ? 0.3 : 0);
+      for (let i = 1; i <= N; i++) {
+        const t = i * DT, v = sp * (dash && t <= 0.2 + 1e-9 ? 3.2 : 1), nx = px + dx * v * DT, ny = py + dy * v * DT;
+        if (!RW.blocked(nx, ny, PM)) { px = nx; py = ny; } else if (!RW.blocked(nx, py, PM)) px = nx; else if (!RW.blocked(px, ny, PM)) py = ny;
+        if (t <= free) continue;
+        for (const b of T_.bul) { if (Math.abs(b.x + b.vx * t - px) < 6.5 && Math.abs(b.y + b.vy * t - (py - 4)) < 7.5) return [t, 9]; }
+        for (const m of T_.mons) {                                        // [x, y, speed, reach, kind, a, b, c]
+          const k = m[4];
+          if (k === 0) { if (Math.hypot(m[0] - px, m[1] - py) - m[2] * t < m[3]) return [t, 9]; }                      // a walker: could it be here by now?
+          else if (k === 1) { const tt = Math.max(0, t - m[7]); if (Math.hypot(m[0] + m[5] * tt - px, m[1] + m[6] * tt - py) < m[3]) return [t, 9]; }   // a charge along a line, after a wind-up
+          else if (k === 2) { if (Math.abs(t - m[7]) < DT * 0.75 && Math.hypot(m[0] - px, m[1] - py) < m[3]) return [t, 9]; }   // a blast at a known moment
+        }
+        if (!(dash && t <= 0.2 + 1e-9)) for (const z of T_.zones) { if (t >= z[3] && Math.hypot(z[0] - px, z[1] - py) < z[2]) return [t, 9]; }   // ground that burns from a known moment
+      }
+      let crowd = 0; for (const m of T_.mons) if (m[4] === 0) { const d = Math.hypot(m[0] - px, m[1] - py) - m[3]; if (d < 70) crowd += (1 - d / 70) * (m[3] > 20 ? 3 : 1); }
+      for (const b of T_.bul) { const d = Math.hypot(b.x + b.vx * 0.8 - px, b.y + b.vy * 0.8 - py); if (d < 26) crowd += 1 - d / 26; }
+      return [9, crowd];
+    },
+    threats(G) {
+      const P = G.P, mons = [], bul = [], zones = [];
+      for (const e of G.mons) {
+        if (e.dead) continue; const def = e.def, d = Math.hypot(e.x - P.x, e.y - P.y); if (d > (def.boss ? 300 : 170)) continue;
+        const reach = e.r + P.r + 2.5, spd = e.stun > 0 || e.emerge > 0.3 ? 0 : def.spd * (e.haste || 1) * (def.hop ? 1.2 : 1);
+        if (def.boss) {
+          const id = def.id;
+          if (id === 'gatejaw' && e.st === 1) { mons.push([e.x, e.y, 0, reach + 4, 1, e.cx * 200, e.cy * 200, Math.max(0, e.stT)]); continue; }          // winding up a charge
+          if (id === 'gatejaw' && e.st === 2) { mons.push([e.x, e.y, 0, reach + 4, 1, e.cx * 200, e.cy * 200, 0]); continue; }
+          if (id === 'morel' && e.st === 5) { zones.push([e.jx, e.jy, 30, Math.max(0, e.stT - 0.1)]); continue; }                                    // airborne: do not be where she lands
+          if (id === 'morel' && e.st === 3) { mons.push([e.x, e.y, 0, reach, 0]); zones.push([P.x, P.y, 26, Math.max(0, e.stT) + 0.6]); continue; }    // crouching: she will leap at where you stand
+          if (e.pts) for (const p of e.pts) zones.push([p[0], p[1], 19, Math.max(0, e.stT - 0.05)]);                                                 // spore rain, falling masonry
+          mons.push([e.x, e.y, def.spd * 1.35, reach + 3, 0]); continue;
+        }
+        if (def.ai === 'charge' && e.st === 1) { mons.push([e.x, e.y, 0, reach + 2, 1, e.cx * 205, e.cy * 205, Math.max(0, e.stT)]); continue; }
+        if (def.ai === 'charge' && e.st === 2) { mons.push([e.x, e.y, 0, reach + 2, 1, e.cx * 205, e.cy * 205, 0]); continue; }
+        if (def.ai === 'bomber' && e.st === 1) { mons.push([e.x, e.y, 0, 34, 2, 0, 0, Math.max(0, e.stT)]); continue; }
+        mons.push([e.x, e.y, def.ai === 'turret' ? 0 : spd, reach, 0]);
+      }
+      for (const b of G.ebullets) if (Math.abs(b.x - P.x) < 170 && Math.abs(b.y - P.y) < 170) bul.push(b);
+      for (const z of G.zones) if ((z.kind === 'fire' || z.kind === 'spore') && Math.hypot(z.x - P.x, z.y - P.y) < 150) zones.push([z.x, z.y, z.r + 3, 0]);
+      return { mons, bul, zones };
+    },
+    // pick a heading (0..7, or 8 = stand) and say whether to dash: (vx, vy) is where the goal lies, commit a move that must be made
+    dodge(G, vx, vy, urgent) {
+      const P = G.P, T_ = B.threats(G); let best = -1e9, bk = 8, bt = 0; const calm = !T_.mons.length && !T_.bul.length && !T_.zones.length;
+      for (let k = 0; k < 9; k++) {
+        const a = k * Math.PI / 4, dx = k === 8 ? 0 : Math.cos(a), dy = k === 8 ? 0 : Math.sin(a);
+        if (k < 8 && RW.blocked(P.x + dx * 10, P.y + dy * 10, PM)) continue;
+        const [t, crowd] = calm ? [9, 0] : B.walk(G, T_, dx, dy, false);
+        let sc = (t >= 9 ? 0 : -60 / (t + 0.15)) + (dx * vx + dy * vy) * urgent - crowd * 0.9;
+        if (k === B.held) sc += 0.3;                                      // do not dither between two headings that are as good
+        if (sc > best) { best = sc; bk = k; bt = t; }
+      }
+      let dash = false;
+      if (bt < 0.45 && P.dashCd <= 0 && P.pose <= 0) {                    // every walk gets hurt soon: is there a dash that does not?
+        let db = bt, dk = -1;
+        for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, dx = Math.cos(a), dy = Math.sin(a); if (RW.blocked(P.x + dx * 12, P.y + dy * 12, PM)) continue; const t = B.walk(G, T_, dx, dy, true)[0]; if (t > db + 0.2) { db = t; dk = k; } }
+        if (dk >= 0) { bk = dk; dash = true; }
+      }
+      B.held = bk;
+      if (bk < 8) { const a = bk * Math.PI / 4, dx = Math.cos(a), dy = Math.sin(a); if (dx > 0.38) RW.hold('right', true); if (dx < -0.38) RW.hold('left', true); if (dy > 0.38) RW.hold('down', true); if (dy < -0.38) RW.hold('up', true); }
+      if (dash) RW.press('dash');
+    },
     tick() {
       const G = RW.G, P = G.P, mode = RW.App.mode;
       for (const a of ['left', 'right', 'up', 'down']) RW.hold(a, false);
@@ -111,6 +186,10 @@
         for (let k = 0; k < 8; k++) { const nx = ptx + N8[k][0], ny = pty + N8[k][1], nd = dist[ny * GWT + nx]; if (nd < bestD && !(k >= 4 && ((G.flags[pty * GWT + nx] & PM) || (G.flags[ny * GWT + ptx] & PM)))) { bestD = nd; bx = nx * T + 8 - P.x; by = ny * T + 8 - P.y; } }
         const l = Math.hypot(bx, by) || 1; vx = bx / l; vy = by / l;
       } else { const dx = g.x - P.x, dy = g.y - P.y, l = Math.hypot(dx, dy) || 1; if (l > 3) { vx = dx / l; vy = dy / l; } }
+      if (B.persona === 'dodger') {
+        if (commit) { if (commit[0] > 0.38) RW.hold('right', true); if (commit[0] < -0.38) RW.hold('left', true); if (commit[1] > 0.38) RW.hold('down', true); if (commit[1] < -0.38) RW.hold('up', true); return; }
+        B.dodge(G, vx, vy, g.k === 'door' || g.k === 'jam' ? 2.2 : g.k === 'stairs' || g.k === 'boon' || g.k === 'evo' ? 1.6 : 1.0); return;
+      }
       // sampled steering: score the 8 directions (+ standing still) by progress vs. danger at where we'd end up
       const threats = []; let near = 1e9;
       for (const e of G.mons) { if (e.dead) continue; const d = Math.hypot(P.x - e.x, P.y - e.y) - e.r; if (d < 150) threats.push(e.x, e.y, e.def.boss ? 110 : e.def.ai === 'bomber' ? 60 : 46 + e.r, e.def.boss ? 4 : 1); if (d < near) near = d; }
@@ -139,6 +218,7 @@
     // play one whole run from a seed (deterministic); returns a summary row
     full(seed, maxSecs, opts = {}) {
       B.goal = null; B.goalT = 0; B.picks = []; B.rs = seed * 7 + 1; B.skill = opts.skill === undefined ? 1 : opts.skill; B.lastK = -1;
+      B.policy = opts.policy || 'score'; B.persona = opts.persona || 'kiter'; B.held = 8; B.holdT = 0;
       RW.manual(true); RW.coach(false); RW.start(seed, opts); RW.G.tut.step = 9;
       const n = Math.round((maxSecs || 1800) * 60); let err = null; const floors = [];
       try {
@@ -150,9 +230,36 @@
           f0 = G.t;
         }
       } catch (e) { err = String(e && e.stack || e).slice(0, 500); }
-      const s = RW.state(), G = RW.G;
+      const s = RW.state(), G = RW.G, rec = RW.record(s.mode === 'win');
       return { seed, end: s.mode, floor: s.floor + 1, t: Math.round(s.tRun), ft: Math.round(G.t), hp: s.hp + '/' + s.maxHp, rooms: s.rooms, drafted: s.drafted, doors: s.sealed, forged: s.forged, keysLeft: s.keys, kills: s.kills,
-        W: s.weapons, C: s.charms, L: s.roomLv, boss: s.boss, floors, evos: G.stats.evos, err };
+        W: s.weapons, C: s.charms, L: s.roomLv, boss: s.boss, floors, evos: G.stats.evos, err,
+        by: rec.by, minute: rec.minute, roomShare: rec.roomShare, top: rec.top, tally: s.tally };
+    },
+    // seeds first..first+n-1 with a fresh collection each, kept in B.rows (call it in small chunks: one call blocks the page)
+    batch(first, n, maxSecs, opts = {}) {
+      const hero = opts.hero || 'pip';
+      for (let seed = first; seed < first + n; seed++) { RW.Save.data.rooms = RW.Save.fresh().rooms; B.rows.push(B.full(seed, maxSecs, Object.assign({ deck: RW.HEROES[hero].deck }, opts))); }
+      return B.rows.length;
+    },
+    // the numbers of a batch: how deep the runs got, and the census of how they ended
+    stats(rows) {
+      const n = rows.length || 1, won = r => r.end === 'win', dead = rows.filter(r => r.end === 'over'), count = (list, key) => { const m = {}; for (const r of list) { const k = key(r); m[k] = (m[k] || 0) + 1; } return Object.entries(m).sort((a, b) => b[1] - a[1]); };
+      const dmg = {}; let total = 0; for (const r of rows) for (const t of r.tally || []) { dmg[t.key] = (dmg[t.key] || 0) + t.dmg; total += t.dmg; }
+      return { runs: rows.length, wins: rows.filter(won).length, floor1: rows.filter(r => won(r) || r.floor >= 2).length, floor2: rows.filter(r => won(r) || r.floor >= 3).length,
+        minutes: +(rows.reduce((a, r) => a + r.t, 0) / n / 60).toFixed(1), rooms: +(rows.reduce((a, r) => a + r.drafted, 0) / n).toFixed(1), evos: +(rows.reduce((a, r) => a + r.evos, 0) / n).toFixed(1),
+        roomShare: Math.round(rows.reduce((a, r) => a + (r.roomShare || 0), 0) / n), unfinished: rows.filter(r => r.end !== 'win' && r.end !== 'over').length, errors: rows.filter(r => r.err).length,
+        deathsByFloor: [1, 2, 3].map(f => dead.filter(r => r.floor === f).length), killers: count(dead, r => r.by[r.by.length - 1] || 'unknown'),
+        damage: Object.entries(dmg).sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, Math.round(v / (total || 1) * 100)]) };
+    },
+    // one line per run, then the summary and the census, as text; clears the rows
+    report(label) {
+      const rows = B.rows, st = B.stats(rows), out = []; B.rows = [];
+      for (const r of rows) out.push(['seed ' + r.seed, r.end, 'floor ' + r.floor, 't=' + r.t + 's', 'hp=' + r.hp, 'rooms=' + r.drafted, 'keys=' + r.forged, 'kills=' + r.kills, 'evo=' + r.evos, 'boss=' + r.boss, '[' + r.W + ']', 'lv[' + r.L + ']', 'floors@' + r.floors.join('/'),
+        r.end === 'over' ? 'died at ' + r.minute + ' min with ' + r.doors + ' doors sealed; last hits, newest first: ' + (r.by.slice().reverse().join(', ') || 'unknown') : '', 'rooms did ' + r.roomShare + '%', r.err ? 'ERR ' + r.err : ''].join('  '));
+      out.push('SUMMARY ' + (label || '') + ' runs=' + st.runs + ' wins=' + st.wins + ' beatFloor1=' + st.floor1 + ' beatFloor2=' + st.floor2 + ' avgLength=' + st.minutes + 'min rooms=' + st.rooms + ' evolutions=' + st.evos + ' roomDamage=' + st.roomShare + '% unfinished=' + st.unfinished + ' errors=' + st.errors);
+      out.push('CENSUS deaths on floor 1/2/3: ' + st.deathsByFloor.join('/') + '   killing blows: ' + (st.killers.map(k => k[0] + ' ' + k[1]).join(', ') || 'none'));
+      out.push('DAMAGE ' + st.damage.slice(0, 8).map(d => d[0] + ' ' + d[1] + '%').join(', '));
+      return out.join('\n');
     },
     // run `secs` of game time; returns a compact report
     run(secs) {
