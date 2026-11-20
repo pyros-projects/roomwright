@@ -240,6 +240,14 @@
     ok('every hero starts with a weapon that can evolve in their own deck', Object.values(RW.HEROES).every(h => h.deck.indexOf(RW.WEAPONS[h.weapon].evo.room) >= 0), Object.values(RW.HEROES).map(h => h.weapon + '>' + RW.WEAPONS[h.weapon].evo.room).join(' '));
     fresh(390, { hero: 'pip', deck: ['ember', 'frost', 'hall', 'spikes', 'vault', 'library', 'garden', 'guardian', 'fountain', 'cross'] }); RW.openDraft(G.sealed[0]);
     const cds = G.draft.cards; ok('drafts deal deck cards plus one floor native', cds.length === 3 && G.deck.indexOf(cds[0].type) >= 0 && G.deck.indexOf(cds[1].type) >= 0 && RW.FLOORS[0].natives.indexOf(cds[2].type) >= 0, cds.map(c => c.type).join(','));
+    /* ---- door pressure bites harder the deeper you are ---- */
+    {
+      const pr = (doors, f) => RW.CURVE.pressure(doors, 0, f), step = f => +(pr(5, f) - pr(4, f)).toFixed(3);
+      ok('doors: one sealed door adds more to the knocking on each floor down', step(0) < step(1) && step(1) < step(2) && step(0) === RW.CURVE.door[0], [step(0), step(1), step(2)].join(' < '));
+      ok('doors: a plan with three doors is equally quiet on every floor only at zero doors', pr(0, 0) === pr(0, 2) && pr(7, 2) / pr(3, 2) > pr(7, 0) / pr(3, 0), (pr(7, 0) / pr(3, 0)).toFixed(2) + ' on floor 1, ' + (pr(7, 2) / pr(3, 2)).toFixed(2) + ' on floor 3');
+      fresh(461); G.endless = false; G.t = 10; const f0 = RW.knocking(); G.floor = 2; const f2 = RW.knocking(); G.floor = 0;
+      ok('doors: the HUD multiplier follows the floor', f2 > f0, f0.toFixed(2) + ' -> ' + f2.toFixed(2));
+    }
     /* ---- the price of waiting: the knocking grows late in the clock, and a warden's fight speeds up ---- */
     {
       fresh(451); G.endless = false; const lim = RW.clockLimit(), dread = RW.CURVE.dread;

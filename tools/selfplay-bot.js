@@ -4,7 +4,8 @@
 //                                      opts: { hero, deck, skill, policy, persona, stairs }
 //                                      policy: how it picks a draft card. 'score' (its own reading of the card, the
 //                                      default), 'random', or 'first' (always the left card). The gap between them
-//                                      is the pick gap: how much the draft decides (docs/checks.md).
+//                                      is the pick gap: how much the draft decides (docs/checks.md). 'tight' and
+//                                      'open' are 'score' with a door habit: few sealed doors, or many.
 //   BOT.batch(first, n, maxSeconds, opts)   play seeds first..first+n-1 and keep the rows; BOT.report(label) prints them
 //   BOT.run(seconds)                   advance the current run by N seconds of game time   -> RW.state()
 //   BOT.tick()                         one decision; call it every frame to let the bot play in real time
@@ -50,7 +51,7 @@
     pickCard(G) {
       const P = G.P, D = G.draft; let best = 0, bs = -1e9;
       if (B.policy === 'random') best = Math.floor(B.rnd() * D.cards.length);
-      else if (B.policy !== 'first') D.cards.forEach((c, i) => {
+      else if (B.policy !== 'first') D.cards.forEach((c, i) => {                 // 'score', and its two door habits 'tight' and 'open'
         let s = B.rnd() * 0.5; const b = c.boon;
         if (c.hidden) s += 3.5;
         else if (b.kind === 'w') { const own = P.weapons.find(w => w.id === b.id); s += own ? 3 : (P.weapons.length < 4 ? [1.5, 3, 4][RW.evoReach(b.id)] : 0); }   // like a player reading the card: a weapon whose room is out of reach is worth less
@@ -64,7 +65,10 @@
         if (c.evo) s += c.evo.ready ? 5 : 1.5;                           // the room one of my weapons evolves in
         s += c.res * 0.8;
         const after = G.sealed.length - 1 - c.plan.links + c.plan.fresh;
-        if (after < 2) s -= 3; if (after > 6) s -= 1 + (after - 6) * 0.7;
+        if (after < 2) s -= 3;
+        if (B.policy === 'tight') { if (after > 4) s -= 2 + (after - 4) * 1.5; }      // keeps the plan closed: four doors or fewer
+        else if (B.policy === 'open') { s += Math.min(after, 9) * 0.6; }            // opens it up: the more doors the better
+        else if (after > 6) s -= 1 + (after - 6) * 0.7;
         if (s > bs) { bs = s; best = i; }
       });
       B.picks.push(D.cards[best].type + ':' + (D.cards[best].hidden ? '?' : D.cards[best].boon.id));
