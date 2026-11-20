@@ -6,6 +6,7 @@ function drawMap(g, x, y, cw, ch, live) {
     const px = x + r.cx * cw, py = y + r.cy * ch, mx = px + (cw >> 1), my = py + (ch >> 1);
     g.fillStyle = '#0d0a1a'; g.fillRect(px, py, cw, ch); g.fillStyle = r.reveal < 1 ? '#3fc1ad' : r.def.col; g.fillRect(px + 1, py + 1, cw - 2, ch - 2);
     if (live && r.hexT > 0) { g.fillStyle = '#6030a0'; g.fillRect(px + 2, py + 2, cw - 4, ch - 4); }
+    if (live && r.siegeT > 0 && (Math.floor(frameT * 4) & 1)) { g.fillStyle = '#ff4a5e'; g.fillRect(px, py, cw, 1); g.fillRect(px, py + ch - 1, cw, 1); g.fillRect(px, py, 1, ch); g.fillRect(px + cw - 1, py, 1, ch); }   // under siege
     for (let d = 0; d < 4; d++) {
       if (!r.doors[d]) continue;
       g.fillStyle = r.doors[d] === 1 ? ((live && (Math.floor(frameT * 3) & 1)) ? '#ffb0b0' : '#ff4a5e') : r.doors[d] === 3 ? '#ffb030' : r.def.col;
@@ -57,6 +58,7 @@ function renderHUD(g) {
     txo(g, boss.def.name, VW / 2, 4, '#ff9ec4', '#1a1426', 0.5);
     g.fillStyle = '#1a1426'; g.fillRect(bx - 1, 14, bw + 2, 6); g.fillStyle = '#5a2030'; g.fillRect(bx, 15, bw, 4);
     g.fillStyle = '#e8474c'; g.fillRect(bx, 15, Math.round(bw * f), 4); g.fillStyle = '#ff9ec4'; g.fillRect(bx, 15, Math.round(bw * f), 1);
+    for (let i = 0; i < (boss.fury || 0); i++) { g.fillStyle = '#1a1426'; g.fillRect(bx + i * 5 - 1, 21, 5, 4); g.fillStyle = (Math.floor(t * 4) & 1) ? '#ffd95e' : '#ff6a6a'; g.fillRect(bx + i * 5, 22, 3, 2); }   // steps of fury
   } else {
     txo(g, fmtTime(G.t), VW / 2, 4, '#fff8e8', '#1a1426', 0.5);
     for (let i = 0; i < FLOORS.length; i++) { g.fillStyle = '#1a1426'; g.fillRect(VW / 2 + 19 + i * 6, 5, 5, 5); g.fillStyle = i < G.floor ? '#ffd95e' : i === G.floor ? '#fff8e8' : '#3b2d4f'; g.fillRect(VW / 2 + 20 + i * 6, 6, 3, 3); }
@@ -65,7 +67,7 @@ function renderHUD(g) {
     else {
       const bw = 72, bx = Math.round(VW / 2 - bw / 2), lim = clockLimit(), f = clamp(G.t / lim, 0, 1), ready = stairsReady();
       g.fillStyle = '#1a1426'; g.fillRect(bx - 1, 14, bw + 2, 4); g.fillStyle = '#3b2d4f'; g.fillRect(bx, 15, bw, 2);
-      g.fillStyle = f > 0.85 ? '#ff6a6a' : '#9a62d6'; g.fillRect(bx, 15, Math.round(bw * f), 2);
+      g.fillStyle = f > 0.85 ? '#ff6a6a' : f > 0.6 ? '#f6923a' : '#9a62d6'; g.fillRect(bx, 15, Math.round(bw * f), 2);   // orange: the knocking is growing
       for (const ev of G.F.timeline) { g.fillStyle = '#1a1426'; g.fillRect(bx + Math.round(bw * ev.t / lim), 15, 1, 2); }
       g.drawImage(SPR.door_icon.c, bx + bw + 2, 10);
       // five pips: rooms drafted on this floor; full = the Stairwell is on offer
@@ -76,7 +78,7 @@ function renderHUD(g) {
   }
   if (G.roomLabel) { const L_ = G.roomLabel; g.globalAlpha = clamp(Math.min(L_.t * 4, (2.4 - L_.t) * 2), 0, 1); txo(g, '~ ' + L_.text + ' ~', VW / 2, 30, '#ffd95e', '#1a1426', 0.5); g.globalAlpha = 1; }
   // minimap
-  const mw = GRID * 7, mh = GRID * 5, mx = VW - mw - 6, my = 5, doors = G.sealed.length, pr = CURVE.pressure(doors, charm('wedge'));
+  const mw = GRID * 7, mh = GRID * 5, mx = VW - mw - 6, my = 5, doors = G.sealed.length, pr = knocking();
   g.fillStyle = 'rgba(13,10,26,0.6)'; g.fillRect(mx - 2, my - 2, mw + 4, mh + 4); g.fillStyle = '#3b2d4f'; g.fillRect(mx - 2, my - 2, mw + 4, 1); g.fillRect(mx - 2, my + mh + 1, mw + 4, 1); g.fillRect(mx - 2, my - 2, 1, mh + 4); g.fillRect(mx + mw + 1, my - 2, 1, mh + 4);
   drawMap(g, mx, my, 7, 5, true);
   txo(g, G.rooms.length + (G.rooms.length === 1 ? ' room  ' : ' rooms  ') + doors + (doors === 1 ? ' door' : ' doors'), VW - 6, my + mh + 5, '#9aa3b5', '#1a1426', 1);

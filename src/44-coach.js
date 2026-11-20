@@ -16,7 +16,7 @@ function coachPlan(D, all) {
   const doors = i => add('c_card', i, 'doors', 'NEW DOORS', 'Each sealed door is a later draft, and one more place monsters knock. The % is how much the knocking changes.');
   const dead = i => add('c_dead', i, 'doors', 'DEAD END', 'This room has no new doors. The knocking gets quieter, and you have one draft fewer.');
   const locked = () => add('c_card', -1, 'bar', 'THE STAIRWELL', 'The way down. It unlocks after ' + STAIRS_MIN + ' rooms on this floor and then shows up here, in a draft.');
-  const stairs = () => add('c_stairs', -1, 'bar', 'THE STAIRWELL', 'It is open. Build it instead of a room and the warden comes. Beat the warden to go down. More rooms first make you stronger.');
+  const stairs = () => add('c_stairs', -1, 'bar', 'THE STAIRWELL', 'It is open. Build it and the warden comes: weaker now than later, and a fast kill pays keys. More rooms first make you stronger, but late in the clock the knocking grows.');
   const stars = i => add('c_stars', i, 'stars', 'STARS', cards[i].lvTo > cards[i].lv
     ? 'You own this room. Draft it again and every room of its type gains a star: stronger for the whole run.'
     : 'This room type has all its stars. Another one still adds its power to the floor.');

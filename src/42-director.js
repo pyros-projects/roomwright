@@ -8,9 +8,27 @@ function steelHaste() {               // Tinker's Oil and a Workshop speed up tr
   return h;
 }
 function liveDoors() { let n = 0; for (const d of G.sealed) if (d.room.reveal >= 1) n++; return n; }
-const doorPressure = () => CURVE.pressure(liveDoors(), charm('wedge'));
+const doorPressure = () => CURVE.pressure(liveDoors(), charm('wedge'), G.floor);
+// Waiting has a price before the warden comes: past 60% of the dread clock the knocking grows.
+function dreadMul() { if (G.dir.boss || G.bossDown || G.endless) return 1; const k = G.t / clockLimit(); return k > 0.6 ? 1 + CURVE.dread * Math.min(1, (k - 0.6) / 0.4) : 1; }
+const knocking = () => doorPressure() * dreadMul();                    // the multiplier the HUD shows
+// what the Stairwell would wake right now (the warden's share of its full strength), and the keys a fast kill would still pay
+const wardenShare = () => 0.5 + 0.5 * clamp(G.t / G.F.clock, 0, 1);
+const swiftLeft = () => G.dir.overstay ? 0 : clamp(Math.floor((clockLimit() - G.t) / 60), 0, 2);
+// A warden's fight cannot be waited out. After CURVE.fury.after seconds it gains a step of fury every CURVE.fury.every
+// seconds, and each step makes everything it does that much faster: its walk, its wind-ups, its cool-downs.
+function bossFury(e, dt) {
+  const F = CURVE.fury; e.fightT = (e.fightT || 0) + dt;
+  const step = e.fightT < F.after ? 0 : Math.min(F.max, 1 + Math.floor((e.fightT - F.after) / F.every));
+  if (step > (e.fury || 0)) {
+    e.fury = step; sfx('roar'); G.shake = Math.max(G.shake, 5); burst(e.x, e.y - 12, 12, PAL.r, 100);
+    if (step === 1) { banner(e.def.name + ' GROWS IMPATIENT', 'The longer the fight lasts, the faster it moves.', '#ff7a7a', 2.8); tip('fury', 'A warden gets faster the longer its fight lasts. A build that kills slowly meets a quicker warden.'); }
+    else floatText(e.x, e.y - 34, 'faster!', '#ff7a7a');
+  }
+  return 1 + F.step * (e.fury || 0);
+}
 function clockLimit() {               // seconds until the warden comes for you on its own
-  let c = G.F.clock;
+  let c = G.F.clock * (stake(6) ? 0.75 : 1);
   if (G.rooms.some(r => r.type === 'observ' && roomLive(r))) c *= 1 + [0.12, 0.2, 0.28][roomLevel('observ') - 1];
   return Math.max(45, c - G.fstat.wrath);   // every knock back after the first shortens it
 }
@@ -26,13 +44,13 @@ function emitFrom(d, q) {               // q: a monster id, or { id, rage } for 
   return e;
 }
 function fireEvent(ev) {
-  const mixl = G.F.mix(G.t), d = nearDoor(); if (!d) return;
+  const mixl = floorMix(), d = nearDoor(); if (!d) return;
   if (ev === 'breach') {
     banner('KNOCK KNOCK!', 'Something is forcing a door.', '#ff9ec4', 2.6); sfx('breach');
     for (let i = 0, n = 10 + Math.floor(G.t / 28) + G.floor * 3; i < n; i++) d.queue.push(wpick(mixl, x => x[1])[0]);
   } else if (ev === 'elite') {
     const id = G.F.elite; d.queue.push(id);
-    banner(id === 'kslime' ? 'A KING SLIME SQUEEZES IN' : id === 'eshroom' ? 'AN ELDER SHROOM LUMBERS IN' : 'A FURNACE GOLEM STOMPS IN', '', '#b5e85a', 2.2); sfx('breach');
+    banner(id === 'kslime' ? 'A KING SLIME SQUEEZES IN' : id === 'eshroom' ? 'AN ELDER SHROOM LUMBERS IN' : 'A FURNACE GOLEM STOMPS IN', siegeTarget({ x: d.x, y: d.y }) ? 'It is after the room you built up most.' : '', '#b5e85a', 2.6); sfx('breach');
   }
 }
 function scatterHorde(keep) {         // the small fry flee: wardens fight alone (at first)
@@ -50,10 +68,10 @@ function summonBoss(fromRoom) {
     else { e = spawnMon(id, P.x, P.y - 80); e.emerge = 0.9; }
   }
   // a warden woken early is weaker (and so are you); one that had to come and find you is furious
-  e.max = e.hp = Math.round(def.hp * (0.5 + 0.5 * clamp(G.t / G.F.clock, 0, 1)) * (D.overstay ? 1.25 : 1)); if (D.overstay) e.rage = true;
+  e.max = e.hp = Math.round(def.hp * wardenShare() * (D.overstay ? 1.25 : 1) * (stake(5) ? 1.2 : 1)); if (D.overstay || stake(1)) e.rage = true;
   D.boss = e; e.st = 0; e.stT = 2.4; e.ang = 0;
   scatterHorde(e);
-  banner(def.name, D.overstay ? 'you overstayed: it is furious' : def.sub, '#ff7a7a', 3.2); sfx('roar'); Snd.music('boss'); G.shake = 9;
+  banner(def.name, D.overstay ? 'you overstayed: it is furious' : stake(1) ? 'enraged from the first step' : def.sub, '#ff7a7a', 3.2); sfx('roar'); Snd.music('boss'); G.shake = 9;
   return e;
 }
 function bossDied(e) {
@@ -70,7 +88,7 @@ function bossDied(e) {
   // the way down opens: at the Stairwell if you drafted one, else where the warden fell
   const sr = G.rooms.find(r => r.type === 'stairs' && r.stairs);
   G.stairs = sr ? { x: sr.stairs.x, y: sr.stairs.y, open: true, hole: false } : { x: gx, y: gy, open: true, hole: true };
-  const swift = D.overstay ? 0 : Math.min(2, Math.floor((clockLimit() - G.t) / 60));
+  const swift = swiftLeft();
   G.fstat.swift = swift; P.keys += swift;
   banner('THE WARDEN FALLS', swift ? 'Swift work: +' + swift + (swift > 1 ? ' keys' : ' key') + '. The stairs are open.' : 'The stairs are open. Leave when you are ready.', '#ffd95e', 4);
   sfx('stairs');
@@ -81,22 +99,24 @@ function updateDirector(dt) {
   while (D.ti < F.timeline.length && G.t >= F.timeline[D.ti].t) fireEvent(F.timeline[D.ti++].ev);
   if (!D.boss && !G.endless) {                                          // the dread clock
     const lim = clockLimit();
+    if (G.t >= lim * 0.6) tip('dread', 'The bar under the clock turned orange: from here the knocking grows until the warden comes.');
     if (!D.warned && G.t >= lim - 15) { D.warned = true; banner('THE WARDEN STIRS...', 'It comes for you in 15 seconds.', '#ff7a7a', 3.2); sfx('breach'); }
     if (G.t >= lim) { D.overstay = true; summonBoss(null); }
   }
   if (D.calm > 0) { D.calm -= dt; return; }
   const fight = D.boss && !D.bossDead;
-  for (const id in F.pests) {                                           // pests go for the floor plan
-    const [first, every] = F.pests[id]; if (D.pestT[id] === undefined) D.pestT[id] = first;
+  const pests = stake(2) && G.floor === 0 ? Object.assign({ sapper: [150, 85] }, F.pests) : F.pests, soon = stake(2) ? 0.7 : 1;
+  for (const id in pests) {                                             // pests go for the floor plan
+    const [first, every] = pests[id]; if (D.pestT[id] === undefined) D.pestT[id] = first * soon;
     if (G.t < D.pestT[id]) continue;
-    D.pestT[id] = G.t + every * rr(0.8, 1.25);
+    D.pestT[id] = G.t + every * soon * rr(0.8, 1.25);
     const d = nearDoor(); if (d && !fight) d.queue.push(id);
   }
   let doors = 0, queued = 0; for (const d of G.sealed) { if (d.room.reveal >= 1) doors++; queued += d.queue.length; }
-  const rate = CURVE.rate(G.floor, m) * CURVE.pressure(doors, charm('wedge')) * (fight ? 0.4 : 1);
+  const rate = CURVE.rate(G.floor, m) * CURVE.pressure(doors, charm('wedge'), G.floor) * dreadMul() * (fight ? 0.4 : 1);
   D.acc = Math.min(8, D.acc + rate * dt);
   if (D.acc >= 1 && G.mons.length + queued < CURVE.cap(G.floor, m)) {
-    const n = Math.min(Math.floor(D.acc), CURVE.group(G.floor, m)), mixl = F.mix(G.t); D.acc -= n;
+    const n = Math.min(Math.floor(D.acc), CURVE.group(G.floor, m)), mixl = floorMix(); D.acc -= n;
     if (doors) { const d = wpick(G.sealed.filter(d => d.room.reveal >= 1), doorWeight); for (let i = 0; i < n; i++) d.queue.push(wpick(mixl, x => x[1])[0]); }
     else {                            // no sealed doors left: the dark squeezes through cracks in the floor
       const room = G.curRoom || G.rooms[0];
@@ -222,7 +242,7 @@ const BOSS_AI = {
       if (e.stT <= 0) {
         const res = e.room && e.wall >= 0 ? breachWall(e.room, e.wall) : null;
         if (res === 'door') {
-          const d = G.sealed.find(q => q.room === e.room && q.dir === e.wall), mixl = G.F.mix(G.t);
+          const d = G.sealed.find(q => q.room === e.room && q.dir === e.wall), mixl = floorMix();
           if (d) for (let i = 0; i < (rage ? 9 : 6); i++) d.queue.push(wpick(mixl, x => x[1])[0]);
           sfx('crack'); G.shake = Math.max(G.shake, 6); const p = doorPos(e.room, e.wall); burst(p.x, p.y, 22, PAL.t, 110);
           banner('THE WALL GIVES WAY', 'The Unmaker opened a new door.', '#e3bd88', 2.2);
@@ -231,7 +251,7 @@ const BOSS_AI = {
       }
     } else if (e.st === 5) {          // falling masonry: get out of the circles
       if (e.stT <= 0) {
-        for (const p of e.pts) { G.fxs.push({ k: 'boom', x: p[0], y: p[1], R: 17, t: 0, d: 0.3 }); burst(p[0], p[1], 5, PAL.g, 70); if (Math.hypot(P.x - p[0], P.y - p[1]) < 16 && P.dashT <= 0) hurtPlayer(2); }
+        for (const p of e.pts) { G.fxs.push({ k: 'boom', x: p[0], y: p[1], R: 17, t: 0, d: 0.3 }); burst(p[0], p[1], 5, PAL.g, 70); if (Math.hypot(P.x - p[0], P.y - p[1]) < 16 && P.dashT <= 0) hurtPlayer(2, null, 'unmaker'); }
         e.pts = null; sfx('boom'); G.shake = Math.max(G.shake, 5); e.st = 0; e.stT = rr(1.3, 2.0);
       }
     } else if (e.st === 4) {          // three aimed fans
@@ -262,8 +282,10 @@ function updateRooms(dt) {
   const P = G.P, cur = G.curRoom, sh = steelHaste(), cap = CURVE.cap(G.floor, G.t / 60);
   const inRoom = (room, fn) => { for (const e of G.mons) if (!e.dead && e.emerge <= 0 && roomAt(e.x, e.y) === room) fn(e); };
   for (const room of G.rooms) {
+    BY = 'r:' + room.type;
     if (room.reveal < 1) { room.reveal = Math.min(1, room.reveal + dt / 0.9); if (room.reveal >= 1) onRoomReady(room); continue; }
-    if (room.hexT > 0) { room.hexT -= dt; if (room.hexT <= 0 && room.type === 'library') recalc(); continue; }   // hexed: switched off
+    if (room.siegeT > 0) room.siegeT -= dt;
+    if (room.hexT > 0) { room.hexT -= dt; if (room.hexT <= 0 && room.type === 'library') recalc(); continue; }   // hexed or besieged: switched off
     room.timer += dt;
     const here = room === cur, mul = roomMul(room);
     switch (room.type) {
@@ -363,6 +385,7 @@ function updateRooms(dt) {
         if (!p.fruit) { room.grow += dt * mul; if (room.grow > 36) { room.grow = 0; p.fruit = dropPick('heart', p.x, p.y - 12); p.fruit.vx = p.fruit.vy = 0; sparkle(p.x, p.y - 12, 8, PAL.p); } }
         break; }
       case 'greenhouse':
+        if (G.bossDown && !G.endless) break;                              // a floor whose warden is dead is quiet: nothing to farm
         room.grow += dt * mul;
         for (const p of room.planters) if (p.fruit && p.fruit.gone) p.fruit = null;
         if (room.grow > 20) {
@@ -374,7 +397,7 @@ function updateRooms(dt) {
         const c = room.chest;
         if (!c.open && Math.abs(P.x - c.x) < 17 && Math.abs(P.y - (c.y - 4)) < 17) {
           c.open = true; c.spr = 'chest1'; sfx('chest'); G.shake = Math.max(G.shake, 2);
-          const total = Math.max(14, P.keyCost * 0.75) * LV_MUL[roomLevel('vault') - 1]; for (let i = 0; i < 14; i++) dropGlint(c.x, c.y - 4, total / 14);
+          const total = Math.max(14, P.keyCost * 0.75) * CURVE.stars[roomLevel('vault') - 1]; for (let i = 0; i < 14; i++) dropGlint(c.x, c.y - 4, total / 14);
           sparkle(c.x, c.y - 8, 16, PAL.y);
         }
         break; }
@@ -391,4 +414,5 @@ function updateRooms(dt) {
         break;
     }
   }
+  BY = null;
 }

@@ -1,15 +1,19 @@
 # Publishes the game to GitHub Pages: https://pyros-projects.github.io/roomwright/
 #
 # The site is two files, index.html and intro.mp4. Nothing is built here: index.html is committed,
-# and the first step only makes sure it matches src/. After the upload the last step fetches the
-# live copy and compares it with this commit, so a green run means the new game is being served.
+# and one step only makes sure it matches src/. After the upload the last step fetches the live copy
+# and compares it with the commit, so a green run means the new game is being served.
 #
-# Runs on a push to main that changes the game, or by hand from the Actions tab.
+# A branch being playtested is published next to it under its own name, for example
+# .../roomwright/v0.3/, while that branch exists. PREVIEW names it. A copy served from a version
+# folder keeps its own save (see Save.KEY), so playing it never touches progress in the released game.
+#
+# Runs on a push to main or to a version branch that changes the game, or by hand from the Actions tab.
 name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'v*']
     paths:
       - index.html
       - intro.mp4
@@ -17,6 +21,9 @@ on:
       - tools/build.sh
       - .github/workflows/pages.yml
   workflow_dispatch:
+
+env:
+  PREVIEW: v0.3
 
 permissions:
   contents: read
@@ -36,15 +43,40 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v7
+      - name: The released game (main)
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          path: live
+
+      - name: Is a branch being playtested?
+        id: preview
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          if git ls-remote --exit-code --heads "https://github.com/$REPO" "$PREVIEW" > /dev/null; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: The branch being playtested
+        if: steps.preview.outputs.found == 'true'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.PREVIEW }}
+          path: next
 
       - name: index.html matches src/
-        run: tools/build.sh --check
+        run: |
+          live/tools/build.sh --check
+          if [ -d next ]; then next/tools/build.sh --check; fi
 
-      - name: Collect the two files
+      - name: Collect the files
         run: |
           mkdir _site
-          cp index.html intro.mp4 _site/
+          cp live/index.html live/intro.mp4 _site/
+          if [ -d next ]; then mkdir "_site/$PREVIEW"; cp next/index.html next/intro.mp4 "_site/$PREVIEW/"; fi
 
       - uses: actions/configure-pages@v6
 
@@ -56,19 +88,23 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v5
 
-      - name: The live copy is this commit's game
+      - name: The live copies are these commits' games
         env:
           PAGE_URL: ${{ steps.deployment.outputs.page_url }}
         run: |
           url="${PAGE_URL%/}"
-          want="$(sha256sum index.html | cut -d' ' -f1)"
-          got=""
-          for _ in $(seq 1 24); do          # the new copy can take a moment to reach the edge
-            got="$(curl -fsSL "$url/index.html?v=$GITHUB_SHA" | sha256sum | cut -d' ' -f1)"
-            [ "$got" = "$want" ] && break
-            sleep 5
-          done
-          if [ "$got" != "$want" ]; then echo "The live index.html is not this commit's."; exit 1; fi
-          size="$(curl -fsSL -o /dev/null -w '%{size_download}' "$url/intro.mp4?v=$GITHUB_SHA")"
-          if [ "$size" != "$(wc -c < intro.mp4 | tr -d ' ')" ]; then echo "The live intro.mp4 has $size bytes."; exit 1; fi
-          echo "Live at $url/"
+          same() {                          # same <folder of the checkout> <address>
+            want="$(sha256sum "$1/index.html" | cut -d' ' -f1)"
+            got=""
+            for _ in $(seq 1 24); do        # the new copy can take a moment to reach the edge
+              got="$(curl -fsSL "$2/index.html?v=$GITHUB_SHA" | sha256sum | cut -d' ' -f1)"
+              [ "$got" = "$want" ] && break
+              sleep 5
+            done
+            if [ "$got" != "$want" ]; then echo "$2/index.html is not this commit's."; exit 1; fi
+            size="$(curl -fsSL -o /dev/null -w '%{size_download}' "$2/intro.mp4?v=$GITHUB_SHA")"
+            if [ "$size" != "$(wc -c < "$1/intro.mp4" | tr -d ' ')" ]; then echo "$2/intro.mp4 has $size bytes."; exit 1; fi
+            echo "Live at $2/"
+          }
+          same live "$url"
+          if [ -d next ]; then same next "$url/$PREVIEW"; fi

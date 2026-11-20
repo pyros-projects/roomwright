@@ -12,7 +12,7 @@
 
 [![Play in your browser][play-shield]][play-url]
 [![License: MIT][license-shield]][license-url]
-[![Version 0.2][version-shield]][version-url]
+[![Version 0.3][version-shield]][version-url]
 [![One HTML file][file-shield]][file-url]
 [![No libraries][libs-shield]][libs-url]
 [![Intro made with pixel-cat][film-shield]][film-url]
@@ -55,9 +55,14 @@ burning or freezing floors...), a boon (a weapon, an upgrade or a charm) and som
 So one choice decides three things at once: how your character grows, what the terrain you fight on
 does, and where the next monsters will come from.
 
-Version 0.2 has three floors, 36 room cards, 24 weapons (each with an evolution), 27 charms, four
+Version 0.3 has three floors, 36 room cards, 24 weapons (each with an evolution), 27 charms, four
 delvers and a deck you build between runs. [How it plays](docs/design.md) covers stars, elements and
-resonance, evolutions, door pressure, pests, the three floors, the deck and the delvers.
+resonance, evolutions, door pressure, pests, sieges, the three floors, Stakes, the deck and the delvers.
+
+New in 0.3: the card you pick decides more. Doors cost more the deeper you are, a room with stars and
+resonance does real work, each floor's elite goes for your best room, and a warden grows faster the
+longer its fight lasts. The end screen shows what dealt the run's damage. After a first win, Stakes
+adds one rule per step for those who want it harder.
 
 ## Play
 
@@ -80,6 +85,7 @@ it and is optional. Without it the game starts on the title screen.
 | Step back from a draft (free; cards stay) | Esc | B | tap outside the cards |
 | Explain the selected card (in a draft) | H or ? | | tap EXPLAIN |
 | Edit the deck (hero screen) | Q or Tab | | tap the deck |
+| Stakes (hero screen, after a win) | Up / Down, or click the Stakes lines | up / down | tap the Stakes lines |
 | Pause / options | P or Esc | Start | pause button |
 | Mute | M | | |
 | Skip the intro | Enter, Space or Esc, or click | A or B | tap |
@@ -114,7 +120,7 @@ rendered the film. [The intro film](docs/intro.md) explains how it runs in the g
 [play-url]: https://pyros-projects.github.io/roomwright/
 [license-shield]: https://img.shields.io/badge/License-MIT-green?style=flat-square
 [license-url]: LICENSE
-[version-shield]: https://img.shields.io/badge/version-0.2-30343B?style=flat-square
+[version-shield]: https://img.shields.io/badge/version-0.3-30343B?style=flat-square
 [version-url]: #the-idea
 [file-shield]: https://img.shields.io/badge/one-HTML%20file-3FC1AD?style=flat-square
 [file-url]: index.html

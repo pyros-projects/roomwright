@@ -57,7 +57,7 @@ const STEP = 1 / 60;                  // fixed simulation step
 const DIRS = [{x:0,y:-1},{x:1,y:0},{x:0,y:1},{x:-1,y:0}];   // N E S W
 const F_WALK = 1, F_FLY = 2, F_SHOT = 4, F_HARD = 8, F_ALL = 15;   // tile blocking flags
 const F_PLAYER = 16, PMASK = F_WALK | F_PLAYER;                    // latched gates stop only the player
-const VERSION = '0.2';
+const VERSION = '0.3';
 const MAX_WEAPONS = 4;
 const DECK_SIZE = 10;                 // room cards in a deck
 const STAIRS_MIN = 5;                 // rooms you must draft on a floor before the Stairwell is offered
@@ -1940,9 +1940,9 @@ const WEAPONS = {
     up: ['', 'Harder bonks.', '+1 moon.', 'Wider orbit, harder bonks.', '+1 moon, faster spin.'],
     evo: { name: 'Owl Moons', room: 'guardian', desc: 'Five moons that shoot what they see.', E: { n: 5, dmg: 16, shoot: 1.1, rot: 4.4 } } },
   bomb: { name: 'Pocket Bombs', desc: 'Lobs a bomb at a random nearby monster.',
-    L: [{ dmg: 18, cd: 3.0, n: 1, r: 30 }, { dmg: 25 }, { n: 2 }, { r: 40, dmg: 32 }, { n: 3, cd: 2.6 }],
+    L: [{ dmg: 18, cd: 3.0, n: 1, r: 28 }, { dmg: 24 }, { n: 2 }, { r: 35, dmg: 29 }, { n: 3, cd: 2.8 }],
     up: ['', 'Bigger bang.', '+1 bomb.', 'Much bigger bang.', '+1 bomb, faster.'],
-    evo: { name: 'Inferno Flask', room: 'ember', desc: 'Blasts leave the floor burning.', E: { fire: 1, dmg: 40, r: 44, cd: 2.3 } } },
+    evo: { name: 'Inferno Flask', room: 'ember', desc: 'Blasts leave the floor burning.', E: { fire: 1, dmg: 35, r: 39, cd: 2.5 } } },
   bell: { name: 'Storm Bell', desc: 'Lightning leaps from monster to monster.',
     L: [{ dmg: 9, cd: 2.2, chain: 3 }, { dmg: 12, chain: 4 }, { cd: 1.8 }, { dmg: 15, chain: 6 }, { dmg: 20, cd: 1.5, chain: 8 }],
     up: ['', 'Longer chain.', 'Rings faster.', 'Longer chain, more zap.', 'A proper thunderstorm.'],
@@ -2251,6 +2251,7 @@ function themeFor(type, f) {
 /* ========================== 8c CONTENT: monsters ====================== */
 // spd px/s, r = combat radius, glint = xp value. Behaviour flags:
 //   hop / fly / phase (walks through walls) / heavy (resists knockback) / split / burst (thorns on death)
+//   siege: a floor's elite. It goes for the room you built up most and switches it off while it stands in it.
 //   ai: 'shoot' (stop and fire) - 'turret' (rooted) - 'charge' - 'bomber' - 'ring' / 'brood' (elites)
 //       'latch' (locks a doorway) - 'dig' (breaches a wall) - 'hex' (switches off the room it stands in)
 //       'dice' (rolls, then throws a ring of bullets: n + roll * per of them; `twice` throws a second ring)
@@ -2278,9 +2279,9 @@ const MON = {
   sapper:  { spr: 'sapper',  hp: 36,  spd: 42, r: 5,  dmg: 1, glint: 4,  col: PAL.T, sh: 'sh_s', ai: 'dig', pest: 1 },
   hexer:   { spr: 'hexer',   hp: 34,  spd: 25, r: 5,  dmg: 1, glint: 5,  col: PAL.P, sh: 'sh_s', ai: 'hex', pest: 1, shot: { cd: [2.6, 3.4], sp: 70, range: 150, hold: 95, spr: 's_hexbolt' } },
   /* elites */
-  kslime:  { spr: 'kslime',  hp: 170, spd: 27, r: 10, dmg: 2, glint: 30, col: PAL.n, sh: 'sh_l', hop: 1, heavy: 1, elite: 1, split: 4, crown: 1 },
-  eshroom: { spr: 'eshroom', hp: 300, spd: 22, r: 11, dmg: 2, glint: 35, col: PAL.r, sh: 'sh_l', heavy: 1, elite: 1, crown: 1, ai: 'brood', shot: { cd: [3, 4], sp: 60, range: 180, fan: 5, spr: 's_spore' } },
-  golem:   { spr: 'golem',   hp: 420, spd: 24, r: 11, dmg: 2, glint: 40, col: PAL.g, sh: 'sh_l', heavy: 1, elite: 1, ai: 'ring' },
+  kslime:  { spr: 'kslime',  hp: 170, spd: 27, r: 10, dmg: 2, glint: 30, col: PAL.n, sh: 'sh_l', hop: 1, heavy: 1, elite: 1, split: 4, crown: 1, siege: 1, name: 'King Slime' },
+  eshroom: { spr: 'eshroom', hp: 300, spd: 22, r: 11, dmg: 2, glint: 35, col: PAL.r, sh: 'sh_l', heavy: 1, elite: 1, crown: 1, siege: 1, name: 'Elder Shroom', ai: 'brood', shot: { cd: [3, 4], sp: 60, range: 180, fan: 5, spr: 's_spore' } },
+  golem:   { spr: 'golem',   hp: 420, spd: 24, r: 11, dmg: 2, glint: 40, col: PAL.g, sh: 'sh_l', heavy: 1, elite: 1, siege: 1, name: 'Furnace Golem', ai: 'ring' },
   mimic:   { spr: 'mimic',   hp: 150, spd: 46, r: 8,  dmg: 2, glint: 20, col: PAL.T, sh: 'sh_m', hop: 1, heavy: 1, elite: 1, mimic: 1 },
   /* called by a knock back (43-draft.js): the dice you tried to cheat. They are in no floor's mix. */
   die:     { spr: 'die',     hp: 46,  spd: 30, r: 6,  dmg: 1, glint: 2,  col: PAL.w, sh: 'sh_m', hop: 1, ai: 'dice', shot: { cd: [2.3, 3.1], sp: 58, range: 210, n: 6, per: 2, spr: 's_ebullet' } },
@@ -2319,18 +2320,35 @@ const FLOORS = [
 
 // Every difficulty knob. f = floor index (0..2), m = minutes spent on this floor.
 const CURVE = {
-  rate: (f, m) => [0.5, 1.0, 1.7][f] + [0.36, 0.46, 0.66][f] * m + 0.02 * m * m,          // monsters per second before door pressure
+  rate: (f, m) => [0.5, 1.0, 1.5][f] + [0.36, 0.46, 0.6][f] * m + 0.02 * m * m,           // monsters per second before door pressure
   cap: (f, m) => Math.min(260, 26 + 30 * m + f * 20),                                     // max alive
   hp: (f, m) => [1, 2.5, 7.0][f] * (1 + 0.09 * m + 0.015 * m * m),                        // monster hp multiplier
   group: (f, m) => 1 + Math.min(5, Math.floor(m / 1.4) + f),                              // monsters per knock
   keyCost: n => Math.round(6 + 5 * n + 0.45 * n * n),                                     // glints for the n-th key
-  room: (f, m) => [1, 1.8, 3.0][f] * (1 + 0.24 * m),                                      // room power (spikes, owls, embers...)
-  pressure: (doors, wedge) => 0.55 + 0.11 * Math.min(14, doors) * (1 - 0.12 * wedge),     // each sealed door adds to the knocking
+  room: (f, m) => [1, 2.0, 3.8][f] * (1 + 0.24 * m),                                      // room power (spikes, owls, embers...)
+  door: [0.11, 0.15, 0.17],                                                               // what one sealed door adds to the knocking, per floor
+  pressure: (doors, wedge, f) => 0.55 + CURVE.door[f || 0] * Math.min(14, doors) * (1 - 0.12 * wedge),   // the knocking: every sealed door is a place they come from
+  stars: [0.85, 1.6, 2.6],                                                                // room power by star level: one star alone is a help, three do the work
+  res: 0.4,                                                                               // +40% room power per resonating neighbour
   bossHp: (f, overstay) => (overstay ? 1.25 : 1),
+  dread: 0.6,                                                                             // past 60% of the dread clock the knocking grows, up to this much more when it runs out
+  fury: { after: 50, every: 20, step: 0.1, max: 8 },                                      // a warden's fight: seconds before its first step of fury, seconds per step, speed per step, most steps
   costKeep: 0.5,                                                                          // share of key-cost progress kept when you descend
 };
-const LV_MUL = [1, 1.5, 2.0];          // room power by star level
-const RES_STEP = 0.25;                 // +25% per resonating neighbour
+
+// Stakes: a ladder for players who get through. A win at a step unlocks the next one for that delver. Each step
+// adds one rule and keeps the ones before it. stake(n) asks whether step n's rule is in force in this run.
+const STAKES = [
+  'Wardens arrive enraged.',
+  'Pests come from the first floor on, and sooner.',
+  'Dice roll in with the waves.',
+  'Hearts drop half as often.',
+  'Monsters are a fifth tougher.',
+  'The dread clock runs a quarter faster.',
+];
+const stake = n => (G.stakes || 0) >= n;
+// the monsters a wave draws from right now: the floor's mix, plus dice from the third step of Stakes
+function floorMix() { const l = G.F.mix(G.t); if (stake(3) && G.t >= 120) l.push(['die', 0.45]); return l; }
 
 // Heroes: a starting weapon, a perk and a default deck (10 room cards). `sig` is unlocked with them.
 // Perk knobs: rooms = room power multiplier, hearts = heart drop rate multiplier (other perks are in 40-actors.js).
@@ -2681,19 +2699,24 @@ function computeFlow(force) {
 /* ============================== 10 ACTORS ============================= */
 // G holds the whole run. newRun() sets up what persists between floors (the hero, weapons,
 // charms, room levels, stats); enterFloor() rebuilds everything that belongs to one floor.
+// The damage tally and the census need to know who did it. BY is whoever deals damage to monsters right now:
+// 'w:<weapon>', 'r:<room type>', 'c:<charm>' or 'm:<monster>'. Shots, zones, patches and burns remember the BY that
+// made them. EBY is the monster that is acting, so its bullets and clouds can be named when they hit the delver.
+let BY = null, EBY = null;
 function newRun(seed, opts = {}) {
   rand = RNG(seed);
   const hero = HEROES[opts.hero] || HEROES.pip;
   let deck = (opts.deck || hero.deck).filter(id => ROOM_TYPES[id] && ROOM_TYPES[id].tier !== 'x');
   if (deck.length < 3) deck = hero.deck.slice();
   G = {
-    seed, hero: hero.id, deck, floor: 0, F: FLOORS[0], t: 0, tRun: 0, nextId: 1,
+    seed, hero: hero.id, deck, stakes: clamp(opts.stakes | 0, 0, STAKES.length), floor: 0, F: FLOORS[0], t: 0, tRun: 0, nextId: 1,
     rooms: [], cells: new Array(GRID * GRID).fill(null), sealed: [], jams: [],
     flags: new Uint8Array(GWT * GHT).fill(F_ALL), tag: new Uint8Array(GWT * GHT), tagRoom: new Uint16Array(GWT * GHT),
     distG: new Uint16Array(GWT * GHT).fill(65535), nextG: new Int32Array(GWT * GHT), distF: new Uint16Array(GWT * GHT).fill(65535), nextF: new Int32Array(GWT * GHT), flowTile: -1, flowT: -9,
     P: null, mons: [], shots: [], ebullets: [], picks: [], boons: [], patches: [], zones: [], allies: [], mats: [], parts: [], texts: [], fxs: [],
     cam: { x: 0, y: 0 }, shake: 0, freeze: 0, banner: null, flashT: 0, curRoom: null, roomLabel: null, tipQ: [], tipT: 0, tipText: '',
     dir: null, fstat: null, stats: { kills: 0, rooms: 0, keys: 0, dmg: 0, hurt: 0, elites: 0, evos: 0, floors: 0 },
+    tally: {}, hits: [],              // damage dealt per source (see BY), and the last three hits the delver took
     combo: 0, comboT: 0, roomLv: {}, owned: {}, newCards: [], newHeroes: [],
     tut: { step: opts.tutorial ? 0 : 9, moved: 0, t: 0 }, over: false, won: false, endless: false, endT: 0, draft: null,
     stairs: null, bossDown: false, leaving: 0, hearthPortal: null,
@@ -2726,7 +2749,7 @@ function addWeapon(id) { G.P.weapons.push({ id, lv: 1, evo: false, cd: 0.5, ang:
 const wStat = w => WEAPONS[w.id].S[w.evo ? 5 : w.lv - 1];
 const charm = id => G.P.charms[id] || 0;
 // power multiplier of one room: stars x resonance (x hero perk). Damage rooms also scale with roomPow().
-const roomMul = room => LV_MUL[roomLevel(room.type) - 1] * (1 + (RES_STEP + 0.1 * charm('trowel')) * room.res) * (HEROES[G.hero].rooms || 1);
+const roomMul = room => CURVE.stars[roomLevel(room.type) - 1] * (1 + (CURVE.res + 0.1 * charm('trowel')) * room.res) * (HEROES[G.hero].rooms || 1);
 const roomLive = room => room && room.reveal >= 1 && room.hexT <= 0;
 function keyCostNow() {
   let c = CURVE.keyCost(G.P.costN) * Math.pow(0.94, charm('keyring'));
@@ -2753,6 +2776,20 @@ function updateBuffs(dt) {
   if (live && room.type === 'cross') s *= 1 + 0.15 * roomMul(room);
   P.mightEff = m; P.hasteEff = h; P.speedEff = s;
 }
+// The damage tally as a list, largest first: what did the work in this run. kind: w(eapon), r(oom), c(harm), x (the rest).
+function tallyList() {
+  const total = G.stats.dmg || 1, out = [];
+  for (const key in G.tally) {
+    const kind = key[0], id = key.slice(2), dmg = G.tally[key]; let name = 'other', icon = null;
+    if (kind === 'w' && WEAPONS[id]) { const w = G.P.weapons.find(w => w.id === id); name = w ? weaponName(w) : WEAPONS[id].name; icon = w ? weaponIcon(w) : SPR['i_' + id]; }
+    else if (kind === 'r' && ROOM_TYPES[id]) { name = ROOM_TYPES[id].name; icon = SPR['i_' + id]; }
+    else if (kind === 'c' && CHARMS[id]) { name = CHARMS[id].name; icon = SPR['i_' + id]; }
+    else if (key === 'x:burn') name = 'burning';
+    out.push({ key, kind: icon ? kind : 'x', name, icon, dmg, share: dmg / total });
+  }
+  return out.sort((a, b) => b.dmg - a.dmg);
+}
+const tallyShare = kind => { let n = 0; for (const k in G.tally) if (k[0] === kind) n += G.tally[k]; return n / (G.stats.dmg || 1); };
 function banner(text, sub, col, dur) { G.banner = { text, sub: sub || '', col: col || '#fff8e8', t: 0, d: dur || 2 }; }
 function floatText(x, y, s, col) { G.texts.push({ x, y, s, col: col || '#fff8e8', t: 0, d: 1.2 }); }
 // one-time coaching tips (remembered in the save, shown in the hint bar)
@@ -2822,11 +2859,13 @@ function heal(n) {
   return P.hp > before;
 }
 function addShield(max) { const P = G.P; if (P.shield >= max) return false; P.shield++; sfx('shield'); sparkle(P.x, P.y - 10, 10, PAL.b); floatText(P.x, P.y - 24, '+shield', '#9cecf2'); return true; }
-// src = the monster that touched you, if any (for the Thorned Vest)
-function hurtPlayer(dmg, src) {
+// src = the monster that touched you, if any (for the Thorned Vest); cause = what to call it in the census when
+// it was not a touch (a bullet's or a cloud's owner)
+function hurtPlayer(dmg, src, cause) {
   const P = G.P; if (P.inv > 0 || G.over || G.won || G.freeze > 0 || G.leaving > 0) return false;
   if (P.dodge > 0 && rand() < P.dodge) { P.inv = 0.5; floatText(P.x, P.y - 24, 'Lucky!', '#b5e85a'); sfx('shield'); return false; }
-  if (src && charm('vest')) hurtMon(src, 12 * charm('vest') * P.mightEff, 0, 0, 0, 'room');
+  if (src && charm('vest')) { const was = BY; BY = 'c:vest'; hurtMon(src, 12 * charm('vest') * P.mightEff, 0, 0, 0, 'room'); BY = was; }
+  G.hits.push({ by: cause || (src && src.type) || 'unknown', floor: G.floor, t: Math.round(G.t) }); if (G.hits.length > 3) G.hits.shift();
   P.inv = 1.0 + P.invBonus; P.hurtT = 0.35; G.shake = Math.max(G.shake, 5); G.flashT = 0.3; sfx('hurt');
   if (P.shield > 0) { P.shield--; burst(P.x, P.y - 6, 8, PAL.b); return true; }
   P.hp -= dmg; G.stats.hurt += dmg; burst(P.x, P.y - 6, 8, PAL.r);
@@ -2937,7 +2976,7 @@ function spawnMon(type, x, y, hpMul) {
   const e = { def, type, id: G.nextId++, x, y, r: def.r, fr: Math.min(def.r, 5.5), hp: 1, max: 1, kx: 0, ky: 0, flash: 0, anim: rr(0, 3), wob: rr(0, TAU), face: 1,
     emerge: 0, evx: 0, evy: 0, slow: 0, slowT: 0, stun: 0, burnT: 0, burn: 0, burnTick: 0, chill: 0, mark: 0, markT: 0, dead: false, moonT: -9, gl: -1,
     shootT: def.shot ? rr(def.shot.cd[0], def.shot.cd[1]) : 0, st: 0, stT: 0, cx: 0, cy: 0, goal: null, life: 0, boon: null, keys: 1 };
-  e.max = e.hp = Math.max(1, Math.round(def.hp * (def.boss ? 1 : CURVE.hp(G.floor, G.t / 60)) * (hpMul || 1)));
+  e.max = e.hp = Math.max(1, Math.round(def.hp * (def.boss ? 1 : CURVE.hp(G.floor, G.t / 60)) * (hpMul || 1) * (stake(5) ? 1.2 : 1)));
   G.mons.push(e); return e;
 }
 const HC = 32, HW = Math.ceil(GWT * T / HC), HH = Math.ceil(GHT * T / HC);
@@ -2975,7 +3014,7 @@ function hurtMon(e, dmg, kx, ky, kb = 1, src) {
   if (!src) {
     if (P.crit > 0 && rand() < P.crit) { dmg *= 2; crit = true; }
     const er = P.charms.emberring, fr = P.charms.frostring;
-    if (er) { e.burnT = 2.2; e.burn = 3 * er * P.might; }
+    if (er) { e.burnT = 2.2; e.burn = 3 * er * P.might; e.burnBy = 'c:emberring'; }
     if (fr) { e.slow = Math.max(e.slowT > 0 ? e.slow : 0, 0.08 + 0.09 * fr); e.slowT = 1.5; }
   }
   const room = roomAt(e.x, e.y);
@@ -2983,6 +3022,7 @@ function hurtMon(e, dmg, kx, ky, kb = 1, src) {
   if (e.markT > 0) dmg *= 1 + e.mark;                                  // stuck in Royal Jelly
   if (e.burnT > 0 && src !== 'dot' && P.charms.tinder) dmg *= 1 + 0.15 * P.charms.tinder;
   dmg = Math.max(1, Math.round(dmg)); e.hp -= dmg; e.flash = 0.1; G.stats.dmg += dmg;
+  const by = BY || (src === 'room' ? 'r:other' : src === 'dot' ? 'x:burn' : 'w:other'); G.tally[by] = (G.tally[by] || 0) + dmg;
   if (e.def.mimic && e.st === 0) { e.st = 1; sfx('breach'); }
   const res = e.def.boss ? 0 : e.def.heavy ? 0.25 : 1;
   e.kx += kx * kb * res; e.ky += ky * kb * res;
@@ -3001,25 +3041,27 @@ function dropGlint(x, y, v) {
   dropPick('glint', x, y, v);
 }
 // lingering ground effects. kind: 'fire' / 'spore' hurt you; 'flame' / 'cloud' / 'honey' / 'drift' hurt monsters (and may slow them or make them 'sticky': hurt more by everything)
-function addZone(x, y, r, d, kind, dmg, extra) { if (G.zones.length < 70) G.zones.push(Object.assign({ x, y, r, t: 0, d, kind, dmg: dmg || 0, tick: 0.2, slow: 0, sticky: 0 }, extra)); }
+function addZone(x, y, r, d, kind, dmg, extra) { if (G.zones.length < 70) G.zones.push(Object.assign({ x, y, r, t: 0, d, kind, dmg: dmg || 0, tick: 0.2, slow: 0, sticky: 0, by: BY, mby: EBY }, extra)); }
 function killMon(e) {
   if (e.dead) return; e.dead = true; const def = e.def, P = G.P, room = roomAt(e.x, e.y); G.stats.kills++;
   burst(e.x, e.y - 4, def.elite ? 18 : 6, def.col, def.elite ? 90 : 60); sfx('kill');
   let gl = e.noLoot ? 0 : def.glint;      // a pack called by a knock back carries nothing
   if (room && roomLive(room)) {
     if (room.type === 'grave') gl *= 1 + roomLevel('grave');
-    if (room.type === 'fairy') addZone(e.x, e.y, 20, 3, 'cloud', 6 * roomPow(room));
+    if (room.type === 'fairy') { const was = BY; BY = 'r:fairy'; addZone(e.x, e.y, 20, 3, 'cloud', 6 * roomPow(room)); BY = was; }
   }
   if (gl) dropGlint(e.x, e.y, gl);
   if (def.split) for (let i = 0; i < def.split; i++) { const a = i / def.split * TAU + 0.4, s = spawnMon(def.into || 'slime', e.x + Math.cos(a) * 6, e.y + Math.sin(a) * 6); s.kx = Math.cos(a) * 110; s.ky = Math.sin(a) * 110; s.noLoot = e.noLoot; s.haste = e.haste; }
+  const firing = EBY; EBY = e.type;
   if (def.ember) addZone(e.x, e.y, 13, 2.6, 'fire');
   if (def.burst) for (let i = 0; i < def.burst; i++) { const a = i / def.burst * TAU + 0.3; fireEBullet(e.x, e.y - 3, Math.cos(a), Math.sin(a), 74, 's_spore', 1.6); }
+  EBY = firing;
   if (def.mimic) { for (let i = 0; i < e.keys; i++) dropPick('key', e.x, e.y); if (e.boon) G.boons.push({ x: e.x, y: e.y, boon: e.boon, mul: e.boonMul || 1, t: 0 }); G.shake = Math.max(G.shake, 4); }
   if (def.elite) { G.stats.elites++; if (!def.mimic && !e.noLoot) { dropPick('heart', e.x, e.y); if (charm('magpie')) dropPick('key', e.x, e.y); } }
-  else if (!def.boss && !e.noLoot && rand() < 0.012 * (HEROES[G.hero].hearts || 1) && P.hp < P.maxHp) dropPick('heart', e.x, e.y);
+  else if (!def.boss && !e.noLoot && rand() < 0.012 * (HEROES[G.hero].hearts || 1) * (stake(4) ? 0.5 : 1) && P.hp < P.maxHp) dropPick('heart', e.x, e.y);
   if (def.boss) bossDied(e);
 }
-function fireEBullet(x, y, dx, dy, sp, spr, life) { if (G.ebullets.length < 180) G.ebullets.push({ x, y, vx: dx * sp, vy: dy * sp, t: 0, spr: spr || 's_ebullet', life: life || 7 }); }
+function fireEBullet(x, y, dx, dy, sp, spr, life) { if (G.ebullets.length < 180) G.ebullets.push({ x, y, vx: dx * sp, vy: dy * sp, t: 0, spr: spr || 's_ebullet', life: life || 7, by: EBY }); }
 function fireFan(e, sp, n, spr, P) {
   const a0 = Math.atan2(P.y - 4 - (e.y - 4), P.x - e.x);
   for (let i = 0; i < n; i++) { const a = a0 + (i - (n - 1) / 2) * 0.28; fireEBullet(e.x, e.y - 4, Math.cos(a), Math.sin(a), sp, spr); }
@@ -3034,12 +3076,12 @@ function flowTarget(e, fly, P) {
 function updateMons(dt) {
   const P = G.P, mons = G.mons;
   for (let i = 0, n = mons.length; i < n; i++) {
-    const e = mons[i]; if (e.dead) continue; const def = e.def;
+    const e = mons[i]; if (e.dead) continue; const def = e.def; EBY = e.type;
     e.anim += dt; e.life += dt; if (e.flash > 0) e.flash -= dt;
     if (e.emerge > 0) { e.emerge -= dt; e.x += e.evx * dt; e.y += e.evy * dt; continue; }
     if (e.markT > 0) e.markT -= dt;
-    if (e.burnT > 0) { e.burnT -= dt; e.burnTick -= dt; if (e.burnTick <= 0) { e.burnTick = 0.5; hurtMon(e, e.burn * 0.5, 0, 0, 0, 'dot'); if (e.dead) continue; part(e.x + (fxr() - 0.5) * 6, e.y - 6, 0, -26, 0.3, fxr() < 0.5 ? PAL.o : PAL.y, 1); } }
-    if (def.boss) { BOSS_AI[def.id](e, dt); continue; }
+    if (e.burnT > 0) { e.burnT -= dt; e.burnTick -= dt; if (e.burnTick <= 0) { e.burnTick = 0.5; BY = e.burnBy || null; hurtMon(e, e.burn * 0.5, 0, 0, 0, 'dot'); BY = null; if (e.dead) continue; part(e.x + (fxr() - 0.5) * 6, e.y - 6, 0, -26, 0.3, fxr() < 0.5 ? PAL.o : PAL.y, 1); } }
+    if (def.boss) { BOSS_AI[def.id](e, dt * bossFury(e, dt)); continue; }
     const dxp = P.x - e.x, dyp = P.y - e.y, dp = Math.hypot(dxp, dyp) || 1, room = roomAt(e.x, e.y), live = roomLive(room);
     if (live && room.type === 'glacier' && e.gl !== room.id) { e.gl = room.id; e.stun = Math.max(e.stun, 1.2 * (0.5 + 0.5 * roomMul(room))); sfx('freeze'); }
     if (def.ai === 'hex' && room) { if (room.hexT <= 0 && room.def.tier !== 'x') { sfx('hex'); tip('hex', 'A Hexer switches off the room it stands in. Get rid of it.'); } room.hexT = 0.3; }
@@ -3053,6 +3095,7 @@ function updateMons(dt) {
     let tx, ty, direct = false;
     if (def.phase) { tx = P.x; ty = P.y; } else { const t = flowTarget(e, def.fly, P); tx = t[0]; ty = t[1]; }
     const ai = def.ai;
+    if (def.siege) { const act = siegeAct(e, dt, room, dp); if (act) { tx = act[0]; ty = act[1]; direct = true; if (act[2]) sp = 0; } }
     if (ai === 'shoot' || ai === 'hex') {
       const s = def.shot; e.shootT -= dt;
       if (dp < s.range) { sp *= dp < s.hold ? 0 : 0.5; if (e.shootT <= 0 && los(e.x, e.y - 4, P.x, P.y - 4)) { e.shootT = rr(s.cd[0], s.cd[1]); e.flash = 0.08; fireEBullet(e.x, e.y - 4, dxp / dp, dyp / dp, s.sp, s.spr); sfx('ebullet'); } }
@@ -3075,8 +3118,8 @@ function updateMons(dt) {
         sp = 0; e.stT -= dt; e.flash = (Math.floor(e.stT * 20) & 1) ? 0.05 : 0;
         if (e.stT <= 0) {
           G.fxs.push({ k: 'boom', x: e.x, y: e.y, R: 30, t: 0, d: 0.3 }); sfx('boom'); G.shake = Math.max(G.shake, 3); burst(e.x, e.y, 10, PAL.o, 90);
-          if (dp < 32) hurtPlayer(2);
-          nearMons(e.x, e.y, 30, o => { if (o !== e && Math.hypot(o.x - e.x, o.y - e.y) < 30 + o.r) hurtMon(o, 30 * CURVE.hp(G.floor, G.t / 60), 0, 0, 0, 'room'); });
+          if (dp < 32) hurtPlayer(2, null, 'bomber');
+          BY = 'm:bomber'; nearMons(e.x, e.y, 30, o => { if (o !== e && Math.hypot(o.x - e.x, o.y - e.y) < 30 + o.r) hurtMon(o, 30 * CURVE.hp(G.floor, G.t / 60), 0, 0, 0, 'room'); }); BY = null;
           killMon(e); continue;
         }
       }
@@ -3117,7 +3160,56 @@ function updateMons(dt) {
     if (Math.abs(dx) > 0.25 && sp > 0) e.face = dx > 0 ? 1 : -1;
     if (dp < e.r + P.r + 1) hurtPlayer(def.dmg, e);
   }
+  EBY = null;
 }
+// A floor's elite goes for the room you built up most (stars first, then resonance) and camps in it. While it
+// stands there the room's power is off, as under a Hexer. On its way it ignores the delver (a touch still hurts),
+// so it can be stopped before it arrives. Once it has settled in, it turns on a delver who comes close or walks
+// into its room, and goes back when they leave: fight it there, or lure it out. A floor with nothing built up
+// (one star everywhere, no resonance) has no target, and the elite hunts the delver like any monster.
+const SIEGE_NEAR = 76;
+function siegeTarget(e) {
+  let best = null, bs = 10, bd = 1e9;
+  for (const r of G.rooms) {
+    if (r.reveal < 1 || r.def.tier === 'x') continue;
+    const s = roomLevel(r.type) * 10 + Math.min(9, r.res), d = Math.hypot(r.px + CWP / 2 - e.x, r.py + CHP / 2 - e.y);
+    if (s > bs || (s === bs && best && d < bd)) { best = r; bs = s; bd = d; }
+  }
+  return best;
+}
+// a free tile to stand on, as near the middle of the room as there is one
+function standTile(r) {
+  const cx = Math.floor((r.px + CWP / 2) / T), cy = Math.floor((r.py + CHP / 2) / T);
+  for (let rad = 0; rad < 6; rad++) for (let dy = -rad; dy <= rad; dy++) for (let dx = -rad; dx <= rad; dx++) {
+    if (Math.max(Math.abs(dx), Math.abs(dy)) !== rad) continue;
+    const i = (cy + dy) * GWT + cx + dx; if (!(G.flags[i] & F_WALK)) return i;
+  }
+  return cy * GWT + cx;
+}
+// returns [x, y, standStill] to steer by, or null to chase the delver like any monster
+function siegeAct(e, dt, room, dp) {
+  e.siegeT = (e.siegeT || 0) - dt;
+  if (e.siegeT <= 0) {                // read the floor plan again now and then: rooms get built, levelled and latched
+    e.siegeT = 1.5; e.tr = siegeTarget(e);
+    if (e.tr) { if (!e.sd) { e.sd = new Uint16Array(GWT * GHT); e.sn = new Int32Array(GWT * GHT); } const c = standTile(e.tr); bfs(F_WALK, e.sd, e.sn, c % GWT, Math.floor(c / GWT)); }
+  }
+  const tr = e.tr; if (!tr) return null;
+  if (room === tr) {
+    tr.hexT = Math.max(tr.hexT, 0.3); tr.siegeT = 0.5;
+    if (!e.camped) {
+      e.camped = true; sfx('hex'); G.shake = Math.max(G.shake, 3);
+      banner('YOUR ' + tr.def.name.toUpperCase() + ' IS UNDER SIEGE', 'Its power is off while the ' + e.def.name + ' stands in it.', '#ff7a7a', 3);
+      tip('siege', 'An elite camps in the room you built up most and switches it off. Fight it there, or lure it out.');
+    }
+  }
+  if (e.camped && (dp < SIEGE_NEAR || room === G.curRoom)) return null;  // it has settled in and the delver is here: fight
+  const ti = Math.floor(e.y / T) * GWT + Math.floor(e.x / T), dd = e.sd[ti];
+  if (dd === 65535) return null;                                         // cut off from its room (a latched gate): hunt instead
+  if (dd <= 1) return [e.x, e.y, true];
+  let nx = e.sn[ti]; if (dd > 3) nx = e.sn[nx];
+  return [(nx % GWT) * T + 8, Math.floor(nx / GWT) * T + 8, false];
+}
+
 // Latchlings lock a doorway of the room they arrive in; Sappers tunnel through one of its bare walls.
 // returns [x, y, standStill] to steer by, null to behave like a normal chaser, or 'gone' once the job is done.
 function pestAct(e, dt, room, ai) {
@@ -3156,7 +3248,7 @@ function pestAct(e, dt, room, ai) {
 }
 
 // ---- shots, bullets, patches, zones, allies, pickups, fx ----
-function shoot(o) { G.shots.push(Object.assign({ t: 0, hits: null, rehit: 0, pierce: 0, bounces: 0, r: 3, inf: 0, kb: 1, src: undefined }, o)); }
+function shoot(o) { G.shots.push(Object.assign({ t: 0, hits: null, rehit: 0, pierce: 0, bounces: 0, r: 3, inf: 0, kb: 1, src: undefined, by: BY }, o)); }
 function explode(x, y, R, dmg, src) {
   G.fxs.push({ k: 'boom', x, y, R, t: 0, d: 0.3 }); G.shake = Math.max(G.shake, 2.5); sfx('boom'); burst(x, y, 10, PAL.o, 90);
   nearMons(x, y, R, e => { const dx = e.x - x, dy = e.y - 3 - y, d = Math.hypot(dx, dy); if (d < R + e.r) hurtMon(e, dmg, dx / (d || 1) * 90, dy / (d || 1) * 90, 1, src); });
@@ -3164,7 +3256,7 @@ function explode(x, y, R, dmg, src) {
 function updateShots(dt) {
   const S = G.shots, P = G.P;
   for (let i = S.length - 1; i >= 0; i--) {
-    const s = S[i]; s.t += dt; let dead = false;
+    const s = S[i]; s.t += dt; let dead = false; BY = s.by;
     if (s.k === 'bomb') {
       const f = clamp(s.t / s.d, 0, 1); s.x = lerp(s.sx, s.tx, f); s.y = lerp(s.sy, s.ty, f); s.z = Math.sin(f * Math.PI) * 30;
       if (s.t >= s.d) {
@@ -3220,29 +3312,31 @@ function updateShots(dt) {
       S[i] = S[S.length - 1]; S.pop();
     }
   }
+  BY = null;
 }
 function updateEBullets(dt) {
   const B = G.ebullets, P = G.P;
   for (let i = B.length - 1; i >= 0; i--) {
     const b = B[i]; b.t += dt; b.x += b.vx * dt; b.y += b.vy * dt;
     let dead = b.t > b.life || blocked(b.x, b.y, F_SHOT);
-    if (!dead && P.inv <= 0 && Math.abs(b.x - P.x) < 5 && Math.abs(b.y - (P.y - 4)) < 6) { hurtPlayer(1); dead = true; }
+    if (!dead && P.inv <= 0 && Math.abs(b.x - P.x) < 5 && Math.abs(b.y - (P.y - 4)) < 6) { hurtPlayer(1, null, b.by || 'a bullet'); dead = true; }
     if (dead) { B[i] = B[B.length - 1]; B.pop(); }
   }
 }
 function updatePatches(dt) {
   const A_ = G.patches;
   for (let i = A_.length - 1; i >= 0; i--) {
-    const p = A_[i]; p.life -= dt; p.tick -= dt;
+    const p = A_[i]; p.life -= dt; p.tick -= dt; BY = p.by;
     if (p.tick <= 0) { p.tick = 0.4; nearMons(p.x, p.y, p.r, e => { if (e.def.fly || e.def.phase) return; const dx = e.x - p.x, dy = e.y - p.y; if (dx * dx + dy * dy < (p.r + e.r) * (p.r + e.r)) { hurtMon(e, p.dmg, 0, 0, 0); e.slow = Math.max(e.slowT > 0 ? e.slow : 0, p.slow); e.slowT = 0.6; } }); }
     if (p.life <= 0) A_.splice(i, 1);
   }
+  BY = null;
 }
 function updateZones(dt) {
   const Z = G.zones, P = G.P;
   for (let i = Z.length - 1; i >= 0; i--) {
-    const z = Z[i]; z.t += dt; z.tick -= dt;
-    if (z.kind === 'fire' || z.kind === 'spore') { if (z.t > 0.35 && Math.hypot(P.x - z.x, P.y - z.y) < z.r + 2 && P.dashT <= 0) hurtPlayer(1); }
+    const z = Z[i]; z.t += dt; z.tick -= dt; BY = z.by;
+    if (z.kind === 'fire' || z.kind === 'spore') { if (z.t > 0.35 && Math.hypot(P.x - z.x, P.y - z.y) < z.r + 2 && P.dashT <= 0) hurtPlayer(1, null, z.mby || z.kind); }
     else if (z.tick <= 0) { z.tick = 0.4; nearMons(z.x, z.y, z.r, e => {
       if (e.dead || Math.hypot(e.x - z.x, e.y - z.y) >= z.r + e.r) return;
       if (z.sticky) { e.mark = z.sticky; e.markT = 0.7; }
@@ -3251,6 +3345,7 @@ function updateZones(dt) {
     }); }
     if (z.t >= z.d) { Z[i] = Z[Z.length - 1]; Z.pop(); }
   }
+  BY = null;
 }
 // guard bees: each one hunts whatever is in its room, and circles its hive when the room is quiet
 function updateAllies(dt) {
@@ -3262,7 +3357,7 @@ function updateAllies(dt) {
     if (b.tg) { tx = b.tg.x; ty = b.tg.y - 5; }
     const dx = tx - b.x, dy = ty - b.y, d = Math.hypot(dx, dy) || 1, sp = b.tg ? 130 : 50;
     b.x += dx / d * Math.min(d, sp * dt); b.y += dy / d * Math.min(d, sp * dt);
-    if (b.tg && d < 7 && b.cd <= 0) { b.cd = 0.5; hurtMon(b.tg, 6 * roomPow(room), 0, 0, 0, 'room'); sfx('sting'); }
+    if (b.tg && d < 7 && b.cd <= 0) { b.cd = 0.5; BY = 'r:apiary'; hurtMon(b.tg, 6 * roomPow(room), 0, 0, 0, 'room'); BY = null; sfx('sting'); }
   }
 }
 function syncBees() {                 // every Apiary keeps (1 + its level) bees
@@ -3328,7 +3423,7 @@ function lash(a, st) {
     const px = x + ca * R * k / 3.4, py = P.y + sa * R * k / 3.4;
     if (blocked(px, py, F_WALK) || G.patches.some(q => Math.abs(q.x - px) < 9 && Math.abs(q.y - py) < 7)) continue;
     if (G.patches.length > 48) G.patches.shift();
-    G.patches.push({ x: px, y: py, r: 10, dmg: st.dmg * 0.35 * P.mightEff, life: 3, max: 3, tick: 0.15, slow: 0.3, big: false });
+    G.patches.push({ x: px, y: py, r: 10, dmg: st.dmg * 0.35 * P.mightEff, life: 3, max: 3, tick: 0.15, slow: 0.3, big: false, by: BY });
   }
   G.fxs.push({ k: 'lash', a, R, t: 0, d: 0.2, rose: st.thorn }); sfx('swing');
 }
@@ -3393,7 +3488,7 @@ const WUPD = {
     if (w.cd > 0) return;
     const c = []; for (const e of G.mons) if (!e.dead && e.emerge <= 0 && (e.x - P.x) * (e.x - P.x) + (e.y - P.y) * (e.y - P.y) < 140 * 140) c.push(e);
     if (!c.length) { w.cd = 0.2; return; }
-    for (let i = 0, n = st.n + P.extra; i < n; i++) { const t = pick(c); G.shots.push({ k: 'bomb', x: P.x, y: P.y - 6, z: 0, sx: P.x, sy: P.y - 6, tx: t.x + rr(-6, 6), ty: t.y + rr(-6, 6), t: -i * 0.12, d: 0.5, R: st.r * P.area, dmg: st.dmg * P.mightEff, fire: st.fire }); }
+    for (let i = 0, n = st.n + P.extra; i < n; i++) { const t = pick(c); G.shots.push({ k: 'bomb', x: P.x, y: P.y - 6, z: 0, sx: P.x, sy: P.y - 6, tx: t.x + rr(-6, 6), ty: t.y + rr(-6, 6), t: -i * 0.12, d: 0.5, R: st.r * P.area, dmg: st.dmg * P.mightEff, fire: st.fire, by: BY }); }
     w.cd = st.cd * P.hasteEff;
   },
   bell(w, st, P) {
@@ -3420,7 +3515,7 @@ const WUPD = {
     if (w.cd > 0) return; w.cd = st.cd * P.hasteEff;
     for (const q of G.patches) if (Math.abs(q.x - P.x) < 9 && Math.abs(q.y - P.y) < 7) { q.life = q.max = st.life; q.dmg = st.dmg * P.mightEff; return; }   // refresh, never stack
     if (G.patches.length > 48) G.patches.shift();
-    G.patches.push({ x: P.x + rr(-3, 3), y: P.y + rr(-2, 2), r: st.r * P.area, dmg: st.dmg * P.mightEff, life: st.life, max: st.life, tick: 0.15, slow: st.slow, big: st.evo });
+    G.patches.push({ x: P.x + rr(-3, 3), y: P.y + rr(-2, 2), r: st.r * P.area, dmg: st.dmg * P.mightEff, life: st.life, max: st.life, tick: 0.15, slow: st.slow, big: st.evo, by: BY });
   },
   frostfan(w, st, P) {
     if (w.cd > 0) return;
@@ -3467,7 +3562,7 @@ const WUPD = {
       m.x += dx / d * Math.min(d, sp * dt); m.y += dy / d * Math.min(d, sp * dt); m.face = dx > 0 ? 1 : -1;
       if (m.tg && m.cd <= 0 && d < 8) {
         hurtMon(m.tg, st.dmg * P.mightEff, dx / d * 40, dy / d * 40);
-        if (st.burn && !m.tg.dead) { m.tg.burnT = 2.2; m.tg.burn = st.dmg * 0.35 * P.mightEff; }
+        if (st.burn && !m.tg.dead) { m.tg.burnT = 2.2; m.tg.burn = st.dmg * 0.35 * P.mightEff; m.tg.burnBy = BY; }
         m.cd = st.cd * P.hasteEff; m.tg = null;
       }
     }
@@ -3510,7 +3605,7 @@ const WUPD = {
     const R = st.r * P.area; if (!nearestMon(P.x, P.y - 3, R + 6, false)) { w.cd = 0.15; return; }
     nearMons(P.x, P.y - 3, R, e => {
       const dx = e.x - P.x, dy = e.y - P.y, d = Math.hypot(dx, dy); if (d > R + e.r) return;
-      if (hurtMon(e, st.dmg * P.mightEff, dx / (d || 1) * st.kb, dy / (d || 1) * st.kb) && st.scald && !e.dead) { e.burnT = 2.2; e.burn = st.dmg * 0.3 * P.mightEff; }
+      if (hurtMon(e, st.dmg * P.mightEff, dx / (d || 1) * st.kb, dy / (d || 1) * st.kb) && st.scald && !e.dead) { e.burnT = 2.2; e.burn = st.dmg * 0.3 * P.mightEff; e.burnBy = BY; }
     });
     if (st.scald) { const B = G.ebullets; for (let i = B.length - 1; i >= 0; i--) if (Math.hypot(B[i].x - P.x, B[i].y - P.y) < R) { B[i] = B[B.length - 1]; B.pop(); } }
     G.fxs.push({ k: 'tide', x: P.x, y: P.y - 2, R, hot: st.scald, t: 0, d: 0.32 }); sfx('splash'); w.cd = st.cd * P.hasteEff;
@@ -3521,7 +3616,7 @@ const WUPD = {
     if (!c.length) { w.cd = 0.2; return; }
     for (let i = 0, n = st.n + P.extra; i < n; i++) {
       const t = pick(c);
-      G.shots.push({ k: 'bomb', pot: { r: st.r * P.area, life: st.life, slow: st.slow, sticky: st.sticky || 0 }, x: P.x, y: P.y - 6, z: 0, sx: P.x, sy: P.y - 6, tx: t.x + rr(-5, 5), ty: t.y + rr(-5, 5), t: -i * 0.15, d: 0.55, R: 0, dmg: st.dmg * P.mightEff });
+      G.shots.push({ k: 'bomb', pot: { r: st.r * P.area, life: st.life, slow: st.slow, sticky: st.sticky || 0 }, x: P.x, y: P.y - 6, z: 0, sx: P.x, sy: P.y - 6, tx: t.x + rr(-5, 5), ty: t.y + rr(-5, 5), t: -i * 0.15, d: 0.55, R: 0, dmg: st.dmg * P.mightEff, by: BY });
     }
     w.cd = st.cd * P.hasteEff;
   },
@@ -3574,7 +3669,7 @@ const WUPD = {
     nearMons(P.x, P.y - 3, R, e => {
       const dx = e.x - P.x, dy = e.y - P.y, d = Math.hypot(dx, dy); if (d > R + e.r) return;
       if (d > 9 && Math.abs(angDiff(Math.atan2(dy, dx), a)) > st.arc / 2) return;
-      if (hurtMon(e, st.dmg * P.mightEff, dx / (d || 1) * 10, dy / (d || 1) * 10) && !e.dead) { e.burnT = 2.2; e.burn = st.burn * P.mightEff; }
+      if (hurtMon(e, st.dmg * P.mightEff, dx / (d || 1) * 10, dy / (d || 1) * 10) && !e.dead) { e.burnT = 2.2; e.burn = st.burn * P.mightEff; e.burnBy = BY; }
     });
     G.fxs.push({ k: 'breath', a, R, arc: st.arc, t: 0, d: st.tick * P.hasteEff + 0.06, seed: (fxr() * 999) | 0 });
     for (let i = 0; i < 2; i++) { const fa = a + (fxr() - 0.5) * st.arc; part(P.x + Math.cos(fa) * R * 0.8, P.y - 4 + Math.sin(fa) * R * 0.8, Math.cos(fa) * 30, Math.sin(fa) * 30 - 14, 0.35, fxr() < 0.5 ? PAL.o : PAL.g, 1); }
@@ -3618,7 +3713,8 @@ function evolveCheck() {
 }
 function updateWeapons(dt) {
   const P = G.P; if (G.over) return;
-  for (const w of P.weapons) { w.cd -= dt; WUPD[w.id](w, wStat(w), P, dt); }
+  for (const w of P.weapons) { w.cd -= dt; BY = 'w:' + w.id; WUPD[w.id](w, wStat(w), P, dt); }
+  BY = null;
   evolveCheck();
 }
 
@@ -3632,9 +3728,27 @@ function steelHaste() {               // Tinker's Oil and a Workshop speed up tr
   return h;
 }
 function liveDoors() { let n = 0; for (const d of G.sealed) if (d.room.reveal >= 1) n++; return n; }
-const doorPressure = () => CURVE.pressure(liveDoors(), charm('wedge'));
+const doorPressure = () => CURVE.pressure(liveDoors(), charm('wedge'), G.floor);
+// Waiting has a price before the warden comes: past 60% of the dread clock the knocking grows.
+function dreadMul() { if (G.dir.boss || G.bossDown || G.endless) return 1; const k = G.t / clockLimit(); return k > 0.6 ? 1 + CURVE.dread * Math.min(1, (k - 0.6) / 0.4) : 1; }
+const knocking = () => doorPressure() * dreadMul();                    // the multiplier the HUD shows
+// what the Stairwell would wake right now (the warden's share of its full strength), and the keys a fast kill would still pay
+const wardenShare = () => 0.5 + 0.5 * clamp(G.t / G.F.clock, 0, 1);
+const swiftLeft = () => G.dir.overstay ? 0 : clamp(Math.floor((clockLimit() - G.t) / 60), 0, 2);
+// A warden's fight cannot be waited out. After CURVE.fury.after seconds it gains a step of fury every CURVE.fury.every
+// seconds, and each step makes everything it does that much faster: its walk, its wind-ups, its cool-downs.
+function bossFury(e, dt) {
+  const F = CURVE.fury; e.fightT = (e.fightT || 0) + dt;
+  const step = e.fightT < F.after ? 0 : Math.min(F.max, 1 + Math.floor((e.fightT - F.after) / F.every));
+  if (step > (e.fury || 0)) {
+    e.fury = step; sfx('roar'); G.shake = Math.max(G.shake, 5); burst(e.x, e.y - 12, 12, PAL.r, 100);
+    if (step === 1) { banner(e.def.name + ' GROWS IMPATIENT', 'The longer the fight lasts, the faster it moves.', '#ff7a7a', 2.8); tip('fury', 'A warden gets faster the longer its fight lasts. A build that kills slowly meets a quicker warden.'); }
+    else floatText(e.x, e.y - 34, 'faster!', '#ff7a7a');
+  }
+  return 1 + F.step * (e.fury || 0);
+}
 function clockLimit() {               // seconds until the warden comes for you on its own
-  let c = G.F.clock;
+  let c = G.F.clock * (stake(6) ? 0.75 : 1);
   if (G.rooms.some(r => r.type === 'observ' && roomLive(r))) c *= 1 + [0.12, 0.2, 0.28][roomLevel('observ') - 1];
   return Math.max(45, c - G.fstat.wrath);   // every knock back after the first shortens it
 }
@@ -3650,13 +3764,13 @@ function emitFrom(d, q) {               // q: a monster id, or { id, rage } for 
   return e;
 }
 function fireEvent(ev) {
-  const mixl = G.F.mix(G.t), d = nearDoor(); if (!d) return;
+  const mixl = floorMix(), d = nearDoor(); if (!d) return;
   if (ev === 'breach') {
     banner('KNOCK KNOCK!', 'Something is forcing a door.', '#ff9ec4', 2.6); sfx('breach');
     for (let i = 0, n = 10 + Math.floor(G.t / 28) + G.floor * 3; i < n; i++) d.queue.push(wpick(mixl, x => x[1])[0]);
   } else if (ev === 'elite') {
     const id = G.F.elite; d.queue.push(id);
-    banner(id === 'kslime' ? 'A KING SLIME SQUEEZES IN' : id === 'eshroom' ? 'AN ELDER SHROOM LUMBERS IN' : 'A FURNACE GOLEM STOMPS IN', '', '#b5e85a', 2.2); sfx('breach');
+    banner(id === 'kslime' ? 'A KING SLIME SQUEEZES IN' : id === 'eshroom' ? 'AN ELDER SHROOM LUMBERS IN' : 'A FURNACE GOLEM STOMPS IN', siegeTarget({ x: d.x, y: d.y }) ? 'It is after the room you built up most.' : '', '#b5e85a', 2.6); sfx('breach');
   }
 }
 function scatterHorde(keep) {         // the small fry flee: wardens fight alone (at first)
@@ -3674,10 +3788,10 @@ function summonBoss(fromRoom) {
     else { e = spawnMon(id, P.x, P.y - 80); e.emerge = 0.9; }
   }
   // a warden woken early is weaker (and so are you); one that had to come and find you is furious
-  e.max = e.hp = Math.round(def.hp * (0.5 + 0.5 * clamp(G.t / G.F.clock, 0, 1)) * (D.overstay ? 1.25 : 1)); if (D.overstay) e.rage = true;
+  e.max = e.hp = Math.round(def.hp * wardenShare() * (D.overstay ? 1.25 : 1) * (stake(5) ? 1.2 : 1)); if (D.overstay || stake(1)) e.rage = true;
   D.boss = e; e.st = 0; e.stT = 2.4; e.ang = 0;
   scatterHorde(e);
-  banner(def.name, D.overstay ? 'you overstayed: it is furious' : def.sub, '#ff7a7a', 3.2); sfx('roar'); Snd.music('boss'); G.shake = 9;
+  banner(def.name, D.overstay ? 'you overstayed: it is furious' : stake(1) ? 'enraged from the first step' : def.sub, '#ff7a7a', 3.2); sfx('roar'); Snd.music('boss'); G.shake = 9;
   return e;
 }
 function bossDied(e) {
@@ -3694,7 +3808,7 @@ function bossDied(e) {
   // the way down opens: at the Stairwell if you drafted one, else where the warden fell
   const sr = G.rooms.find(r => r.type === 'stairs' && r.stairs);
   G.stairs = sr ? { x: sr.stairs.x, y: sr.stairs.y, open: true, hole: false } : { x: gx, y: gy, open: true, hole: true };
-  const swift = D.overstay ? 0 : Math.min(2, Math.floor((clockLimit() - G.t) / 60));
+  const swift = swiftLeft();
   G.fstat.swift = swift; P.keys += swift;
   banner('THE WARDEN FALLS', swift ? 'Swift work: +' + swift + (swift > 1 ? ' keys' : ' key') + '. The stairs are open.' : 'The stairs are open. Leave when you are ready.', '#ffd95e', 4);
   sfx('stairs');
@@ -3705,22 +3819,24 @@ function updateDirector(dt) {
   while (D.ti < F.timeline.length && G.t >= F.timeline[D.ti].t) fireEvent(F.timeline[D.ti++].ev);
   if (!D.boss && !G.endless) {                                          // the dread clock
     const lim = clockLimit();
+    if (G.t >= lim * 0.6) tip('dread', 'The bar under the clock turned orange: from here the knocking grows until the warden comes.');
     if (!D.warned && G.t >= lim - 15) { D.warned = true; banner('THE WARDEN STIRS...', 'It comes for you in 15 seconds.', '#ff7a7a', 3.2); sfx('breach'); }
     if (G.t >= lim) { D.overstay = true; summonBoss(null); }
   }
   if (D.calm > 0) { D.calm -= dt; return; }
   const fight = D.boss && !D.bossDead;
-  for (const id in F.pests) {                                           // pests go for the floor plan
-    const [first, every] = F.pests[id]; if (D.pestT[id] === undefined) D.pestT[id] = first;
+  const pests = stake(2) && G.floor === 0 ? Object.assign({ sapper: [150, 85] }, F.pests) : F.pests, soon = stake(2) ? 0.7 : 1;
+  for (const id in pests) {                                             // pests go for the floor plan
+    const [first, every] = pests[id]; if (D.pestT[id] === undefined) D.pestT[id] = first * soon;
     if (G.t < D.pestT[id]) continue;
-    D.pestT[id] = G.t + every * rr(0.8, 1.25);
+    D.pestT[id] = G.t + every * soon * rr(0.8, 1.25);
     const d = nearDoor(); if (d && !fight) d.queue.push(id);
   }
   let doors = 0, queued = 0; for (const d of G.sealed) { if (d.room.reveal >= 1) doors++; queued += d.queue.length; }
-  const rate = CURVE.rate(G.floor, m) * CURVE.pressure(doors, charm('wedge')) * (fight ? 0.4 : 1);
+  const rate = CURVE.rate(G.floor, m) * CURVE.pressure(doors, charm('wedge'), G.floor) * dreadMul() * (fight ? 0.4 : 1);
   D.acc = Math.min(8, D.acc + rate * dt);
   if (D.acc >= 1 && G.mons.length + queued < CURVE.cap(G.floor, m)) {
-    const n = Math.min(Math.floor(D.acc), CURVE.group(G.floor, m)), mixl = F.mix(G.t); D.acc -= n;
+    const n = Math.min(Math.floor(D.acc), CURVE.group(G.floor, m)), mixl = floorMix(); D.acc -= n;
     if (doors) { const d = wpick(G.sealed.filter(d => d.room.reveal >= 1), doorWeight); for (let i = 0; i < n; i++) d.queue.push(wpick(mixl, x => x[1])[0]); }
     else {                            // no sealed doors left: the dark squeezes through cracks in the floor
       const room = G.curRoom || G.rooms[0];
@@ -3846,7 +3962,7 @@ const BOSS_AI = {
       if (e.stT <= 0) {
         const res = e.room && e.wall >= 0 ? breachWall(e.room, e.wall) : null;
         if (res === 'door') {
-          const d = G.sealed.find(q => q.room === e.room && q.dir === e.wall), mixl = G.F.mix(G.t);
+          const d = G.sealed.find(q => q.room === e.room && q.dir === e.wall), mixl = floorMix();
           if (d) for (let i = 0; i < (rage ? 9 : 6); i++) d.queue.push(wpick(mixl, x => x[1])[0]);
           sfx('crack'); G.shake = Math.max(G.shake, 6); const p = doorPos(e.room, e.wall); burst(p.x, p.y, 22, PAL.t, 110);
           banner('THE WALL GIVES WAY', 'The Unmaker opened a new door.', '#e3bd88', 2.2);
@@ -3855,7 +3971,7 @@ const BOSS_AI = {
       }
     } else if (e.st === 5) {          // falling masonry: get out of the circles
       if (e.stT <= 0) {
-        for (const p of e.pts) { G.fxs.push({ k: 'boom', x: p[0], y: p[1], R: 17, t: 0, d: 0.3 }); burst(p[0], p[1], 5, PAL.g, 70); if (Math.hypot(P.x - p[0], P.y - p[1]) < 16 && P.dashT <= 0) hurtPlayer(2); }
+        for (const p of e.pts) { G.fxs.push({ k: 'boom', x: p[0], y: p[1], R: 17, t: 0, d: 0.3 }); burst(p[0], p[1], 5, PAL.g, 70); if (Math.hypot(P.x - p[0], P.y - p[1]) < 16 && P.dashT <= 0) hurtPlayer(2, null, 'unmaker'); }
         e.pts = null; sfx('boom'); G.shake = Math.max(G.shake, 5); e.st = 0; e.stT = rr(1.3, 2.0);
       }
     } else if (e.st === 4) {          // three aimed fans
@@ -3886,8 +4002,10 @@ function updateRooms(dt) {
   const P = G.P, cur = G.curRoom, sh = steelHaste(), cap = CURVE.cap(G.floor, G.t / 60);
   const inRoom = (room, fn) => { for (const e of G.mons) if (!e.dead && e.emerge <= 0 && roomAt(e.x, e.y) === room) fn(e); };
   for (const room of G.rooms) {
+    BY = 'r:' + room.type;
     if (room.reveal < 1) { room.reveal = Math.min(1, room.reveal + dt / 0.9); if (room.reveal >= 1) onRoomReady(room); continue; }
-    if (room.hexT > 0) { room.hexT -= dt; if (room.hexT <= 0 && room.type === 'library') recalc(); continue; }   // hexed: switched off
+    if (room.siegeT > 0) room.siegeT -= dt;
+    if (room.hexT > 0) { room.hexT -= dt; if (room.hexT <= 0 && room.type === 'library') recalc(); continue; }   // hexed or besieged: switched off
     room.timer += dt;
     const here = room === cur, mul = roomMul(room);
     switch (room.type) {
@@ -3987,6 +4105,7 @@ function updateRooms(dt) {
         if (!p.fruit) { room.grow += dt * mul; if (room.grow > 36) { room.grow = 0; p.fruit = dropPick('heart', p.x, p.y - 12); p.fruit.vx = p.fruit.vy = 0; sparkle(p.x, p.y - 12, 8, PAL.p); } }
         break; }
       case 'greenhouse':
+        if (G.bossDown && !G.endless) break;                              // a floor whose warden is dead is quiet: nothing to farm
         room.grow += dt * mul;
         for (const p of room.planters) if (p.fruit && p.fruit.gone) p.fruit = null;
         if (room.grow > 20) {
@@ -3998,7 +4117,7 @@ function updateRooms(dt) {
         const c = room.chest;
         if (!c.open && Math.abs(P.x - c.x) < 17 && Math.abs(P.y - (c.y - 4)) < 17) {
           c.open = true; c.spr = 'chest1'; sfx('chest'); G.shake = Math.max(G.shake, 2);
-          const total = Math.max(14, P.keyCost * 0.75) * LV_MUL[roomLevel('vault') - 1]; for (let i = 0; i < 14; i++) dropGlint(c.x, c.y - 4, total / 14);
+          const total = Math.max(14, P.keyCost * 0.75) * CURVE.stars[roomLevel('vault') - 1]; for (let i = 0; i < 14; i++) dropGlint(c.x, c.y - 4, total / 14);
           sparkle(c.x, c.y - 8, 16, PAL.y);
         }
         break; }
@@ -4015,6 +4134,7 @@ function updateRooms(dt) {
         break;
     }
   }
+  BY = null;
 }
 
 /* =============================== 13 DRAFT ============================= */
@@ -4066,7 +4186,7 @@ function refreshCard(c, cx, cy, entry) {
   const ev = EVO_ROOM[c.type], w = ev && G.P.weapons.find(w => w.id === ev);
   c.evo = w && !w.evo ? { id: ev, ready: w.lv >= WEAPONS[ev].max, lv: w.lv } : null;
   const before = G.sealed.length, after = before - 1 - c.plan.links + c.plan.fresh;
-  c.pressure = Math.round((CURVE.pressure(after, charm('wedge')) / CURVE.pressure(before, charm('wedge')) - 1) * 100);
+  c.pressure = Math.round((CURVE.pressure(after, charm('wedge'), G.floor) / CURVE.pressure(before, charm('wedge'), G.floor) - 1) * 100);
 }
 function openDraft(door) {
   const cx = door.room.cx + DIRS[door.dir].x, cy = door.room.cy + DIRS[door.dir].y, entry = (door.dir + 2) % 4;
@@ -4092,7 +4212,7 @@ const KNOCK = [{ n: 8, elites: 0, dice: 0, big: 0, clock: 0 }, { n: 18, elites: 
 const knockTier = () => Math.min(G.fstat.knocks, KNOCK.length - 1);
 function knockBack() {
   const D = G.draft; if (!D) return false;
-  const d = D.door, k = G.fstat.knocks, K = KNOCK[knockTier()], mixl = G.F.mix(G.t), more = Math.max(0, k - (KNOCK.length - 1));
+  const d = D.door, k = G.fstat.knocks, K = KNOCK[knockTier()], mixl = floorMix(), more = Math.max(0, k - (KNOCK.length - 1));
   const n = K.n + G.floor * Math.round(K.n / 4) + more * 6, elites = Math.min(3, K.elites + more), big = Math.min(3, K.big + more);
   G.fstat.knocks++; G.fstat.wrath += K.clock; d.cards = makeCards(d); d.hold = true;
   for (let i = 0; i < K.dice; i++) d.queue.push({ id: 'die', rage: true });
@@ -4170,7 +4290,7 @@ function coachPlan(D, all) {
   const doors = i => add('c_card', i, 'doors', 'NEW DOORS', 'Each sealed door is a later draft, and one more place monsters knock. The % is how much the knocking changes.');
   const dead = i => add('c_dead', i, 'doors', 'DEAD END', 'This room has no new doors. The knocking gets quieter, and you have one draft fewer.');
   const locked = () => add('c_card', -1, 'bar', 'THE STAIRWELL', 'The way down. It unlocks after ' + STAIRS_MIN + ' rooms on this floor and then shows up here, in a draft.');
-  const stairs = () => add('c_stairs', -1, 'bar', 'THE STAIRWELL', 'It is open. Build it instead of a room and the warden comes. Beat the warden to go down. More rooms first make you stronger.');
+  const stairs = () => add('c_stairs', -1, 'bar', 'THE STAIRWELL', 'It is open. Build it and the warden comes: weaker now than later, and a fast kill pays keys. More rooms first make you stronger, but late in the clock the knocking grows.');
   const stars = i => add('c_stars', i, 'stars', 'STARS', cards[i].lvTo > cards[i].lv
     ? 'You own this room. Draft it again and every room of its type gains a star: stronger for the whole run.'
     : 'This room type has all its stars. Another one still adds its power to the floor.');
@@ -4557,6 +4677,7 @@ function drawMap(g, x, y, cw, ch, live) {
     const px = x + r.cx * cw, py = y + r.cy * ch, mx = px + (cw >> 1), my = py + (ch >> 1);
     g.fillStyle = '#0d0a1a'; g.fillRect(px, py, cw, ch); g.fillStyle = r.reveal < 1 ? '#3fc1ad' : r.def.col; g.fillRect(px + 1, py + 1, cw - 2, ch - 2);
     if (live && r.hexT > 0) { g.fillStyle = '#6030a0'; g.fillRect(px + 2, py + 2, cw - 4, ch - 4); }
+    if (live && r.siegeT > 0 && (Math.floor(frameT * 4) & 1)) { g.fillStyle = '#ff4a5e'; g.fillRect(px, py, cw, 1); g.fillRect(px, py + ch - 1, cw, 1); g.fillRect(px, py, 1, ch); g.fillRect(px + cw - 1, py, 1, ch); }   // under siege
     for (let d = 0; d < 4; d++) {
       if (!r.doors[d]) continue;
       g.fillStyle = r.doors[d] === 1 ? ((live && (Math.floor(frameT * 3) & 1)) ? '#ffb0b0' : '#ff4a5e') : r.doors[d] === 3 ? '#ffb030' : r.def.col;
@@ -4608,6 +4729,7 @@ function renderHUD(g) {
     txo(g, boss.def.name, VW / 2, 4, '#ff9ec4', '#1a1426', 0.5);
     g.fillStyle = '#1a1426'; g.fillRect(bx - 1, 14, bw + 2, 6); g.fillStyle = '#5a2030'; g.fillRect(bx, 15, bw, 4);
     g.fillStyle = '#e8474c'; g.fillRect(bx, 15, Math.round(bw * f), 4); g.fillStyle = '#ff9ec4'; g.fillRect(bx, 15, Math.round(bw * f), 1);
+    for (let i = 0; i < (boss.fury || 0); i++) { g.fillStyle = '#1a1426'; g.fillRect(bx + i * 5 - 1, 21, 5, 4); g.fillStyle = (Math.floor(t * 4) & 1) ? '#ffd95e' : '#ff6a6a'; g.fillRect(bx + i * 5, 22, 3, 2); }   // steps of fury
   } else {
     txo(g, fmtTime(G.t), VW / 2, 4, '#fff8e8', '#1a1426', 0.5);
     for (let i = 0; i < FLOORS.length; i++) { g.fillStyle = '#1a1426'; g.fillRect(VW / 2 + 19 + i * 6, 5, 5, 5); g.fillStyle = i < G.floor ? '#ffd95e' : i === G.floor ? '#fff8e8' : '#3b2d4f'; g.fillRect(VW / 2 + 20 + i * 6, 6, 3, 3); }
@@ -4616,7 +4738,7 @@ function renderHUD(g) {
     else {
       const bw = 72, bx = Math.round(VW / 2 - bw / 2), lim = clockLimit(), f = clamp(G.t / lim, 0, 1), ready = stairsReady();
       g.fillStyle = '#1a1426'; g.fillRect(bx - 1, 14, bw + 2, 4); g.fillStyle = '#3b2d4f'; g.fillRect(bx, 15, bw, 2);
-      g.fillStyle = f > 0.85 ? '#ff6a6a' : '#9a62d6'; g.fillRect(bx, 15, Math.round(bw * f), 2);
+      g.fillStyle = f > 0.85 ? '#ff6a6a' : f > 0.6 ? '#f6923a' : '#9a62d6'; g.fillRect(bx, 15, Math.round(bw * f), 2);   // orange: the knocking is growing
       for (const ev of G.F.timeline) { g.fillStyle = '#1a1426'; g.fillRect(bx + Math.round(bw * ev.t / lim), 15, 1, 2); }
       g.drawImage(SPR.door_icon.c, bx + bw + 2, 10);
       // five pips: rooms drafted on this floor; full = the Stairwell is on offer
@@ -4627,7 +4749,7 @@ function renderHUD(g) {
   }
   if (G.roomLabel) { const L_ = G.roomLabel; g.globalAlpha = clamp(Math.min(L_.t * 4, (2.4 - L_.t) * 2), 0, 1); txo(g, '~ ' + L_.text + ' ~', VW / 2, 30, '#ffd95e', '#1a1426', 0.5); g.globalAlpha = 1; }
   // minimap
-  const mw = GRID * 7, mh = GRID * 5, mx = VW - mw - 6, my = 5, doors = G.sealed.length, pr = CURVE.pressure(doors, charm('wedge'));
+  const mw = GRID * 7, mh = GRID * 5, mx = VW - mw - 6, my = 5, doors = G.sealed.length, pr = knocking();
   g.fillStyle = 'rgba(13,10,26,0.6)'; g.fillRect(mx - 2, my - 2, mw + 4, mh + 4); g.fillStyle = '#3b2d4f'; g.fillRect(mx - 2, my - 2, mw + 4, 1); g.fillRect(mx - 2, my + mh + 1, mw + 4, 1); g.fillRect(mx - 2, my - 2, 1, mh + 4); g.fillRect(mx + mw + 1, my - 2, 1, mh + 4);
   drawMap(g, mx, my, 7, 5, true);
   txo(g, G.rooms.length + (G.rooms.length === 1 ? ' room  ' : ' rooms  ') + doors + (doors === 1 ? ' door' : ' doors'), VW - 6, my + mh + 5, '#9aa3b5', '#1a1426', 1);
@@ -4711,7 +4833,7 @@ function drawPlan(g, card, x, y, w, h) {   // 3x3 neighbourhood blueprint: where
     const sx = ox + cw + (cw >> 1) + DIRS[d].x * (cw >> 1), sy = oy + ch + (ch >> 1) + DIRS[d].y * (ch >> 1), k = 2 + (Math.floor(frameT * 5) & 1);
     g.fillStyle = ELEMENTS[me.el === 'stone' ? nb.el : me.el].col; g.fillRect(sx - k, sy - 1, k * 2 + 1, 2); g.fillRect(sx - 1, sy - k, 2, k * 2 + 1);
   }
-  if (card.res > 0) txo(g, '+' + Math.round(card.res * (RES_STEP + 0.1 * charm('trowel')) * 100) + '%', x + 2, y + 2, ELEMENTS[me.el].col, '#1a1426');
+  if (card.res > 0) txo(g, '+' + Math.round(card.res * (CURVE.res + 0.1 * charm('trowel')) * 100) + '%', x + 2, y + 2, ELEMENTS[me.el].col, '#1a1426');
   if (card.evo) { const b = SPR['i_' + card.evo.id]; g.globalAlpha = card.evo.ready ? 1 : 0.55; ds(g, b, x + w - 9, y + 9); g.globalAlpha = 1; txo(g, card.evo.ready ? 'EVOLVE!' : 'Lv' + card.evo.lv + '/5', x + w - 2, y + h - 10, card.evo.ready ? ((Math.floor(frameT * 4) & 1) ? '#ffd95e' : '#fff8e8') : '#9aa3b5', '#1a1426', 1); }
 }
 function drawCard(g, card, r, sel, t, i) {
@@ -4765,7 +4887,8 @@ function renderDraft(g) {
     const b = L_.bar, on = D.onStairs;
     panel(g, b.x, b.y - (on ? 1 : 0), b.w, b.h, on ? '#ffd95e' : '#6a6a8a', on ? '#3a3052' : '#24203a');
     ds(g, SPR.i_stairs, b.x + 11, b.y + 7); txt(g, 'THE STAIRWELL', b.x + 22, b.y + 4, on ? '#ffd95e' : '#c8c8e0');
-    txt(g, 'wake the warden, then leave this floor', b.x + b.w - 6, b.y + 4, on ? '#fff8e8' : '#9aa3b5', 1);
+    const keys = swiftLeft();       // what it would wake right now, and what a fast kill would still pay
+    txt(g, 'warden at ' + Math.round(wardenShare() * 100) + '%   ' + (keys ? 'a fast kill pays ' + keys + (keys > 1 ? ' keys' : ' key') : 'no keys for speed now'), b.x + b.w - 6, b.y + 4, on ? '#fff8e8' : '#9aa3b5', 1);
   }
   if (L_.lock) {                    // not on offer yet: say what it takes
     const b = L_.lock; panel(g, b.x, b.y, b.w, b.h, '#3b3b5a', '#1c1830');
@@ -4808,8 +4931,23 @@ function drawBuild(g, cx, y, P, maxW) {    // centred row(s) of everything you c
   });
   return rows.length * 16;
 }
+// The damage tally as one row: what did the work so far, largest first. An icon and its share; the line under
+// the icon says what it is (gold: a weapon, blue: a room, green: a charm). What does not fit is summed at the end.
+function drawTally(g, x, y, w) {
+  const list = tallyList(); if (!list.length) return;
+  txt(g, 'DAMAGE', x, y + 4, '#9aa3b5'); let lx = x + textW('DAMAGE') + 8, rest = 0, full = false;
+  list.forEach((t, i) => {
+    const s = Math.round(t.share * 100) + '%', ew = 18 + textW(s) + 6, room = i < list.length - 1 ? 26 : 0;
+    if (full || !t.icon || lx + ew > x + w - room) { if (t.icon) full = true; rest += t.share; return; }
+    ds(g, t.icon, lx + 8, y + 8); g.fillStyle = t.kind === 'r' ? '#9cecf2' : t.kind === 'c' ? '#b5e85a' : '#ffd95e'; g.fillRect(lx + 2, y + 16, 12, 1);
+    txt(g, s, lx + 18, y + 4, '#fff8e8'); lx += ew;
+  });
+  if (rest >= 0.005) txt(g, '+' + Math.round(rest * 100) + '%', lx, y + 4, '#5d667c');
+}
 function pauseItems() { const o = Save.data.opts; return [{ label: 'Resume' }, { label: 'Music', value: o.music }, { label: 'Sound', value: o.sfx }, { label: 'Screen shake', value: o.shake ? 'ON' : 'OFF' }, { label: 'Mouse walk', value: o.mouse === 'drag' ? 'DRAG' : 'TO POINTER' }, { label: 'Restart run' }, { label: 'Quit to title' }]; }
-function pauseLayout() { const items = pauseItems(), h = items.length * 14 + 84, y = Math.round(VH / 2 - h / 2); return { items, h, y, rects: menuRects(items.length, y + 36, 170) }; }
+function pauseLayout() { const items = pauseItems(), h = items.length * 14 + 102 + (G.stakes ? 20 : 0), y = Math.round(VH / 2 - h / 2); return { items, h, y, rects: menuRects(items.length, y + 36, 170) }; }
+// one line for the Stakes in force: the step, its own rule, and how many came before it
+const stakesLine = n => 'STAKES ' + n + ': ' + STAKES[n - 1] + (n > 1 ? '  (and the ' + (n - 1) + ' before it)' : '');
 function renderPause(g) {
   g.fillStyle = 'rgba(13,10,26,0.7)'; g.fillRect(0, 0, VW, VH);
   const L_ = pauseLayout(), y = L_.y, P = G.P, hero = HEROES[G.hero];
@@ -4817,11 +4955,14 @@ function renderPause(g) {
   txs(g, 'PAUSED', VW / 2, y + 8, '#ffd95e', 0.5);
   txt(g, hero.name + ' the ' + hero.title + '  -  ' + G.F.name + '  -  ' + fmtTime(G.tRun), VW / 2, y + 21, '#9aa3b5', 0.5);
   drawMenu(g, L_.items, L_.rects, App.sel);
-  drawBuild(g, VW / 2, y + L_.h - 44, P, 200);
+  const sk = G.stakes ? 20 : 0;       // two lines for the Stakes in force: the step, and the rule it adds
+  drawBuild(g, VW / 2, y + L_.h - 62 - sk, P, 200);
+  drawTally(g, VW / 2 - 100, y + L_.h - 30 - sk, 200);
+  if (sk) { txt(g, 'STAKES ' + G.stakes + (G.stakes > 1 ? ': every rule up to' : ':'), VW / 2, y + L_.h - 32, '#ff9ec4', 0.5); txt(g, STAKES[G.stakes - 1], VW / 2, y + L_.h - 22, '#fff8e8', 0.5); }
   txt(g, 'M mutes everything', VW / 2, y + L_.h - 11, '#5d667c', 0.5);
 }
 function endItems() { return App.mode === 'win' ? [{ label: 'Keep delving (endless)' }, { label: 'New run' }, { label: 'Back to title' }] : [{ label: 'Try again' }, { label: 'Back to title' }]; }
-function endLayout() { const items = endItems(), h = 186 + (items.length - 2) * 14, y = Math.max(2, Math.round(VH / 2 - h / 2)); return { items, h, y, rects: menuRects(items.length, y + h - items.length * 14 - 8, 170) }; }
+function endLayout() { const items = endItems(), h = 206 + (items.length - 2) * 14, y = Math.max(2, Math.round(VH / 2 - h / 2)); return { items, h, y, rects: menuRects(items.length, y + h - items.length * 14 - 8, 170) }; }
 function drawNewCards(g, x, y, w, label) {   // cards and heroes unlocked this run
   const n = G.newCards.length + G.newHeroes.length; if (!n) return 0;
   txt(g, label, x, y, '#9cecf2'); let lx = x + textW(label) + 6;
@@ -4836,14 +4977,17 @@ function renderEnd(g) {
   txo(g, win ? 'THE KNOCKING STOPS' : 'THE DARK GOT IN', VW / 2, y + 9, win ? '#ffd95e' : '#ff9ec4', '#1a1426', 0.5, 2);
   txt(g, win ? 'Three floors, three wardens, one very good floor plan.' : 'Every door you opened was a choice. Choose again?', VW / 2, y + 30, '#d8dbe6', 0.5);
   const rows = [['Reached', G.F.name], ['Time', fmtTime(G.tRun)], ['Rooms drafted', String(S.rooms)], ['Monsters felled', String(S.kills)], ['Weapons evolved', String(S.evos)]];
-  rows.forEach((r, i) => { txt(g, r[0], x + 14, y + 46 + i * 10, '#9aa3b5'); txt(g, r[1], x + 128, y + 46 + i * 10, '#fff8e8', 1); });
-  if (App.record) txt(g, 'NEW BEST!', x + 14, y + 98, (Math.floor(frameT * 4) & 1) ? '#ffd95e' : '#f6923a');
+  if (G.stakes) rows.push(['Stakes', String(G.stakes)]);
+  rows.forEach((r, i) => { txt(g, r[0], x + 14, y + 44 + i * 9, '#9aa3b5'); txt(g, r[1], x + 128, y + 44 + i * 9, r[0] === 'Stakes' ? '#ff9ec4' : '#fff8e8', 1); });
+  if (App.stakesNew) txt(g, 'STAKES ' + App.stakesNew + ' IS OPEN', x + 14, y + 100, (Math.floor(frameT * 4) & 1) ? '#ff9ec4' : '#fff8e8');
+  else if (App.record) txt(g, 'NEW BEST!', x + 14, y + 100, (Math.floor(frameT * 4) & 1) ? '#ffd95e' : '#f6923a');
   // the dungeon you built on this floor
   let x0 = 9, x1 = 0, y0 = 9, y1 = 0; for (const r of G.rooms) { x0 = Math.min(x0, r.cx); x1 = Math.max(x1, r.cx); y0 = Math.min(y0, r.cy); y1 = Math.max(y1, r.cy); }
   const cw = Math.min(14, Math.floor(118 / (x1 - x0 + 1))), ch = Math.min(10, Math.floor(60 / (y1 - y0 + 1)), Math.round(cw * 0.72)), mw = (x1 - x0 + 1) * cw, mh = (y1 - y0 + 1) * ch;
   g.fillStyle = '#141028'; g.fillRect(x + 138, y + 44, 120, 64);
   drawMap(g, x + 138 + ((120 - mw) >> 1) - x0 * cw, y + 44 + ((64 - mh) >> 1) - y0 * ch, cw, ch, false);
-  drawBuild(g, VW / 2, y + 110, P, 240);
+  drawTally(g, x + 14, y + 110, 242);
+  drawBuild(g, VW / 2, y + 128, P, 240);
   drawNewCards(g, x + 14, y + L_.h - L_.items.length * 14 - 22, 240, 'UNLOCKED');
   drawMenu(g, L_.items, L_.rects, App.sel);
 }
@@ -4867,8 +5011,10 @@ function renderDescend(g) {
 
 // ---- choose your delver ----
 function heroOwned(id) { return !!Save.data.heroes[id]; }
+// the hero screen's boxes: sk is the height of the Stakes lines (0 until this delver has won), sy their top, dy the deck's
+function prepLayout(id) { const sk = heroOwned(id) && stakesOpen(id) ? 22 : 0, h = 188 + sk, y = Math.round(VH / 2 - h / 2); return { sk, h, y, sy: y + 101, dy: y + 106 + sk }; }
 function renderPrep(g) {
-  const t = frameT, id = HERO_ORDER[App.prep.i], hero = HEROES[id], own = heroOwned(id), deck = deckFor(id), w = Math.min(360, VW - 24), h = 188, x = Math.round(VW / 2 - w / 2), y = Math.round(VH / 2 - h / 2);
+  const t = frameT, id = HERO_ORDER[App.prep.i], hero = HEROES[id], own = heroOwned(id), deck = deckFor(id), w = Math.min(360, VW - 24), L_ = prepLayout(id), h = L_.h, x = Math.round(VW / 2 - w / 2), y = L_.y;
   renderWorld(g); g.fillStyle = 'rgba(13,10,26,0.8)'; g.fillRect(0, 0, VW, VH);
   panel(g, x, y, w, h);
   txs(g, 'CHOOSE YOUR DELVER', VW / 2, y + 8, '#ffd95e', 0.5);
@@ -4885,8 +5031,16 @@ function renderPrep(g) {
     txt(g, 'Starts with ' + wd.name, tx + 23, y + 51, '#ffd95e'); txt(g, wd.desc, tx + 23, y + 60, '#9aa3b5');
     let ty = y + 74; for (const ln of wrapText(hero.perk, w - 104)) { txt(g, ln, tx, ty, '#b5e85a'); ty += 9; }
   } else { let ty = y + 52; for (const ln of wrapText('To unlock: ' + hero.how, w - 104)) { txt(g, ln, tx, ty, '#ff9ec4'); ty += 9; } }
+  // the Stakes: one pip per step (lit: chosen, dim: open, dark: still locked) and the rule the chosen step adds
+  if (L_.sk) {
+    const n = stakeOf(id), top = stakesOpen(id), sy = L_.sy; g.fillStyle = '#4c5a84'; g.fillRect(x + 10, sy, w - 20, 1);
+    txt(g, 'STAKES', x + 14, sy + 5, n ? '#ff9ec4' : '#9aa3b5'); let px2 = x + 14 + textW('STAKES') + 6;
+    for (let i = 1; i <= STAKES.length; i++) { g.fillStyle = '#0d0a1a'; g.fillRect(px2, sy + 4, 7, 7); g.fillStyle = i <= n ? '#ff6a9a' : i <= top ? '#6a5a84' : '#2a2246'; g.fillRect(px2 + 1, sy + 5, 5, 5); px2 += 9; }
+    txt(g, Input.touch ? 'tap to change' : 'UP / DOWN', x + w - 14, sy + 5, '#5d667c', 1);
+    txt(g, n ? stakesLine(n).slice(('STAKES ' + n + ': ').length) : 'The game as it is. A step up adds one rule.', x + 14, sy + 14, n ? '#fff8e8' : '#9aa3b5');
+  }
   // their deck
-  const dy = y + 106; g.fillStyle = '#4c5a84'; g.fillRect(x + 10, dy - 6, w - 20, 1);
+  const dy = L_.dy; g.fillStyle = '#4c5a84'; g.fillRect(x + 10, dy - 6, w - 20, 1);
   txt(g, 'DECK', x + 14, dy, '#9aa3b5'); txt(g, deck.length + '/' + DECK_SIZE + '  Drafts deal these, plus one room native to the floor.', x + 14 + textW('DECK  '), dy, '#5d667c');
   let lx = Math.round(VW / 2 - deck.length * 10);
   for (const rid of deck) { const el = ELEMENTS[ROOM_TYPES[rid].el]; g.fillStyle = '#0d0a1a'; g.fillRect(lx, dy + 12, 19, 21); g.fillStyle = '#2a2246'; g.fillRect(lx + 1, dy + 13, 17, 19); g.fillStyle = el.col; g.fillRect(lx + 1, dy + 30, 17, 2); ds(g, SPR['i_' + rid], lx + 9, dy + 21); lx += 20; }
@@ -5000,11 +5154,12 @@ const App = { mode: 'title', prevMode: '', modeT: 0, sel: 0, fade: null, record:
 
 // ---- save data: options, records, and the meta-game (cards collected, heroes, one deck per hero) ----
 const Save = {
-  KEY: 'roomwright.v2',
+  KEY: 'roomwright.v2' + ((location.pathname.match(/\/(v\d+(?:\.\d+)*)\//) || [])[1] ? '.' + location.pathname.match(/\/(v\d+(?:\.\d+)*)\//)[1] : ''),   // a preview served from a version folder (.../v0.3/) keeps its own save
   data: null,
   fresh() {
     const rooms = {}; for (const id of STARTER_ROOMS) rooms[id] = 1;
-    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0, mouse: 'point' }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {} };
+    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0, mouse: 'point' }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {}, census: [],
+      stakes: {}, stake: {} };          // Stakes per delver: the highest step won (0 = the plain game), and the step chosen for the next run
   },
   load() {
     this.data = this.fresh();
@@ -5017,6 +5172,10 @@ const Save = {
         if (HEROES[s.hero] && d.heroes[s.hero]) d.hero = s.hero;
         for (const id in s.decks || {}) if (HEROES[id] && Array.isArray(s.decks[id])) d.decks[id] = s.decks[id].filter(r => typeof r === 'string');
         Object.assign(d.tips, s.tips);
+        if (Array.isArray(s.census)) d.census = s.census.filter(r => r && typeof r === 'object').slice(-CENSUS_MAX);
+        for (const id in s.stakes || {}) if (HEROES[id]) d.stakes[id] = clamp(s.stakes[id] | 0, 0, STAKES.length);
+        if (!s.stakes && d.wins > 0) for (const id in d.heroes) d.stakes[id] = 0;       // a save from before Stakes that has won: the first step is open
+        for (const id in s.stake || {}) if (HEROES[id]) d.stake[id] = clamp(s.stake[id] | 0, 0, stakesOpen(id));
       } else { const old = JSON.parse(localStorage.getItem('roomwright.v1')); if (old && old.opts) Object.assign(this.data.opts, old.opts); }   // keep v0.1 volume settings
     } catch (e) { /* storage unavailable or corrupt: play without persistence */ }
     this.apply();
@@ -5024,6 +5183,9 @@ const Save = {
   store() { try { localStorage.setItem(this.KEY, JSON.stringify(this.data)); } catch (e) { /* ignore */ } },
   apply() { const o = this.data.opts; Snd.vol.music = o.mute ? 0 : o.music; Snd.vol.sfx = o.mute ? 0 : o.sfx; Snd.applyVol(); Intro.vol(); },
 };
+// Stakes: the highest step this delver may play (one above the highest won; 0 until a first win), and the step chosen
+const stakesOpen = id => { const won = Save.data.stakes[id]; return won === undefined ? 0 : Math.min(STAKES.length, won + 1); };
+const stakeOf = id => clamp(Save.data.stake[id] | 0, 0, stakesOpen(id));
 // the deck a hero will bring: their saved list, cleaned up and topped up to DECK_SIZE from cards you own
 function deckFor(hid) {
   const own = Save.data.rooms, hero = HEROES[hid], out = [];
@@ -5065,15 +5227,32 @@ function floorBanner() { banner('FLOOR ' + (G.floor + 1) + ': ' + G.F.name.toUpp
 function startRun(seed, opts = {}) {
   if (seed === undefined) { const q = new URLSearchParams(location.search).get('seed'); seed = q !== null && q !== '' && isFinite(+q) ? +q : (Math.random() * 2147483647) | 0; }   // ?seed=123 pins the run
   const hero = opts.hero && HEROES[opts.hero] ? opts.hero : Save.data.hero;
-  newRun(seed, { hero, deck: opts.deck || fullDeck(hero), tutorial: Save.data.runs < 2 });
+  newRun(seed, { hero, deck: opts.deck || fullDeck(hero), tutorial: Save.data.runs < 2, stakes: opts.stakes === undefined ? stakeOf(hero) : opts.stakes });
   Save.data.runs++; Save.store();
   App.mode = 'play'; App.sel = 0; App.record = false; Snd.music(G.F.music);
   floorBanner();
 }
+// The census: what a run looked like when it ended. The save keeps the last CENSUS_MAX runs (RW.census() prints them),
+// and the self-play bot reads the same record. Nothing here leaves the browser.
+const CENSUS_MAX = 20;
+function runRecord(win) {
+  const P = G.P, S = G.stats;
+  return { v: VERSION, hero: G.hero, stakes: G.stakes, seed: G.seed, won: !!win, floor: G.floor + 1, minute: Math.round(G.t / 6) / 10, time: Math.round(G.tRun),
+    by: G.hits.map(h => h.by), doors: G.sealed.length, rooms: G.fstat.rooms, drafted: S.rooms,
+    weapons: P.weapons.map(w => w.id + (w.evo ? '*' : w.lv)).join(' '),
+    top: tallyList().slice(0, 3).map(t => t.key + ' ' + Math.round(t.share * 100)).join(', '), roomShare: Math.round(tallyShare('r') * 100) };
+}
 function endRun(win) {
-  const b = Save.data.best, S = G.stats, depth = G.floor + 1;
+  const b = Save.data.best, S = G.stats, depth = G.floor + 1, c = Save.data.census;
+  c.push(runRecord(win)); while (c.length > CENSUS_MAX) c.shift();
   App.record = Save.data.runs > 1 && (depth > b.floor || (depth === b.floor && Math.floor(G.tRun) > b.time));
-  b.time = Math.max(b.time, Math.floor(G.tRun)); b.rooms = Math.max(b.rooms, S.rooms); b.kills = Math.max(b.kills, S.kills); b.floor = Math.max(b.floor, depth); if (win) Save.data.wins++;
+  b.time = Math.max(b.time, Math.floor(G.tRun)); b.rooms = Math.max(b.rooms, S.rooms); b.kills = Math.max(b.kills, S.kills); b.floor = Math.max(b.floor, depth);
+  App.stakesNew = 0;
+  if (win) {                          // a win at a step opens the next one for this delver, and sets it for the next run
+    const d = Save.data, had = stakesOpen(G.hero); d.wins++;
+    d.stakes[G.hero] = Math.max(d.stakes[G.hero] === undefined ? -1 : d.stakes[G.hero], G.stakes);
+    if (stakesOpen(G.hero) > had) { App.stakesNew = stakesOpen(G.hero); d.stake[G.hero] = App.stakesNew; }
+  }
   Save.store(); App.mode = win ? 'win' : 'over'; App.sel = 0;
 }
 // walking onto the open stairs
@@ -5133,7 +5312,12 @@ const MODES = {
     G.t += dt; updateDoors(dt); updateSmall(dt);
     const P_ = App.prep, n = HERO_ORDER.length, id = HERO_ORDER[P_.i], own = heroOwned(id), m = Input.mouse;
     let go = Input.hit('ok') || (App.modeT > 0.4 && Input.hit('dash')), edit = Input.hit('alt'), step = (Input.hit('right') ? 1 : 0) - (Input.hit('left') ? 1 : 0);
-    if (m.click && App.modeT > 0.3) { const h = 188, y = Math.round(VH / 2 - h / 2); if (m.y < y + 100 && m.x < VW / 2 - 40) step = 1; else if (m.y >= y + 100 && m.y < y + 150) edit = true; else go = true; }
+    const L_ = prepLayout(id), top = stakesOpen(id); let turn = top && own ? (Input.hit('up') ? 1 : 0) - (Input.hit('down') ? 1 : 0) : 0;
+    if (m.click && App.modeT > 0.3) {
+      if (m.y < L_.sy && m.x < VW / 2 - 40) step = 1; else if (L_.sk && m.y >= L_.sy && m.y < L_.sy + L_.sk) turn = stakeOf(id) >= top ? -top : 1;   // a tap goes up a step, and from the top back to none
+      else if (m.y >= L_.dy - 6 && m.y < L_.dy + 44) edit = true; else go = true;
+    }
+    if (turn && own) { Save.data.stake[id] = clamp(stakeOf(id) + turn, 0, top); Save.store(); sfx('tick'); }
     if (step) { P_.i = (P_.i + step + n) % n; sfx('tick'); }
     if (Input.hit('back')) { App.mode = 'title'; sfx('back'); return; }
     if (edit && own) { App.deck.cur = 0; App.deck.msgT = 0; App.mode = 'deck'; sfx('ok'); return; }
@@ -5351,7 +5535,10 @@ window.RW = {
   start(seed, opts) { startRun(seed, opts); },                         // opts: { hero, deck }
   manual(on) { App.manual = !!on; },
   coach(on) { App.coach = !!on; },                                     // false = no card lessons in drafts (the checks and the bot use this)
-  coachPlan, cardPart, stairsLocked, knockBack, knockTier, KNOCK, draftLayout, pauseLayout, hintFor, view: () => ({ VW, VH, SCALE }),                                   // true = the page stops ticking itself; drive it with step()
+  coachPlan, cardPart, stairsLocked, knockBack, knockTier, KNOCK, draftLayout, pauseLayout, hintFor, view: () => ({ VW, VH, SCALE }),
+  tallyList, tallyShare, record: runRecord, endLayout, siegeTarget, dreadMul, knocking, wardenShare, swiftLeft, doorPressure,
+  STAKES, stake, stakesOpen, stakeOf, prepLayout, floorMix,           // the Stakes ladder                 // the damage tally, and the census record of the run as it stands
+  census() { const c = Save.data.census; if (console.table) console.table(c.map(r => Object.assign({}, r, { by: r.by.join(' < ') }))); return c; },                                   // true = the page stops ticking itself; drive it with step()
   step(n = 1) { for (let i = 0; i < n; i++) { tick(STEP); Input.endFrame(); } },
   hold(a, on) { if (on) Input.down.add(a); else Input.down.delete(a); },
   press(a) { Input.pressed.add(a); },
@@ -5363,6 +5550,7 @@ window.RW = {
     return { mode: App.mode, floor: G.floor, t: +G.t.toFixed(1), tRun: +G.tRun.toFixed(1), hp: P.hp, maxHp: P.maxHp, shield: P.shield, keys: P.keys, glints: Math.round(P.glints), keyCost: P.keyCost, forged: P.forged,
       rooms: G.rooms.length, drafted: G.stats.rooms, sealed: G.sealed.length, jams: G.jams.length, mons: G.mons.length, kills: G.stats.kills, picks: G.picks.length, boons: G.boons.length,
       weapons: P.weapons.map(w => w.id + (w.evo ? '*' : w.lv)).join(' '), charms: Object.entries(P.charms).map(([k, v]) => k + v).join(' '), roomLv: Object.entries(G.roomLv).filter(e => e[1] > 1).map(e => e[0] + e[1]).join(' '),
+      dmg: G.stats.dmg, roomShare: +tallyShare('r').toFixed(3), tally: tallyList().map(t => ({ key: t.key, dmg: t.dmg, share: +t.share.toFixed(3) })),
       x: Math.round(P.x), y: Math.round(P.y), over: G.over, won: G.won, bossDown: G.bossDown, boss: G.dir.boss ? Math.round(G.dir.boss.hp) : null, stairs: G.stairs ? (G.stairs.open ? 'open' : 'shut') : null, tut: G.tut.step };
   },
   sheet(scale = 4) {                                                   // toggles a contact sheet of every sprite (art review)
