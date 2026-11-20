@@ -61,9 +61,9 @@
         if (c.type === 'fountain' || c.type === 'spring' || c.type === 'well') s += P.hp <= 5 ? 3 : 1.5;
         if (c.type === 'den' || c.type === 'grave' || c.type === 'altar') s += P.hp >= 6 ? 0.5 : -3;
         if (['vault', 'library', 'garden', 'counting', 'maproom', 'greenhouse'].includes(c.type)) s += 1;
-        if (c.lv > 0 && c.lvTo > c.lv) s += 1.5;
+        if (c.lv > 0 && c.lvTo > c.lv) s += 2.5;                         // a star for every room of this type
         if (c.evo) s += c.evo.ready ? 5 : 1.5;                           // the room one of my weapons evolves in
-        s += c.res * 0.8;
+        s += c.res * 1.6;                                                // resonance with the rooms next door
         const after = G.sealed.length - 1 - c.plan.links + c.plan.fresh;
         if (after < 2) s -= 3;
         if (B.policy === 'tight') { if (after > 4) s -= 2 + (after - 4) * 1.5; }      // keeps the plan closed: four doors or fewer
