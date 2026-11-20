@@ -1,0 +1,74 @@
+# Publishes the game to GitHub Pages: https://pyros-projects.github.io/roomwright/
+#
+# The site is two files, index.html and intro.mp4. Nothing is built here: index.html is committed,
+# and the first step only makes sure it matches src/. After the upload the last step fetches the
+# live copy and compares it with this commit, so a green run means the new game is being served.
+#
+# Runs on a push to main that changes the game, or by hand from the Actions tab.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - index.html
+      - intro.mp4
+      - src/**
+      - tools/build.sh
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time. A running deploy finishes; of the ones waiting, only the newest runs.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: index.html matches src/
+        run: tools/build.sh --check
+
+      - name: Collect the two files
+        run: |
+          mkdir _site
+          cp index.html intro.mp4 _site/
+
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v5
+
+      - name: The live copy is this commit's game
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          url="${PAGE_URL%/}"
+          want="$(sha256sum index.html | cut -d' ' -f1)"
+          got=""
+          for _ in $(seq 1 24); do          # the new copy can take a moment to reach the edge
+            got="$(curl -fsSL "$url/index.html?v=$GITHUB_SHA" | sha256sum | cut -d' ' -f1)"
+            [ "$got" = "$want" ] && break
+            sleep 5
+          done
+          if [ "$got" != "$want" ]; then echo "The live index.html is not this commit's."; exit 1; fi
+          size="$(curl -fsSL -o /dev/null -w '%{size_download}' "$url/intro.mp4?v=$GITHUB_SHA")"
+          if [ "$size" != "$(wc -c < intro.mp4 | tr -d ' ')" ]; then echo "The live intro.mp4 has $size bytes."; exit 1; fi
+          echo "Live at $url/"

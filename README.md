@@ -20,7 +20,7 @@
 </div>
 
 <div align="center">
-  <a href="https://play-roomwright.netlify.app">Play</a> &middot;
+  <a href="https://pyros-projects.github.io/roomwright/">Play</a> &middot;
   <a href="#the-idea">The idea</a> &middot;
   <a href="#controls">Controls</a> &middot;
   <a href="docs/design.md">How it plays</a> &middot;
@@ -37,7 +37,7 @@
 
 [![The intro film: one room with four sealed doors, a key, a new room, the Warden, the floor plan, the logo](media/intro.gif)](intro.mp4)
 
-[Watch the intro with sound](intro.mp4) · [Play Roomwright](https://play-roomwright.netlify.app)
+[Watch the intro with sound](intro.mp4) · [Play Roomwright](https://pyros-projects.github.io/roomwright/)
 
 | A door, three cards | The first room, a minute in |
 | :---: | :---: |
@@ -61,7 +61,7 @@ resonance, evolutions, door pressure, pests, the three floors, the deck and the 
 
 ## Play
 
-Play at <https://play-roomwright.netlify.app>, or clone this repository and open `index.html` in a
+Play at <https://pyros-projects.github.io/roomwright/>, or clone this repository and open `index.html` in a
 browser. The game is one self-contained file with no libraries: code draws all in-game pixel art at
 boot, and WebAudio synthesises all in-game sound. `intro.mp4`, a 30-second intro film, sits next to
 it and is optional. Without it the game starts on the title screen.
@@ -108,7 +108,7 @@ rendered the film. [The intro film](docs/intro.md) explains how it runs in the g
 [MIT](LICENSE)
 
 [play-shield]: https://img.shields.io/badge/play-in%20your%20browser-F6923A?style=flat-square
-[play-url]: https://play-roomwright.netlify.app
+[play-url]: https://pyros-projects.github.io/roomwright/
 [license-shield]: https://img.shields.io/badge/License-MIT-green?style=flat-square
 [license-url]: LICENSE
 [version-shield]: https://img.shields.io/badge/version-0.2-30343B?style=flat-square

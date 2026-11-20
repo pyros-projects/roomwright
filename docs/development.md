@@ -42,12 +42,16 @@ The parts you are most likely to touch:
 
 ## The live copy
 
-<https://play-roomwright.netlify.app> serves two files, `index.html` and `intro.mp4`. To publish, copy
-them into an empty folder outside this checkout and deploy that folder, so no `.netlify/` lands here:
+<https://pyros-projects.github.io/roomwright/> serves two files, `index.html` and `intro.mp4`. A push to
+`main` that changes the game publishes it. `.github/workflows/pages.yml` checks that `index.html`
+matches `src/`, uploads the two files to GitHub Pages, then fetches the live copy and compares it
+with the commit. The same workflow can be started by hand from the Actions tab.
+
+So run `tools/build.sh` before you commit a change in `src/`: a stale `index.html` stops the deploy.
+After a deploy, run the full checks against the live copy:
 
 ```
-netlify deploy --prod --no-build --dir <that folder> --site play-roomwright
-GAME_URL=https://play-roomwright.netlify.app/ tools/check.sh   # the same checks against the deployed copy
+GAME_URL=https://pyros-projects.github.io/roomwright/ tools/check.sh
 ```
 
 ## Not done yet
