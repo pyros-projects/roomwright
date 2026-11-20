@@ -54,6 +54,6 @@ GAME_URL=https://play-roomwright.netlify.app/ tools/check.sh   # the same checks
 
 Balance has only been tuned against the bot, not against people. Nobody has listened to the audio
 or held a real gamepad: the checks confirm that every sound produces a signal and that the pad
-mapping works with a simulated pad, nothing more. Nobody has listened to the intro's soundtrack
-either. Its levels are measured: -15.7 LUFS, peak -1.6 dBFS. There is no rebindable-controls screen, and room cards cannot yet be banned or weighted
+mapping works with a simulated pad, nothing more. The intro's soundtrack has been
+listened to and approved. Its levels are measured: -15.7 LUFS, peak -1.6 dBFS. There is no rebindable-controls screen, and room cards cannot yet be banned or weighted
 inside a deck.
