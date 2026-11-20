@@ -2,7 +2,7 @@
 # Build ../intro.mp4, the 30-second intro cinematic.
 #
 #   intro/build.sh            story -> render -> captions -> ../intro.mp4
-#   intro/build.sh --plates   first convert art/raw/*.png into plates/ again (needs Chromium, see pixel-cat)
+#   intro/build.sh --plates   first convert art/raw/*.png into plates/ again
 #
 # Needs: uv, ffmpeg, and a pixel-cat checkout (https://github.com/pyros-projects/pixel-cat).
 # The checkout is found through PIXEL_CAT_HOME or ~/.config/pixel-cat/config.json (written by the
@@ -54,7 +54,7 @@ INPUTS="$(sed -n 1p out/captions.ffmpeg)"; GRAPH="$(sed -n 2p out/captions.ffmpe
 PEAK="$(ffmpeg -hide_banner -i out/master.mp4 -af volumedetect -vn -f null - 2>&1 | sed -n 's/.*max_volume: \(-*[0-9.]*\) dB/\1/p')"
 GAIN="$(uv run --no-project python -c "print(round(-1.5 - ($PEAK), 2))")"
 ffmpeg -hide_banner -loglevel error -y -i out/master.mp4 $INPUTS -filter_complex "$GRAPH" -map "[$LAST]" -map 0:a \
-  -c:v libx264 -preset slow -crf 20 -pix_fmt yuv420p -af "volume=${GAIN}dB" -c:a aac -b:a 160k -ar 48000 -t 30 \
+  -c:v libx264 -preset slow -crf 24 -pix_fmt yuv420p -af "volume=${GAIN}dB" -c:a aac -b:a 160k -ar 48000 -t 30 \
   -movflags +faststart ../intro.mp4
 echo "audio gain ${GAIN} dB"
 ffprobe -v error -show_entries format=duration,size:stream=codec_name,width,height,r_frame_rate -of compact=p=0:nk=1 ../intro.mp4

@@ -37,7 +37,8 @@ the art and renders the film:
    bells and tones. The cues repeat the notes of the game's knock, key and draft sounds. Cuts fall
    on beats. The captions are in `intro/captions.json`.
 4. `intro/build.sh` renders `story.json` with pixel-cat's film renderer, burns the captions in and
-   writes `intro.mp4` (1600 x 900, H.264 and AAC, under 5 MB).
+   writes `intro.mp4` (1600 x 900, H.264 and AAC, about 6 MB). The camera moves on every one of the
+   24 frames and rests between cells, so zooms and pans do not shimmer.
 
 ```
 intro/build.sh            # needs uv, ffmpeg and a pixel-cat checkout (PIXEL_CAT_HOME)
