@@ -2330,6 +2330,8 @@ const CURVE = {
   stars: [1, 1.5, 2.0],                                                                   // room power by star level
   res: 0.25,                                                                              // +25% room power per resonating neighbour
   bossHp: (f, overstay) => (overstay ? 1.25 : 1),
+  dread: 0.6,                                                                             // past 60% of the dread clock the knocking grows, up to this much more when it runs out
+  fury: { after: 50, every: 20, step: 0.1, max: 8 },                                      // a warden's fight: seconds before its first step of fury, seconds per step, speed per step, most steps
   costKeep: 0.5,                                                                          // share of key-cost progress kept when you descend
 };
 
@@ -3064,7 +3066,7 @@ function updateMons(dt) {
     if (e.emerge > 0) { e.emerge -= dt; e.x += e.evx * dt; e.y += e.evy * dt; continue; }
     if (e.markT > 0) e.markT -= dt;
     if (e.burnT > 0) { e.burnT -= dt; e.burnTick -= dt; if (e.burnTick <= 0) { e.burnTick = 0.5; BY = e.burnBy || null; hurtMon(e, e.burn * 0.5, 0, 0, 0, 'dot'); BY = null; if (e.dead) continue; part(e.x + (fxr() - 0.5) * 6, e.y - 6, 0, -26, 0.3, fxr() < 0.5 ? PAL.o : PAL.y, 1); } }
-    if (def.boss) { BOSS_AI[def.id](e, dt); continue; }
+    if (def.boss) { BOSS_AI[def.id](e, dt * bossFury(e, dt)); continue; }
     const dxp = P.x - e.x, dyp = P.y - e.y, dp = Math.hypot(dxp, dyp) || 1, room = roomAt(e.x, e.y), live = roomLive(room);
     if (live && room.type === 'glacier' && e.gl !== room.id) { e.gl = room.id; e.stun = Math.max(e.stun, 1.2 * (0.5 + 0.5 * roomMul(room))); sfx('freeze'); }
     if (def.ai === 'hex' && room) { if (room.hexT <= 0 && room.def.tier !== 'x') { sfx('hex'); tip('hex', 'A Hexer switches off the room it stands in. Get rid of it.'); } room.hexT = 0.3; }
@@ -3712,6 +3714,24 @@ function steelHaste() {               // Tinker's Oil and a Workshop speed up tr
 }
 function liveDoors() { let n = 0; for (const d of G.sealed) if (d.room.reveal >= 1) n++; return n; }
 const doorPressure = () => CURVE.pressure(liveDoors(), charm('wedge'), G.floor);
+// Waiting has a price before the warden comes: past 60% of the dread clock the knocking grows.
+function dreadMul() { if (G.dir.boss || G.bossDown || G.endless) return 1; const k = G.t / clockLimit(); return k > 0.6 ? 1 + CURVE.dread * Math.min(1, (k - 0.6) / 0.4) : 1; }
+const knocking = () => doorPressure() * dreadMul();                    // the multiplier the HUD shows
+// what the Stairwell would wake right now (the warden's share of its full strength), and the keys a fast kill would still pay
+const wardenShare = () => 0.5 + 0.5 * clamp(G.t / G.F.clock, 0, 1);
+const swiftLeft = () => G.dir.overstay ? 0 : clamp(Math.floor((clockLimit() - G.t) / 60), 0, 2);
+// A warden's fight cannot be waited out. After CURVE.fury.after seconds it gains a step of fury every CURVE.fury.every
+// seconds, and each step makes everything it does that much faster: its walk, its wind-ups, its cool-downs.
+function bossFury(e, dt) {
+  const F = CURVE.fury; e.fightT = (e.fightT || 0) + dt;
+  const step = e.fightT < F.after ? 0 : Math.min(F.max, 1 + Math.floor((e.fightT - F.after) / F.every));
+  if (step > (e.fury || 0)) {
+    e.fury = step; sfx('roar'); G.shake = Math.max(G.shake, 5); burst(e.x, e.y - 12, 12, PAL.r, 100);
+    if (step === 1) { banner(e.def.name + ' GROWS IMPATIENT', 'The longer the fight lasts, the faster it moves.', '#ff7a7a', 2.8); tip('fury', 'A warden gets faster the longer its fight lasts. A build that kills slowly meets a quicker warden.'); }
+    else floatText(e.x, e.y - 34, 'faster!', '#ff7a7a');
+  }
+  return 1 + F.step * (e.fury || 0);
+}
 function clockLimit() {               // seconds until the warden comes for you on its own
   let c = G.F.clock;
   if (G.rooms.some(r => r.type === 'observ' && roomLive(r))) c *= 1 + [0.12, 0.2, 0.28][roomLevel('observ') - 1];
@@ -3753,7 +3773,7 @@ function summonBoss(fromRoom) {
     else { e = spawnMon(id, P.x, P.y - 80); e.emerge = 0.9; }
   }
   // a warden woken early is weaker (and so are you); one that had to come and find you is furious
-  e.max = e.hp = Math.round(def.hp * (0.5 + 0.5 * clamp(G.t / G.F.clock, 0, 1)) * (D.overstay ? 1.25 : 1)); if (D.overstay) e.rage = true;
+  e.max = e.hp = Math.round(def.hp * wardenShare() * (D.overstay ? 1.25 : 1)); if (D.overstay) e.rage = true;
   D.boss = e; e.st = 0; e.stT = 2.4; e.ang = 0;
   scatterHorde(e);
   banner(def.name, D.overstay ? 'you overstayed: it is furious' : def.sub, '#ff7a7a', 3.2); sfx('roar'); Snd.music('boss'); G.shake = 9;
@@ -3773,7 +3793,7 @@ function bossDied(e) {
   // the way down opens: at the Stairwell if you drafted one, else where the warden fell
   const sr = G.rooms.find(r => r.type === 'stairs' && r.stairs);
   G.stairs = sr ? { x: sr.stairs.x, y: sr.stairs.y, open: true, hole: false } : { x: gx, y: gy, open: true, hole: true };
-  const swift = D.overstay ? 0 : Math.min(2, Math.floor((clockLimit() - G.t) / 60));
+  const swift = swiftLeft();
   G.fstat.swift = swift; P.keys += swift;
   banner('THE WARDEN FALLS', swift ? 'Swift work: +' + swift + (swift > 1 ? ' keys' : ' key') + '. The stairs are open.' : 'The stairs are open. Leave when you are ready.', '#ffd95e', 4);
   sfx('stairs');
@@ -3796,7 +3816,7 @@ function updateDirector(dt) {
     const d = nearDoor(); if (d && !fight) d.queue.push(id);
   }
   let doors = 0, queued = 0; for (const d of G.sealed) { if (d.room.reveal >= 1) doors++; queued += d.queue.length; }
-  const rate = CURVE.rate(G.floor, m) * CURVE.pressure(doors, charm('wedge'), G.floor) * (fight ? 0.4 : 1);
+  const rate = CURVE.rate(G.floor, m) * CURVE.pressure(doors, charm('wedge'), G.floor) * dreadMul() * (fight ? 0.4 : 1);
   D.acc = Math.min(8, D.acc + rate * dt);
   if (D.acc >= 1 && G.mons.length + queued < CURVE.cap(G.floor, m)) {
     const n = Math.min(Math.floor(D.acc), CURVE.group(G.floor, m)), mixl = F.mix(G.t); D.acc -= n;
@@ -4068,6 +4088,7 @@ function updateRooms(dt) {
         if (!p.fruit) { room.grow += dt * mul; if (room.grow > 36) { room.grow = 0; p.fruit = dropPick('heart', p.x, p.y - 12); p.fruit.vx = p.fruit.vy = 0; sparkle(p.x, p.y - 12, 8, PAL.p); } }
         break; }
       case 'greenhouse':
+        if (G.bossDown && !G.endless) break;                              // a floor whose warden is dead is quiet: nothing to farm
         room.grow += dt * mul;
         for (const p of room.planters) if (p.fruit && p.fruit.gone) p.fruit = null;
         if (room.grow > 20) {
@@ -4252,7 +4273,7 @@ function coachPlan(D, all) {
   const doors = i => add('c_card', i, 'doors', 'NEW DOORS', 'Each sealed door is a later draft, and one more place monsters knock. The % is how much the knocking changes.');
   const dead = i => add('c_dead', i, 'doors', 'DEAD END', 'This room has no new doors. The knocking gets quieter, and you have one draft fewer.');
   const locked = () => add('c_card', -1, 'bar', 'THE STAIRWELL', 'The way down. It unlocks after ' + STAIRS_MIN + ' rooms on this floor and then shows up here, in a draft.');
-  const stairs = () => add('c_stairs', -1, 'bar', 'THE STAIRWELL', 'It is open. Build it instead of a room and the warden comes. Beat the warden to go down. More rooms first make you stronger.');
+  const stairs = () => add('c_stairs', -1, 'bar', 'THE STAIRWELL', 'It is open. Build it and the warden comes: weaker now than later, and a fast kill pays keys. More rooms first make you stronger, but late in the clock the knocking grows.');
   const stars = i => add('c_stars', i, 'stars', 'STARS', cards[i].lvTo > cards[i].lv
     ? 'You own this room. Draft it again and every room of its type gains a star: stronger for the whole run.'
     : 'This room type has all its stars. Another one still adds its power to the floor.');
@@ -4691,6 +4712,7 @@ function renderHUD(g) {
     txo(g, boss.def.name, VW / 2, 4, '#ff9ec4', '#1a1426', 0.5);
     g.fillStyle = '#1a1426'; g.fillRect(bx - 1, 14, bw + 2, 6); g.fillStyle = '#5a2030'; g.fillRect(bx, 15, bw, 4);
     g.fillStyle = '#e8474c'; g.fillRect(bx, 15, Math.round(bw * f), 4); g.fillStyle = '#ff9ec4'; g.fillRect(bx, 15, Math.round(bw * f), 1);
+    for (let i = 0; i < (boss.fury || 0); i++) { g.fillStyle = '#1a1426'; g.fillRect(bx + i * 5 - 1, 21, 5, 4); g.fillStyle = (Math.floor(t * 4) & 1) ? '#ffd95e' : '#ff6a6a'; g.fillRect(bx + i * 5, 22, 3, 2); }   // steps of fury
   } else {
     txo(g, fmtTime(G.t), VW / 2, 4, '#fff8e8', '#1a1426', 0.5);
     for (let i = 0; i < FLOORS.length; i++) { g.fillStyle = '#1a1426'; g.fillRect(VW / 2 + 19 + i * 6, 5, 5, 5); g.fillStyle = i < G.floor ? '#ffd95e' : i === G.floor ? '#fff8e8' : '#3b2d4f'; g.fillRect(VW / 2 + 20 + i * 6, 6, 3, 3); }
@@ -4699,7 +4721,7 @@ function renderHUD(g) {
     else {
       const bw = 72, bx = Math.round(VW / 2 - bw / 2), lim = clockLimit(), f = clamp(G.t / lim, 0, 1), ready = stairsReady();
       g.fillStyle = '#1a1426'; g.fillRect(bx - 1, 14, bw + 2, 4); g.fillStyle = '#3b2d4f'; g.fillRect(bx, 15, bw, 2);
-      g.fillStyle = f > 0.85 ? '#ff6a6a' : '#9a62d6'; g.fillRect(bx, 15, Math.round(bw * f), 2);
+      g.fillStyle = f > 0.85 ? '#ff6a6a' : f > 0.6 ? '#f6923a' : '#9a62d6'; g.fillRect(bx, 15, Math.round(bw * f), 2);   // orange: the knocking is growing
       for (const ev of G.F.timeline) { g.fillStyle = '#1a1426'; g.fillRect(bx + Math.round(bw * ev.t / lim), 15, 1, 2); }
       g.drawImage(SPR.door_icon.c, bx + bw + 2, 10);
       // five pips: rooms drafted on this floor; full = the Stairwell is on offer
@@ -4710,7 +4732,7 @@ function renderHUD(g) {
   }
   if (G.roomLabel) { const L_ = G.roomLabel; g.globalAlpha = clamp(Math.min(L_.t * 4, (2.4 - L_.t) * 2), 0, 1); txo(g, '~ ' + L_.text + ' ~', VW / 2, 30, '#ffd95e', '#1a1426', 0.5); g.globalAlpha = 1; }
   // minimap
-  const mw = GRID * 7, mh = GRID * 5, mx = VW - mw - 6, my = 5, doors = G.sealed.length, pr = CURVE.pressure(doors, charm('wedge'), G.floor);
+  const mw = GRID * 7, mh = GRID * 5, mx = VW - mw - 6, my = 5, doors = G.sealed.length, pr = knocking();
   g.fillStyle = 'rgba(13,10,26,0.6)'; g.fillRect(mx - 2, my - 2, mw + 4, mh + 4); g.fillStyle = '#3b2d4f'; g.fillRect(mx - 2, my - 2, mw + 4, 1); g.fillRect(mx - 2, my + mh + 1, mw + 4, 1); g.fillRect(mx - 2, my - 2, 1, mh + 4); g.fillRect(mx + mw + 1, my - 2, 1, mh + 4);
   drawMap(g, mx, my, 7, 5, true);
   txo(g, G.rooms.length + (G.rooms.length === 1 ? ' room  ' : ' rooms  ') + doors + (doors === 1 ? ' door' : ' doors'), VW - 6, my + mh + 5, '#9aa3b5', '#1a1426', 1);
@@ -4848,7 +4870,8 @@ function renderDraft(g) {
     const b = L_.bar, on = D.onStairs;
     panel(g, b.x, b.y - (on ? 1 : 0), b.w, b.h, on ? '#ffd95e' : '#6a6a8a', on ? '#3a3052' : '#24203a');
     ds(g, SPR.i_stairs, b.x + 11, b.y + 7); txt(g, 'THE STAIRWELL', b.x + 22, b.y + 4, on ? '#ffd95e' : '#c8c8e0');
-    txt(g, 'wake the warden, then leave this floor', b.x + b.w - 6, b.y + 4, on ? '#fff8e8' : '#9aa3b5', 1);
+    const keys = swiftLeft();       // what it would wake right now, and what a fast kill would still pay
+    txt(g, 'warden at ' + Math.round(wardenShare() * 100) + '%   ' + (keys ? 'a fast kill pays ' + keys + (keys > 1 ? ' keys' : ' key') : 'no keys for speed now'), b.x + b.w - 6, b.y + 4, on ? '#fff8e8' : '#9aa3b5', 1);
   }
   if (L_.lock) {                    // not on offer yet: say what it takes
     const b = L_.lock; panel(g, b.x, b.y, b.w, b.h, '#3b3b5a', '#1c1830');
@@ -5098,7 +5121,7 @@ const App = { mode: 'title', prevMode: '', modeT: 0, sel: 0, fade: null, record:
 
 // ---- save data: options, records, and the meta-game (cards collected, heroes, one deck per hero) ----
 const Save = {
-  KEY: 'roomwright.v2' + (/\/next\//.test(location.pathname) ? '.next' : ''),   // a preview served from .../next/ keeps its own save
+  KEY: 'roomwright.v2' + ((location.pathname.match(/\/(v\d+(?:\.\d+)*)\//) || [])[1] ? '.' + location.pathname.match(/\/(v\d+(?:\.\d+)*)\//)[1] : ''),   // a preview served from a version folder (.../v0.3/) keeps its own save
   data: null,
   fresh() {
     const rooms = {}; for (const id of STARTER_ROOMS) rooms[id] = 1;
@@ -5462,7 +5485,7 @@ window.RW = {
   manual(on) { App.manual = !!on; },
   coach(on) { App.coach = !!on; },                                     // false = no card lessons in drafts (the checks and the bot use this)
   coachPlan, cardPart, stairsLocked, knockBack, knockTier, KNOCK, draftLayout, pauseLayout, hintFor, view: () => ({ VW, VH, SCALE }),
-  tallyList, tallyShare, record: runRecord, endLayout, siegeTarget,                 // the damage tally, and the census record of the run as it stands
+  tallyList, tallyShare, record: runRecord, endLayout, siegeTarget, dreadMul, knocking, wardenShare, swiftLeft, doorPressure,                 // the damage tally, and the census record of the run as it stands
   census() { const c = Save.data.census; if (console.table) console.table(c.map(r => Object.assign({}, r, { by: r.by.join(' < ') }))); return c; },                                   // true = the page stops ticking itself; drive it with step()
   step(n = 1) { for (let i = 0; i < n; i++) { tick(STEP); Input.endFrame(); } },
   hold(a, on) { if (on) Input.down.add(a); else Input.down.delete(a); },

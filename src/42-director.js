@@ -9,6 +9,24 @@ function steelHaste() {               // Tinker's Oil and a Workshop speed up tr
 }
 function liveDoors() { let n = 0; for (const d of G.sealed) if (d.room.reveal >= 1) n++; return n; }
 const doorPressure = () => CURVE.pressure(liveDoors(), charm('wedge'), G.floor);
+// Waiting has a price before the warden comes: past 60% of the dread clock the knocking grows.
+function dreadMul() { if (G.dir.boss || G.bossDown || G.endless) return 1; const k = G.t / clockLimit(); return k > 0.6 ? 1 + CURVE.dread * Math.min(1, (k - 0.6) / 0.4) : 1; }
+const knocking = () => doorPressure() * dreadMul();                    // the multiplier the HUD shows
+// what the Stairwell would wake right now (the warden's share of its full strength), and the keys a fast kill would still pay
+const wardenShare = () => 0.5 + 0.5 * clamp(G.t / G.F.clock, 0, 1);
+const swiftLeft = () => G.dir.overstay ? 0 : clamp(Math.floor((clockLimit() - G.t) / 60), 0, 2);
+// A warden's fight cannot be waited out. After CURVE.fury.after seconds it gains a step of fury every CURVE.fury.every
+// seconds, and each step makes everything it does that much faster: its walk, its wind-ups, its cool-downs.
+function bossFury(e, dt) {
+  const F = CURVE.fury; e.fightT = (e.fightT || 0) + dt;
+  const step = e.fightT < F.after ? 0 : Math.min(F.max, 1 + Math.floor((e.fightT - F.after) / F.every));
+  if (step > (e.fury || 0)) {
+    e.fury = step; sfx('roar'); G.shake = Math.max(G.shake, 5); burst(e.x, e.y - 12, 12, PAL.r, 100);
+    if (step === 1) { banner(e.def.name + ' GROWS IMPATIENT', 'The longer the fight lasts, the faster it moves.', '#ff7a7a', 2.8); tip('fury', 'A warden gets faster the longer its fight lasts. A build that kills slowly meets a quicker warden.'); }
+    else floatText(e.x, e.y - 34, 'faster!', '#ff7a7a');
+  }
+  return 1 + F.step * (e.fury || 0);
+}
 function clockLimit() {               // seconds until the warden comes for you on its own
   let c = G.F.clock;
   if (G.rooms.some(r => r.type === 'observ' && roomLive(r))) c *= 1 + [0.12, 0.2, 0.28][roomLevel('observ') - 1];
@@ -50,7 +68,7 @@ function summonBoss(fromRoom) {
     else { e = spawnMon(id, P.x, P.y - 80); e.emerge = 0.9; }
   }
   // a warden woken early is weaker (and so are you); one that had to come and find you is furious
-  e.max = e.hp = Math.round(def.hp * (0.5 + 0.5 * clamp(G.t / G.F.clock, 0, 1)) * (D.overstay ? 1.25 : 1)); if (D.overstay) e.rage = true;
+  e.max = e.hp = Math.round(def.hp * wardenShare() * (D.overstay ? 1.25 : 1)); if (D.overstay) e.rage = true;
   D.boss = e; e.st = 0; e.stT = 2.4; e.ang = 0;
   scatterHorde(e);
   banner(def.name, D.overstay ? 'you overstayed: it is furious' : def.sub, '#ff7a7a', 3.2); sfx('roar'); Snd.music('boss'); G.shake = 9;
@@ -70,7 +88,7 @@ function bossDied(e) {
   // the way down opens: at the Stairwell if you drafted one, else where the warden fell
   const sr = G.rooms.find(r => r.type === 'stairs' && r.stairs);
   G.stairs = sr ? { x: sr.stairs.x, y: sr.stairs.y, open: true, hole: false } : { x: gx, y: gy, open: true, hole: true };
-  const swift = D.overstay ? 0 : Math.min(2, Math.floor((clockLimit() - G.t) / 60));
+  const swift = swiftLeft();
   G.fstat.swift = swift; P.keys += swift;
   banner('THE WARDEN FALLS', swift ? 'Swift work: +' + swift + (swift > 1 ? ' keys' : ' key') + '. The stairs are open.' : 'The stairs are open. Leave when you are ready.', '#ffd95e', 4);
   sfx('stairs');
@@ -93,7 +111,7 @@ function updateDirector(dt) {
     const d = nearDoor(); if (d && !fight) d.queue.push(id);
   }
   let doors = 0, queued = 0; for (const d of G.sealed) { if (d.room.reveal >= 1) doors++; queued += d.queue.length; }
-  const rate = CURVE.rate(G.floor, m) * CURVE.pressure(doors, charm('wedge'), G.floor) * (fight ? 0.4 : 1);
+  const rate = CURVE.rate(G.floor, m) * CURVE.pressure(doors, charm('wedge'), G.floor) * dreadMul() * (fight ? 0.4 : 1);
   D.acc = Math.min(8, D.acc + rate * dt);
   if (D.acc >= 1 && G.mons.length + queued < CURVE.cap(G.floor, m)) {
     const n = Math.min(Math.floor(D.acc), CURVE.group(G.floor, m)), mixl = F.mix(G.t); D.acc -= n;
@@ -365,6 +383,7 @@ function updateRooms(dt) {
         if (!p.fruit) { room.grow += dt * mul; if (room.grow > 36) { room.grow = 0; p.fruit = dropPick('heart', p.x, p.y - 12); p.fruit.vx = p.fruit.vy = 0; sparkle(p.x, p.y - 12, 8, PAL.p); } }
         break; }
       case 'greenhouse':
+        if (G.bossDown && !G.endless) break;                              // a floor whose warden is dead is quiet: nothing to farm
         room.grow += dt * mul;
         for (const p of room.planters) if (p.fruit && p.fruit.gone) p.fruit = null;
         if (room.grow > 20) {

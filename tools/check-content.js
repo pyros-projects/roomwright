@@ -240,6 +240,30 @@
     ok('every hero starts with a weapon that can evolve in their own deck', Object.values(RW.HEROES).every(h => h.deck.indexOf(RW.WEAPONS[h.weapon].evo.room) >= 0), Object.values(RW.HEROES).map(h => h.weapon + '>' + RW.WEAPONS[h.weapon].evo.room).join(' '));
     fresh(390, { hero: 'pip', deck: ['ember', 'frost', 'hall', 'spikes', 'vault', 'library', 'garden', 'guardian', 'fountain', 'cross'] }); RW.openDraft(G.sealed[0]);
     const cds = G.draft.cards; ok('drafts deal deck cards plus one floor native', cds.length === 3 && G.deck.indexOf(cds[0].type) >= 0 && G.deck.indexOf(cds[1].type) >= 0 && RW.FLOORS[0].natives.indexOf(cds[2].type) >= 0, cds.map(c => c.type).join(','));
+    /* ---- the price of waiting: the knocking grows late in the clock, and a warden's fight speeds up ---- */
+    {
+      fresh(451); G.endless = false; const lim = RW.clockLimit(), dread = RW.CURVE.dread;
+      G.t = lim * 0.3; const early = RW.dreadMul(); G.t = lim * 0.6; const edge = RW.dreadMul(); G.t = lim * 0.8; const mid = RW.dreadMul(); G.t = lim * 0.999; const late = RW.dreadMul();
+      ok('dread: the knocking is unchanged for the first 60% of the clock', early === 1 && edge === 1, early + ', ' + edge);
+      ok('dread: then it grows, up to +' + Math.round(dread * 100) + '% when the clock runs out', mid > 1 && mid < late && Math.abs(mid - (1 + dread / 2)) < 0.01 && Math.abs(late - (1 + dread)) < 0.01, mid.toFixed(2) + ', ' + late.toFixed(2));
+      ok('dread: the HUD multiplier is door pressure times it', Math.abs(RW.knocking() - RW.doorPressure() * late) < 1e-9, RW.knocking().toFixed(2));
+      G.t = 0; ok('stairs: woken at once, the warden has half its strength', RW.wardenShare() === 0.5 && RW.swiftLeft() === 2, RW.wardenShare());
+      G.t = G.F.clock / 2; const share = RW.wardenShare(); const boss = RW.summonBoss(null);
+      ok('stairs: the warden that comes has the share the Stairwell showed', share === 0.75 && boss.max === Math.round(boss.def.hp * 0.75), share + ', ' + boss.max);
+      ok('dread: during the fight the knocking does not grow', RW.dreadMul() === 1);
+      const F = RW.CURVE.fury; boss.hp = boss.max = 1e9; boss.emerge = 0; P.x = boss.x + 400; RW.step(Math.round((F.after - 2) * 60));
+      ok('fury: none for the first ' + F.after + ' seconds of a fight', !boss.fury, boss.fury);
+      RW.step(4 * 60); ok('fury: then a first step, announced', boss.fury === 1 && G.banner && /IMPATIENT/.test(G.banner.text), boss.fury + ' ' + (G.banner && G.banner.text));
+      RW.step(F.every * 60); ok('fury: a step more every ' + F.every + ' seconds', boss.fury === 2, boss.fury);
+      RW.step(F.every * 60 * (F.max + 2)); ok('fury: it stops at ' + F.max + ' steps', boss.fury === F.max, boss.fury);
+      // each step makes the warden that much faster: the same 2 seconds of walking, with and without fury
+      const walk = fury => { fresh(452); G.endless = false; const b = RW.summonBoss(null); b.hp = b.max = 1e9; b.emerge = 0; b.st = 0; b.stT = 99; b.fightT = 0; b.fury = fury; if (fury) b.fightT = F.after + (fury - 1) * F.every + 1; b.x = P.x - 150; b.y = P.y; const x0 = b.x; for (let i = 0; i < 60; i++) { b.st = 0; b.stT = 99; RW.step(1); } return b.x - x0; };
+      const w0 = walk(0), w5 = walk(5);
+      ok('fury: five steps make the warden half again as fast', w0 > 10 && Math.abs(w5 / w0 - (1 + 5 * F.step)) < 0.08, w0.toFixed(1) + ' -> ' + w5.toFixed(1) + 'px');
+      // a floor whose warden is dead grows no glints
+      fresh(453); G.endless = false; const gh = build('greenhouse', [1, 0, 0, 0]); gh.grow = 0; RW.step(120); const growing = gh.grow; G.bossDown = true; gh.grow = 0; RW.step(120);
+      ok('quiet floor: a Greenhouse stops growing once the warden is dead', growing > 1 && gh.grow === 0, growing.toFixed(1) + ' -> ' + gh.grow);
+    }
     /* ---- a floor's elite besieges the room you built up most ---- */
     {
       fresh(401); ok('siege: a floor with nothing built up has no target', RW.siegeTarget({ x: P.x, y: P.y }) === null);

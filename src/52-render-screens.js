@@ -94,7 +94,8 @@ function renderDraft(g) {
     const b = L_.bar, on = D.onStairs;
     panel(g, b.x, b.y - (on ? 1 : 0), b.w, b.h, on ? '#ffd95e' : '#6a6a8a', on ? '#3a3052' : '#24203a');
     ds(g, SPR.i_stairs, b.x + 11, b.y + 7); txt(g, 'THE STAIRWELL', b.x + 22, b.y + 4, on ? '#ffd95e' : '#c8c8e0');
-    txt(g, 'wake the warden, then leave this floor', b.x + b.w - 6, b.y + 4, on ? '#fff8e8' : '#9aa3b5', 1);
+    const keys = swiftLeft();       // what it would wake right now, and what a fast kill would still pay
+    txt(g, 'warden at ' + Math.round(wardenShare() * 100) + '%   ' + (keys ? 'a fast kill pays ' + keys + (keys > 1 ? ' keys' : ' key') : 'no keys for speed now'), b.x + b.w - 6, b.y + 4, on ? '#fff8e8' : '#9aa3b5', 1);
   }
   if (L_.lock) {                    // not on offer yet: say what it takes
     const b = L_.lock; panel(g, b.x, b.y, b.w, b.h, '#3b3b5a', '#1c1830');

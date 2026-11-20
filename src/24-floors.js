@@ -35,6 +35,8 @@ const CURVE = {
   stars: [1, 1.5, 2.0],                                                                   // room power by star level
   res: 0.25,                                                                              // +25% room power per resonating neighbour
   bossHp: (f, overstay) => (overstay ? 1.25 : 1),
+  dread: 0.6,                                                                             // past 60% of the dread clock the knocking grows, up to this much more when it runs out
+  fury: { after: 50, every: 20, step: 0.1, max: 8 },                                      // a warden's fight: seconds before its first step of fury, seconds per step, speed per step, most steps
   costKeep: 0.5,                                                                          // share of key-cost progress kept when you descend
 };
 

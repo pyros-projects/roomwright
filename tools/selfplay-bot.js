@@ -1,7 +1,7 @@
 // Self-play bot for Roomwright.
 // Inject into the page (e.g. `agent-browser eval --stdin < tools/selfplay-bot.js`), then call:
 //   BOT.full(seed, maxSeconds, opts)   play one whole run in fast-forward (deterministic) -> summary object
-//                                      opts: { hero, deck, skill, policy, persona }
+//                                      opts: { hero, deck, skill, policy, persona, stairs }
 //                                      policy: how it picks a draft card. 'score' (its own reading of the card, the
 //                                      default), 'random', or 'first' (always the left card). The gap between them
 //                                      is the pick gap: how much the draft decides (docs/checks.md).
@@ -43,9 +43,10 @@
     return out;
   }
   const B = window.BOT = {
-    goal: null, goalT: 0, log: [], picks: [], skill: 1, rs: 1, lastK: -1, pickK: -1, policy: 'score', persona: 'kiter', rows: [], held: 8, holdT: 0,
+    goal: null, goalT: 0, log: [], picks: [], skill: 1, rs: 1, lastK: -1, pickK: -1, policy: 'score', persona: 'kiter', stairs: 'mid', rows: [], held: 8, holdT: 0,
     rnd() { B.rs = (B.rs * 1103515245 + 12345) & 0x7fffffff; return B.rs / 0x7fffffff; },
-    wantStairs(G) { const D = G.draft; return D.stairs && (G.fstat.rooms >= 11 || G.t > RW.clockLimit() * 0.75); },
+    // when to build the Stairwell (opts.stairs): 'early' as soon as it is offered, 'mid' after eleven rooms or three quarters of the clock, 'late' when the clock is nearly out
+    wantStairs(G) { const D = G.draft, k = G.t / RW.clockLimit(); return D.stairs && (B.stairs === 'early' ? true : B.stairs === 'late' ? k > 0.92 : G.fstat.rooms >= 11 || k > 0.75); },
     pickCard(G) {
       const P = G.P, D = G.draft; let best = 0, bs = -1e9;
       if (B.policy === 'random') best = Math.floor(B.rnd() * D.cards.length);
@@ -123,13 +124,13 @@
         if (e.dead) continue; const def = e.def, d = Math.hypot(e.x - P.x, e.y - P.y); if (d > (def.boss ? 300 : 170)) continue;
         const reach = e.r + P.r + 2.5, spd = e.stun > 0 || e.emerge > 0.3 ? 0 : def.spd * (e.haste || 1) * (def.hop ? 1.2 : 1);
         if (def.boss) {
-          const id = def.id;
-          if (id === 'gatejaw' && e.st === 1) { mons.push([e.x, e.y, 0, reach + 4, 1, e.cx * 200, e.cy * 200, Math.max(0, e.stT)]); continue; }          // winding up a charge
-          if (id === 'gatejaw' && e.st === 2) { mons.push([e.x, e.y, 0, reach + 4, 1, e.cx * 200, e.cy * 200, 0]); continue; }
-          if (id === 'morel' && e.st === 5) { zones.push([e.jx, e.jy, 30, Math.max(0, e.stT - 0.1)]); continue; }                                    // airborne: do not be where she lands
-          if (id === 'morel' && e.st === 3) { mons.push([e.x, e.y, 0, reach, 0]); zones.push([P.x, P.y, 26, Math.max(0, e.stT) + 0.6]); continue; }    // crouching: she will leap at where you stand
-          if (e.pts) for (const p of e.pts) zones.push([p[0], p[1], 19, Math.max(0, e.stT - 0.05)]);                                                 // spore rain, falling masonry
-          mons.push([e.x, e.y, def.spd * 1.35, reach + 3, 0]); continue;
+          const id = def.id, f = 1 + 0.1 * (e.fury || 0);                 // a furious warden does everything faster
+          if (id === 'gatejaw' && e.st === 1) { mons.push([e.x, e.y, 0, reach + 4, 1, e.cx * 200 * f, e.cy * 200 * f, Math.max(0, e.stT) / f]); continue; }   // winding up a charge
+          if (id === 'gatejaw' && e.st === 2) { mons.push([e.x, e.y, 0, reach + 4, 1, e.cx * 200 * f, e.cy * 200 * f, 0]); continue; }
+          if (id === 'morel' && e.st === 5) { zones.push([e.jx, e.jy, 30, Math.max(0, e.stT / f - 0.1)]); continue; }                                 // airborne: do not be where she lands
+          if (id === 'morel' && e.st === 3) { mons.push([e.x, e.y, 0, reach, 0]); zones.push([P.x, P.y, 26, (Math.max(0, e.stT) + 0.6) / f]); continue; }   // crouching: she will leap at where you stand
+          if (e.pts) for (const p of e.pts) zones.push([p[0], p[1], 19, Math.max(0, e.stT / f - 0.05)]);                                              // spore rain, falling masonry
+          mons.push([e.x, e.y, def.spd * 1.35 * f, reach + 3, 0]); continue;
         }
         if (def.ai === 'charge' && e.st === 1) { mons.push([e.x, e.y, 0, reach + 2, 1, e.cx * 205, e.cy * 205, Math.max(0, e.stT)]); continue; }
         if (def.ai === 'charge' && e.st === 2) { mons.push([e.x, e.y, 0, reach + 2, 1, e.cx * 205, e.cy * 205, 0]); continue; }
@@ -220,7 +221,7 @@
     // play one whole run from a seed (deterministic); returns a summary row
     full(seed, maxSecs, opts = {}) {
       B.goal = null; B.goalT = 0; B.picks = []; B.rs = seed * 7 + 1; B.skill = opts.skill === undefined ? 1 : opts.skill; B.lastK = -1;
-      B.policy = opts.policy || 'score'; B.persona = opts.persona || 'kiter'; B.held = 8; B.holdT = 0;
+      B.policy = opts.policy || 'score'; B.persona = opts.persona || 'kiter'; B.stairs = opts.stairs || 'mid'; B.held = 8; B.holdT = 0;
       RW.manual(true); RW.coach(false); RW.start(seed, opts); RW.G.tut.step = 9;
       const n = Math.round((maxSecs || 1800) * 60); let err = null; const floors = [];
       try {

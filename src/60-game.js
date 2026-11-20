@@ -5,7 +5,7 @@ const App = { mode: 'title', prevMode: '', modeT: 0, sel: 0, fade: null, record:
 
 // ---- save data: options, records, and the meta-game (cards collected, heroes, one deck per hero) ----
 const Save = {
-  KEY: 'roomwright.v2' + (/\/next\//.test(location.pathname) ? '.next' : ''),   // a preview served from .../next/ keeps its own save
+  KEY: 'roomwright.v2' + ((location.pathname.match(/\/(v\d+(?:\.\d+)*)\//) || [])[1] ? '.' + location.pathname.match(/\/(v\d+(?:\.\d+)*)\//)[1] : ''),   // a preview served from a version folder (.../v0.3/) keeps its own save
   data: null,
   fresh() {
     const rooms = {}; for (const id of STARTER_ROOMS) rooms[id] = 1;
