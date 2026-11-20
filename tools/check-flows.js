@@ -7,7 +7,7 @@
   const until = (fn, max = 400) => { let n = 0; while (!fn() && n++ < max) RW.step(1); return n; };
   const saved = JSON.stringify(RW.Save.data);
   try {
-    RW.manual(true);
+    RW.manual(true); RW.coach(false);       // the card coach has its own section at the end
     /* ---- very first run: title -> straight into play with the tutorial ---- */
     localStorage.removeItem(RW.Save.KEY); RW.Save.load(); RW.toTitle(); RW.step(30);
     ok('boots to the title', RW.App.mode === 'title');
@@ -72,6 +72,34 @@
     RW.toTitle(); gstep(40); tap(0); gstep(40); ok('pad: A leaves the title', RW.App.mode === 'prep', RW.App.mode);
     gstep(30); tap(3); ok('pad: Y opens the deck builder', RW.App.mode === 'deck', RW.App.mode); tap(1); ok('pad: B closes it', RW.App.mode === 'prep', RW.App.mode);
     delete navigator.getGamepads;
+    /* ---- the card coach: lessons on the draft card itself ---- */
+    RW.coach(true); localStorage.removeItem(RW.Save.KEY); RW.Save.load(); RW.start(7); G = RW.G; P = G.P; G.dir.calm = 1e9; G.dir.ti = 99; P.inv = 1e9; P.keys = 30; RW.step(30);
+    const parts = () => G.draft && G.draft.coach ? G.draft.coach.steps.map(s => s.part).join(',') : 'none', tips = RW.Save.data.tips;
+    RW.openDraft(G.sealed[0]); RW.step(40);
+    ok('coach: the first draft walks through room, boon, doors and the Stairwell', parts() === 'room,boon,doors,bar', parts());
+    ok('coach: the Stairwell bar is locked and counts the rooms it needs', G.draft.locked === RW.K.STAIRS_MIN && !G.draft.stairs && RW.stairsLocked() === RW.K.STAIRS_MIN, G.draft.locked);
+    const r0 = G.rooms.length; press('ok', 30); press('ok', 30);
+    ok('coach: Enter turns the pages and builds nothing', !!G.draft.coach && G.draft.coach.i === 2 && G.rooms.length === r0 && RW.App.mode === 'draft', G.rooms.length - r0);
+    press('ok', 30); press('ok', 30);
+    ok('coach: after the last page the draft is yours again', !G.draft.coach && tips.c_card === 1 && RW.App.mode === 'draft');
+    press('ok', 30); until(() => RW.App.mode === 'play'); ok('coach: the next Enter builds the room', G.rooms.length === r0 + 1, G.rooms.length - r0);
+    RW.openDraft(G.sealed[0]); RW.step(40);
+    ok('coach: the walkthrough does not repeat', parts().indexOf('room,boon') < 0, parts());
+    if (G.draft.coach) press('back', 10);
+    ok('coach: the locked bar counts down', G.draft.locked === RW.K.STAIRS_MIN - 1, G.draft.locked);
+    press('help', 10); ok('coach: H explains the selected card again', parts().indexOf('room') === 0 && parts().indexOf('boon') > 0, parts());
+    press('back', 10); ok('coach: Esc closes the lesson, not the draft', !G.draft.coach && RW.App.mode === 'draft', RW.App.mode);
+    const c0 = G.draft.cards[0], keep = [c0.lv, c0.lvTo]; delete tips.c_stars; c0.lv = 1; c0.lvTo = 2;
+    let plan = RW.coachPlan(G.draft, false); ok('coach: a card that levels up teaches stars', plan.length === 1 && plan[0].id === 'c_stars' && plan[0].card === 0, plan.map(s => s.id).join(','));
+    tips.c_stars = 1; plan = RW.coachPlan(G.draft, false); ok('coach: each lesson comes once', !plan.some(s => s.id === 'c_stars'), plan.map(s => s.id).join(','));
+    c0.lv = keep[0]; c0.lvTo = keep[1];
+    for (const r of RW.Input.pressed) RW.Input.pressed.delete(r);
+    const box = RW.cardPart({ x: 100, y: 30, w: 124, h: 175 }, 'room'), box2 = RW.cardPart({ x: 100, y: 30, w: 124, h: 175 }, 'boon'), box3 = RW.cardPart({ x: 100, y: 30, w: 124, h: 175 }, 'doors');
+    ok('coach: the three parts of a card do not overlap', box.y + box.h <= box2.y && box2.y + box2.h <= box3.y && box3.y + box3.h <= 30 + 175, [box.y + box.h, box2.y, box2.y + box2.h, box3.y].join(','));
+    press('back', 10); G.fstat.rooms = RW.K.STAIRS_MIN; delete tips.c_stairs; RW.openDraft(G.sealed[0]); RW.step(40);
+    ok('coach: the open Stairwell gets its own lesson', G.draft.stairs && parts() === 'bar' && G.draft.coach.steps[0].id === 'c_stairs', parts());
+    press('ok', 30); ok('coach: and it is remembered', !G.draft.coach && tips.c_stairs === 1);
+    press('back', 10); RW.coach(false); RW.openDraft(G.sealed[0]); RW.step(40); ok('coach: RW.coach(false) switches it off', !G.draft.coach); press('back', 10); RW.coach(true);
   } catch (e) { out.push('EXCEPTION ' + String(e && e.stack || e).slice(0, 500)); }
   try { localStorage.setItem(RW.Save.KEY, saved); RW.Save.load(); RW.toTitle(); } catch (e) { /* ignore */ }
   return out.join('\n');

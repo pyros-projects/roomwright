@@ -447,9 +447,9 @@ const Input = (() => {
   const CODE = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down',
     Space: 'dash', ShiftLeft: 'dash', ShiftRight: 'dash', Enter: 'ok', NumpadEnter: 'ok', KeyZ: 'ok', KeyE: 'ok', Escape: 'back', Backspace: 'back',
     KeyP: 'pause', KeyM: 'mute', Digit1: 'c1', Digit2: 'c2', Digit3: 'c3', Digit4: 'c4', Numpad1: 'c1', Numpad2: 'c2', Numpad3: 'c3', Numpad4: 'c4',
-    KeyQ: 'alt', Tab: 'alt', KeyR: 'reroll', KeyI: 'intro' };
+    KeyQ: 'alt', Tab: 'alt', KeyR: 'reroll', KeyI: 'intro', KeyH: 'help', Slash: 'help' };
   const KEY = { arrowleft: 'left', a: 'left', arrowright: 'right', d: 'right', arrowup: 'up', w: 'up', arrowdown: 'down', s: 'down', ' ': 'dash', shift: 'dash',
-    enter: 'ok', z: 'ok', e: 'ok', escape: 'back', backspace: 'back', p: 'pause', m: 'mute', '1': 'c1', '2': 'c2', '3': 'c3', '4': 'c4', q: 'alt', tab: 'alt', r: 'reroll', i: 'intro' };
+    enter: 'ok', z: 'ok', e: 'ok', escape: 'back', backspace: 'back', p: 'pause', m: 'mute', '1': 'c1', '2': 'c2', '3': 'c3', '4': 'c4', q: 'alt', tab: 'alt', r: 'reroll', i: 'intro', h: 'help', '?': 'help' };
   const act = e => CODE[e.code] || KEY[(e.key || '').toLowerCase()];
   const mouse = { x: -99, y: -99, click: false, moved: false };
   const stick = { on: false, id: -1, ox: 0, oy: 0, x: 0, y: 0 };
@@ -4012,8 +4012,8 @@ function openDraft(door) {
     used.add(c.boon.kind + c.boon.id); refreshCard(c, cx, cy, entry);
   }
   const stairs = stairsReady();
-  G.draft = { door, cards: door.cards, sel: Math.min(1, door.cards.length - 1), t: 0, cx, cy, entry, stairs, onStairs: false, rerolls: Math.max(0, mapLevel() - 1 - door.rerolled) };
-  App.mode = 'draft'; sfx('draft');
+  G.draft = { door, cards: door.cards, sel: Math.min(1, door.cards.length - 1), t: 0, cx, cy, entry, stairs, locked: stairs ? 0 : stairsLocked(), coach: null, onStairs: false, rerolls: Math.max(0, mapLevel() - 1 - door.rerolled) };
+  App.mode = 'draft'; sfx('draft'); coachStart(G.draft, false);
   if (G.tut.step <= 1) G.tut.step = 2;
   if (stairs) tip('stairs', 'The STAIRWELL is on offer now (press DOWN in a draft). Its warden guards the way to the next floor.');
 }
@@ -4063,6 +4063,91 @@ function chooseStairs() {
   G.dir.stairsBuilt = true;
   banner('THE STAIRWELL', 'Something climbs the steps to meet you...', '#c8c8e0', 2.6);
   return room;
+}
+
+/* ============================ 13b CARD COACH ========================== */
+// Teaches the draft card on the card itself. The first draft walks through its parts: the room, the boon,
+// the doors, the Stairwell. Later drafts explain one new thing each, the first time a card shows it: a
+// level-up, resonance, an evolution, a dead end, the open Stairwell. H (or the EXPLAIN chip) explains the
+// selected card again at any time. A lesson is shown once per save (Save.data.tips). RW.coach(false)
+// switches the coach off for automated runs.
+const stairsLocked = () => (G.dir.boss || G.dir.stairsBuilt || G.bossDown) ? 0 : Math.max(0, STAIRS_MIN - G.fstat.rooms);   // rooms still to draft before the Stairwell is offered
+const helpLabel = () => (Input.touch ? '?  ' : 'H  ') + 'EXPLAIN';
+
+// the lessons for this draft: [{ id, card (-1 = the Stairwell bar), part, title, text }]
+function coachPlan(D, all) {
+  const seen = Save.data.tips, cards = D.cards, steps = [];
+  const add = (id, card, part, title, text) => steps.push({ id, card, part, title, text });
+  const room = i => add('c_card', i, 'room', 'THE ROOM', 'It is built behind this door. Its power works for the whole floor.');
+  const boon = i => add('c_card', i, 'boon', 'THE BOON', 'A weapon, an upgrade or a charm. It waits in the new room: walk in and take it.');
+  const doors = i => add('c_card', i, 'doors', 'NEW DOORS', 'Each sealed door is a later draft, and one more place monsters knock. The % is how much the knocking changes.');
+  const dead = i => add('c_dead', i, 'doors', 'DEAD END', 'This room has no new doors. The knocking gets quieter, and you have one draft fewer.');
+  const locked = () => add('c_card', -1, 'bar', 'THE STAIRWELL', 'The way down. It unlocks after ' + STAIRS_MIN + ' rooms on this floor and then shows up here, in a draft.');
+  const stairs = () => add('c_stairs', -1, 'bar', 'THE STAIRWELL', 'It is open. Build it instead of a room and the warden comes. Beat the warden to go down. More rooms first make you stronger.');
+  const stars = i => add('c_stars', i, 'stars', 'STARS', cards[i].lvTo > cards[i].lv
+    ? 'You own this room. Draft it again and every room of its type gains a star: stronger for the whole run.'
+    : 'This room type has all its stars. Another one still adds its power to the floor.');
+  const res = i => add('c_res', i, 'plan', 'RESONANCE', 'The room next door has the same element. Joined by a doorway, each makes the other stronger: the +% on the map.');
+  const evo = i => { const e = cards[i].evo, w = WEAPONS[e.id]; add('c_evo', i, 'plan', 'EVOLUTION', e.ready ? w.name + ' is ready. Walk into this room and it evolves.' : w.name + ' evolves in this room. Bring it to level ' + w.max + ', then walk in.'); };
+  const first = f => cards.findIndex(f);
+  let i = D.sel;
+  if (all) {                          // H: everything the selected card shows
+    const c = cards[i]; room(i); if (c.lv > 0) stars(i); if (c.res > 0) res(i); if (c.evo) evo(i); boon(i);
+    if (c.plan.fresh === 0) dead(i); else doors(i);
+    if (D.stairs) stairs(); else if (D.locked) locked();
+  } else if (!seen.c_card) {          // the first draft: the parts of a card, on one that has new doors
+    if (cards[i].plan.fresh === 0 && first(c => c.plan.fresh > 0) >= 0) i = first(c => c.plan.fresh > 0);
+    room(i); boon(i); doors(i); if (D.stairs) stairs(); else if (D.locked) locked();
+  } else if (D.stairs && !seen.c_stairs) stairs();      // later drafts: one new thing, when it first shows
+  else if (!seen.c_stars && (i = first(c => c.lv > 0 && c.lvTo > c.lv)) >= 0) stars(i);
+  else if (!seen.c_res && (i = first(c => c.res > 0)) >= 0) res(i);
+  else if (!seen.c_evo && (i = first(c => c.evo)) >= 0) evo(i);
+  else if (!seen.c_dead && (i = first(c => c.plan.fresh === 0)) >= 0) dead(i);
+  return steps;
+}
+function coachFocus(D) { const s = D.coach.steps[D.coach.i]; if (s.card >= 0) { D.sel = s.card; D.onStairs = false; } else if (D.stairs) D.onStairs = true; }
+function coachStart(D, all) {
+  if (!App.coach || G.demo) return;
+  const steps = coachPlan(D, all); if (!steps.length) return;
+  D.coach = { steps, i: 0, t0: D.t }; coachFocus(D);
+}
+function coachEnd(D) { for (const s of D.coach.steps) Save.data.tips[s.id] = 1; Save.store(); D.coach = null; }
+function coachInput(D) {              // while a lesson is up, input only turns its pages
+  const C = D.coach;
+  if (Input.hit('back') || Input.hit('help')) { coachEnd(D); sfx('back'); return; }
+  const next = Input.hit('ok') || Input.hit('dash') || Input.hit('right') || Input.mouse.click || Input.hit('c1') || Input.hit('c2') || Input.hit('c3') || Input.hit('c4');
+  if (!next || D.t < 0.55 || D.t - C.t0 < 0.35) return;
+  sfx('tick'); if (++C.i >= C.steps.length) coachEnd(D); else { C.t0 = D.t; coachFocus(D); }
+}
+// the screen box of one section of a draft card; the selected card sits 3px higher (see drawCard)
+function cardPart(r, part) {
+  const y = r.y - 3, by = y + r.h - (r.w < 112 ? 75 : 72), fy = y + r.h - 13;
+  if (part === 'room') return { x: r.x + 2, y: y + 2, w: r.w - 4, h: by - y - 4 };
+  if (part === 'plan') return { x: r.x + 4, y: y + 18, w: r.w - 8, h: 44 };
+  if (part === 'stars') return { x: r.x + 2, y: y + 62, w: r.w - 4, h: by - y - 64 };
+  if (part === 'boon') return { x: r.x + 2, y: by - 1, w: r.w - 4, h: fy - 4 - by };
+  return { x: r.x + 2, y: fy - 5, w: r.w - 4, h: y + r.h - fy + 3 };   // doors
+}
+function renderCoach(g, D, L_) {
+  const C = D.coach; if (!C || D.t < 0.45) return;
+  const s = C.steps[C.i], r = s.card >= 0 ? L_.rects[s.card] : null, box = r ? cardPart(r, s.part) : (L_.bar || L_.lock); if (!box) return;
+  // dim everything except the part in question, and frame that part
+  g.fillStyle = 'rgba(13,10,26,0.76)';
+  g.fillRect(0, 0, VW, box.y); g.fillRect(0, box.y + box.h, VW, VH - box.y - box.h); g.fillRect(0, box.y, box.x, box.h); g.fillRect(box.x + box.w, box.y, VW - box.x - box.w, box.h);
+  g.fillStyle = (Math.floor(frameT * 3) & 1) ? '#ffd95e' : '#fff8e8';
+  g.fillRect(box.x - 1, box.y - 1, box.w + 2, 1); g.fillRect(box.x - 1, box.y + box.h, box.w + 2, 1); g.fillRect(box.x - 1, box.y, 1, box.h); g.fillRect(box.x + box.w, box.y, 1, box.h);
+  // the note sits beside the card where there is room, and above the Stairwell bar
+  const pw = Math.min(126, VW - 8), lines = wrapText(s.text, pw - 12), last = C.i === C.steps.length - 1, ph = 17 + lines.length * 9 + 13;
+  const foot = (Input.touch ? 'TAP' : 'ENTER') + (last ? '  got it' : '  next') + (C.steps.length > 1 ? '   ' + (C.i + 1) + '/' + C.steps.length : '');
+  let px = Math.round(VW / 2 - pw / 2), py = box.y - ph - 5;
+  if (r) {
+    if (r.x + r.w + 4 + pw <= VW - 2) px = r.x + r.w + 4; else if (r.x - pw - 4 >= 2) px = r.x - pw - 4;
+    py = clamp(Math.round(box.y + box.h / 2 - ph / 2), 3, VH - ph - 3);
+  }
+  panel(g, px, py, pw, ph, '#ffd95e', '#241d3a');
+  txt(g, s.title, px + 6, py + 5, '#ffd95e');
+  lines.forEach((ln, k) => txt(g, ln, px + 6, py + 17 + k * 9, '#fff8e8'));
+  txt(g, foot, px + pw - 6, py + ph - 11, '#9aa3b5', 1);
 }
 
 /* =========================== 14a RENDER: world ======================== */
@@ -4442,7 +4527,8 @@ function renderHUD(g) {
       g.drawImage(SPR.door_icon.c, bx + bw + 2, 10);
       // five pips: rooms drafted on this floor; full = the Stairwell is on offer
       for (let i = 0; i < STAIRS_MIN; i++) { g.fillStyle = '#1a1426'; g.fillRect(bx - 2 + i * 5, 20, 4, 4); g.fillStyle = D.stairsBuilt || i < G.fstat.rooms ? '#ffd95e' : '#3b2d4f'; g.fillRect(bx - 1 + i * 5, 21, 2, 2); }
-      if (ready && (Math.floor(t * 2) & 1)) txo(g, 'STAIRS', bx + 27, 19, '#ffd95e', '#1a1426');
+      if (ready) { if (Math.floor(t * 2) & 1) txo(g, 'STAIRS', bx + 27, 19, '#ffd95e', '#1a1426'); }
+      else if (!D.stairsBuilt && !D.boss) txo(g, 'STAIRS ' + Math.min(G.fstat.rooms, STAIRS_MIN) + '/' + STAIRS_MIN, bx + 27, 19, '#9aa3b5', '#1a1426');   // what the pips count
     }
   }
   if (G.roomLabel) { const L_ = G.roomLabel; g.globalAlpha = clamp(Math.min(L_.t * 4, (2.4 - L_.t) * 2), 0, 1); txo(g, '~ ' + L_.text + ' ~', VW / 2, 30, '#ffd95e', '#1a1426', 0.5); g.globalAlpha = 1; }
@@ -4493,10 +4579,14 @@ function renderHUD(g) {
 // ---- draft ----
 const rerollLabel = D => (Input.touch ? '' : 'R  ') + 'DEAL AGAIN  x' + D.rerolls, rerollW = D => textW(rerollLabel(D)) + 12;
 function draftLayout() {
-  const D = G.draft, n = D.cards.length, gap = n > 3 ? 4 : 6, barH = D.stairs ? 19 : 0;
-  const cw = Math.min(128, Math.floor((VW - 14 - gap * (n - 1)) / n)), ch = Math.min(178, VH - 46 - barH), tw = n * cw + (n - 1) * gap;
-  const x0 = Math.round((VW - tw) / 2), y0 = Math.round((VH - ch - barH) / 2) + 5;
-  return { rects: D.cards.map((_, i) => ({ x: x0 + i * (cw + gap), y: y0, w: cw, h: ch })), bar: D.stairs ? { x: x0, y: y0 + ch + 4, w: tw, h: 15 } : null,
+  const D = G.draft, n = D.cards.length, gap = n > 3 ? 4 : 6, barH = D.stairs || D.locked ? 19 : 0;   // the Stairwell bar, open or still locked
+  // A card needs 175px for three lines of room text above its boon. A view too short for that plus the bar
+  // and the key legend goes compact: the legend moves to the top right and the cards take its place.
+  const compact = barH > 0 && VH - 46 - barH < 175;
+  const cw = Math.min(128, Math.floor((VW - 14 - gap * (n - 1)) / n)), ch = Math.min(178, VH - (compact ? 31 : 46) - barH), tw = n * cw + (n - 1) * gap;
+  const x0 = Math.round((VW - tw) / 2), y0 = compact ? 28 : Math.round((VH - ch - barH) / 2) + 5;
+  return { compact, rects: D.cards.map((_, i) => ({ x: x0 + i * (cw + gap), y: y0, w: cw, h: ch })), bar: D.stairs ? { x: x0, y: y0 + ch + 4, w: tw, h: 15 } : null,
+    lock: !D.stairs && D.locked ? { x: x0, y: y0 + ch + 4, w: tw, h: 15 } : null, help: { x: x0, y: y0 - 27, w: textW(helpLabel()) + 12, h: 13 },
     re: D.rerolls > 0 ? { x: x0 + tw - rerollW(D), y: y0 - 27, w: rerollW(D), h: 13 } : null };   // the Map Room's 'deal again' chip
 }
 function miniRoom(g, x, y, w, h, col, doors, fresh) {
@@ -4580,9 +4670,18 @@ function renderDraft(g) {
     ds(g, SPR.i_stairs, b.x + 11, b.y + 7); txt(g, 'THE STAIRWELL', b.x + 22, b.y + 4, on ? '#ffd95e' : '#c8c8e0');
     txt(g, 'wake the warden, then leave this floor', b.x + b.w - 6, b.y + 4, on ? '#fff8e8' : '#9aa3b5', 1);
   }
+  if (L_.lock) {                    // not on offer yet: say what it takes
+    const b = L_.lock; panel(g, b.x, b.y, b.w, b.h, '#3b3b5a', '#1c1830');
+    g.globalAlpha = 0.45; ds(g, SPR.i_stairs, b.x + 11, b.y + 7); g.globalAlpha = 1; txt(g, 'THE STAIRWELL', b.x + 22, b.y + 4, '#6a6a8a');
+    txt(g, 'draft ' + D.locked + ' more room' + (D.locked === 1 ? '' : 's') + ' to unlock it', b.x + b.w - 6, b.y + 4, '#9aa3b5', 1);
+  }
+  { const r = L_.help, hot = Input.inRect(r) && !D.coach; panel(g, r.x, r.y, r.w, r.h, hot ? '#ffd95e' : '#4c5a84', hot ? '#3a3052' : '#24203a'); txt(g, helpLabel(), r.x + r.w / 2, r.y + 3, hot ? '#ffd95e' : '#9cecf2', 0.5); }
   if (L_.re) { const r = L_.re, hot = Input.inRect(r); panel(g, r.x, r.y, r.w, r.h, hot ? '#ffd95e' : '#4c5a84', hot ? '#3a3052' : '#24203a'); txt(g, rerollLabel(D), r.x + r.w / 2, r.y + 3, hot ? '#ffd95e' : '#9cecf2', 0.5); }
   let tip_ = G.tut.step === 2 ? 'A card is a room, its power, a boon and new doors. Doors let monsters in.' : Input.touch ? 'Tap a card to build it. Tap outside to step back.' : 'LEFT/RIGHT choose   ENTER build   ESC step back' + (L_.bar ? '   DOWN stairs' : '');
-  txo(g, tip_, VW / 2, (L_.bar ? L_.bar.y + L_.bar.h : rects[0].y + rects[0].h) + 5, G.tut.step === 2 ? '#fff8e8' : '#9aa3b5', '#1a1426', 0.5);
+  const low = L_.bar || L_.lock;
+  if (!L_.compact) txo(g, tip_, VW / 2, (low ? low.y + low.h : rects[0].y + rects[0].h) + 5, G.tut.step === 2 ? '#fff8e8' : '#9aa3b5', '#1a1426', 0.5);
+  else if (!L_.re) txo(g, Input.touch ? 'tap a card' : 'ENTER build  ESC back' + (L_.bar ? '  DOWN stairs' : ''), VW - 5, rects[0].y - 23, '#9aa3b5', '#1a1426', 1);
+  renderCoach(g, D, L_);
 }
 
 // ---- menus ----
@@ -4799,7 +4898,7 @@ function render() {
 
 /* ============================= 15 GAME LOOP =========================== */
 // modes: (intro ->) title -> prep (<-> deck) -> play <-> draft / pause -> descend -> play ... -> over | win
-const App = { mode: 'title', prevMode: '', modeT: 0, sel: 0, fade: null, record: false, big: {}, manual: false, titleT: 0, titleRoom: 0,
+const App = { mode: 'title', prevMode: '', modeT: 0, sel: 0, fade: null, record: false, big: {}, manual: false, coach: true, titleT: 0, titleRoom: 0,
   prep: { i: 0 }, deck: { cur: 0, msg: '', msgT: 0 }, descend: null };
 
 // ---- save data: options, records, and the meta-game (cards collected, heroes, one deck per hero) ----
@@ -4865,7 +4964,7 @@ function makeShowcase() {
   G.cam.x = G.rooms[0].px + CWP / 2 - VW / 2; G.cam.y = G.rooms[0].py + CHP / 2 - VH / 2;
 }
 function toTitle() { Snd.music('title'); makeShowcase(); }
-function floorBanner() { banner('FLOOR ' + (G.floor + 1) + ': ' + G.F.name.toUpperCase(), G.floor === 0 ? 'Draft the dungeon. Find the stairs.' : 'New monsters. New rooms. Same idea.', '#ffd95e', 3.2); }
+function floorBanner() { banner('FLOOR ' + (G.floor + 1) + ': ' + G.F.name.toUpperCase(), G.floor === 0 ? 'Draft rooms. After ' + STAIRS_MIN + ', a draft offers the Stairwell down.' : 'New monsters. New rooms. Same idea.', '#ffd95e', 3.2); }
 function startRun(seed, opts = {}) {
   if (seed === undefined) { const q = new URLSearchParams(location.search).get('seed'); seed = q !== null && q !== '' && isFinite(+q) ? +q : (Math.random() * 2147483647) | 0; }   // ?seed=123 pins the run
   const hero = opts.hero && HEROES[opts.hero] ? opts.hero : Save.data.hero;
@@ -4967,6 +5066,8 @@ const MODES = {
   },
   draft(dt) {
     const D = G.draft, L_ = draftLayout(), rects = L_.rects, n = D.cards.length; D.t += dt; let go = -1, onCard = false, st = false;
+    if (D.coach) { coachInput(D); return; }                              // a lesson is up: input turns its pages
+    if (Input.hit('help') || (Input.mouse.click && Input.inRect(L_.help))) { coachStart(D, true); if (D.coach) { sfx('tick'); return; } }
     if (!D.onStairs) { if (Input.hit('left')) { D.sel = (D.sel + n - 1) % n; sfx('tick'); } if (Input.hit('right')) { D.sel = (D.sel + 1) % n; sfx('tick'); } }
     if (L_.bar) { if (Input.hit('down') && !D.onStairs) { D.onStairs = true; sfx('tick'); } else if (Input.hit('up') && D.onStairs) { D.onStairs = false; sfx('tick'); } }
     for (let i = 0; i < n; i++) {
@@ -5150,7 +5251,9 @@ window.RW = {
   get G() { return G; }, App, SPR, Input, Save, Snd, Intro, WEAPONS, CHARMS, ROOM_TYPES, MON, CURVE, FLOORS, HEROES, ELEMENTS, EVO_ROOM, STARTER_ROOMS, DRAFTABLE,
   K: { T, GWT, GHT, CWP, CHP, GRID, STEP, DECK_SIZE, STAIRS_MIN, F_WALK, F_PLAYER, VERSION },
   start(seed, opts) { startRun(seed, opts); },                         // opts: { hero, deck }
-  manual(on) { App.manual = !!on; },                                   // true = the page stops ticking itself; drive it with step()
+  manual(on) { App.manual = !!on; },
+  coach(on) { App.coach = !!on; },                                     // false = no card lessons in drafts (the checks and the bot use this)
+  coachPlan, cardPart, stairsLocked,                                   // true = the page stops ticking itself; drive it with step()
   step(n = 1) { for (let i = 0; i < n; i++) { tick(STEP); Input.endFrame(); } },
   hold(a, on) { if (on) Input.down.add(a); else Input.down.delete(a); },
   press(a) { Input.pressed.add(a); },

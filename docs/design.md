@@ -10,6 +10,18 @@ burning or freezing floors...), a boon (a weapon, an upgrade or a charm) and som
 So one choice decides three things at once: how your character grows, what the terrain you fight on
 does, and where the next monsters will come from.
 
+## How the game teaches a card
+
+The first draft stops on one card and walks through it in four steps: the room, the boon, the new
+doors and the Stairwell. Each step frames that part of the card and says one sentence about it.
+After that a draft explains at most one new thing, the first time a card shows it: a room that
+levels up (stars), resonance, an evolution, a dead end, the Stairwell once it is open. `H` (or `?`,
+or the EXPLAIN chip) explains the selected card again at any time.
+
+The Stairwell is on the draft screen from the first draft. Until it is on offer it is a locked bar
+that says how many rooms it still needs, and the HUD shows the same count next to the clock
+(`STAIRS 2/5`).
+
 ## Why the floor plan matters
 
 - **Stars.** Draft a room type you already own and every room of that type levels up (to three

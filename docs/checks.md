@@ -16,7 +16,9 @@ console error, then runs four scripts:
 - `tools/check-content.js`: every room power, star level, resonance, pest, weapon, evolution,
   charm, warden and unlock does what its card says.
 - `tools/check-flows.js`: first run, pause and options, drafting, the Stairwell, game over, hero
-  and deck screens, victory, endless, and the gamepad mapping driven by a simulated pad.
+  and deck screens, victory, endless, the gamepad mapping driven by a simulated pad, and the card
+  coach (the first-draft walkthrough, one lesson per new thing, H to explain a card again).
+  `RW.coach(false)` switches the coach off; the other checks and the bot run without it.
 - `tools/check-audio.js`: every sound effect and music track puts a signal on the master bus. It
   measures level, not whether it sounds good, and is skipped where the browser has no audio.
 - `tools/check-intro.py`: the intro at boot (held for the first key, then playing with sound),

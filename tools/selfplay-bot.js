@@ -139,7 +139,7 @@
     // play one whole run from a seed (deterministic); returns a summary row
     full(seed, maxSecs, opts = {}) {
       B.goal = null; B.goalT = 0; B.picks = []; B.rs = seed * 7 + 1; B.skill = opts.skill === undefined ? 1 : opts.skill; B.lastK = -1;
-      RW.manual(true); RW.start(seed, opts); RW.G.tut.step = 9;
+      RW.manual(true); RW.coach(false); RW.start(seed, opts); RW.G.tut.step = 9;
       const n = Math.round((maxSecs || 1800) * 60); let err = null; const floors = [];
       try {
         let lastFloor = 0, f0 = 0;

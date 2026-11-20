@@ -20,7 +20,7 @@ tools/build.sh --check   # fail if index.html is stale
 | `23-monsters` `24-floors` | `MON`; `FLOORS` (monster mix, timeline, pests, natives), `CURVE`, `HEROES`, unlocks |
 | `30-dungeon` | the grid, doors, resonance links, latching and breaching, room painting, flow fields |
 | `40-actors` `41-weapons` | player, monsters, shots, pickups; one `WUPD` function per weapon |
-| `42-director` `43-draft` | spawning and pressure, events, wardens, room powers; dealing cards and placing rooms |
+| `42-director` `43-draft` `44-coach` | spawning and pressure, events, wardens, room powers; dealing cards and placing rooms; the lessons shown on a draft card |
 | `50-` `51-` `52-render-*` | world, HUD, and the menu, draft, hero and deck screens |
 | `60-game` `61-intro` `70-debug` | save data, modes and the main loop; the intro film player; the `window.RW` test hooks |
 

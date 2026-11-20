@@ -5,6 +5,7 @@
   const { T, GWT } = RW.K, saved = JSON.stringify(RW.Save.data);
   let G, P;
   // a quiet, invulnerable sandbox run: no spawns, no clock, plenty of keys
+  RW.coach(false);                    // no card lessons in the way of the hooks
   const fresh = (seed, opts) => { RW.manual(true); RW.start(seed || 101, opts); G = RW.G; P = G.P; G.tut.step = 9; G.dir.calm = 1e9; G.dir.ti = 99; G.endless = true; P.inv = 1e9; P.keys = 99; };
   const tp = (x, y) => { P.x = x; P.y = y; RW.step(2); };
   // draft a specific room behind a sealed door (default: the first sealed door of the newest room)

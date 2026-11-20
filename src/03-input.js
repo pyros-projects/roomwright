@@ -6,9 +6,9 @@ const Input = (() => {
   const CODE = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down',
     Space: 'dash', ShiftLeft: 'dash', ShiftRight: 'dash', Enter: 'ok', NumpadEnter: 'ok', KeyZ: 'ok', KeyE: 'ok', Escape: 'back', Backspace: 'back',
     KeyP: 'pause', KeyM: 'mute', Digit1: 'c1', Digit2: 'c2', Digit3: 'c3', Digit4: 'c4', Numpad1: 'c1', Numpad2: 'c2', Numpad3: 'c3', Numpad4: 'c4',
-    KeyQ: 'alt', Tab: 'alt', KeyR: 'reroll', KeyI: 'intro' };
+    KeyQ: 'alt', Tab: 'alt', KeyR: 'reroll', KeyI: 'intro', KeyH: 'help', Slash: 'help' };
   const KEY = { arrowleft: 'left', a: 'left', arrowright: 'right', d: 'right', arrowup: 'up', w: 'up', arrowdown: 'down', s: 'down', ' ': 'dash', shift: 'dash',
-    enter: 'ok', z: 'ok', e: 'ok', escape: 'back', backspace: 'back', p: 'pause', m: 'mute', '1': 'c1', '2': 'c2', '3': 'c3', '4': 'c4', q: 'alt', tab: 'alt', r: 'reroll', i: 'intro' };
+    enter: 'ok', z: 'ok', e: 'ok', escape: 'back', backspace: 'back', p: 'pause', m: 'mute', '1': 'c1', '2': 'c2', '3': 'c3', '4': 'c4', q: 'alt', tab: 'alt', r: 'reroll', i: 'intro', h: 'help', '?': 'help' };
   const act = e => CODE[e.code] || KEY[(e.key || '').toLowerCase()];
   const mouse = { x: -99, y: -99, click: false, moved: false };
   const stick = { on: false, id: -1, ox: 0, oy: 0, x: 0, y: 0 };

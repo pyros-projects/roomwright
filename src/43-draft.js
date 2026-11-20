@@ -58,8 +58,8 @@ function openDraft(door) {
     used.add(c.boon.kind + c.boon.id); refreshCard(c, cx, cy, entry);
   }
   const stairs = stairsReady();
-  G.draft = { door, cards: door.cards, sel: Math.min(1, door.cards.length - 1), t: 0, cx, cy, entry, stairs, onStairs: false, rerolls: Math.max(0, mapLevel() - 1 - door.rerolled) };
-  App.mode = 'draft'; sfx('draft');
+  G.draft = { door, cards: door.cards, sel: Math.min(1, door.cards.length - 1), t: 0, cx, cy, entry, stairs, locked: stairs ? 0 : stairsLocked(), coach: null, onStairs: false, rerolls: Math.max(0, mapLevel() - 1 - door.rerolled) };
+  App.mode = 'draft'; sfx('draft'); coachStart(G.draft, false);
   if (G.tut.step <= 1) G.tut.step = 2;
   if (stairs) tip('stairs', 'The STAIRWELL is on offer now (press DOWN in a draft). Its warden guards the way to the next floor.');
 }

@@ -2,10 +2,14 @@
 // ---- draft ----
 const rerollLabel = D => (Input.touch ? '' : 'R  ') + 'DEAL AGAIN  x' + D.rerolls, rerollW = D => textW(rerollLabel(D)) + 12;
 function draftLayout() {
-  const D = G.draft, n = D.cards.length, gap = n > 3 ? 4 : 6, barH = D.stairs ? 19 : 0;
-  const cw = Math.min(128, Math.floor((VW - 14 - gap * (n - 1)) / n)), ch = Math.min(178, VH - 46 - barH), tw = n * cw + (n - 1) * gap;
-  const x0 = Math.round((VW - tw) / 2), y0 = Math.round((VH - ch - barH) / 2) + 5;
-  return { rects: D.cards.map((_, i) => ({ x: x0 + i * (cw + gap), y: y0, w: cw, h: ch })), bar: D.stairs ? { x: x0, y: y0 + ch + 4, w: tw, h: 15 } : null,
+  const D = G.draft, n = D.cards.length, gap = n > 3 ? 4 : 6, barH = D.stairs || D.locked ? 19 : 0;   // the Stairwell bar, open or still locked
+  // A card needs 175px for three lines of room text above its boon. A view too short for that plus the bar
+  // and the key legend goes compact: the legend moves to the top right and the cards take its place.
+  const compact = barH > 0 && VH - 46 - barH < 175;
+  const cw = Math.min(128, Math.floor((VW - 14 - gap * (n - 1)) / n)), ch = Math.min(178, VH - (compact ? 31 : 46) - barH), tw = n * cw + (n - 1) * gap;
+  const x0 = Math.round((VW - tw) / 2), y0 = compact ? 28 : Math.round((VH - ch - barH) / 2) + 5;
+  return { compact, rects: D.cards.map((_, i) => ({ x: x0 + i * (cw + gap), y: y0, w: cw, h: ch })), bar: D.stairs ? { x: x0, y: y0 + ch + 4, w: tw, h: 15 } : null,
+    lock: !D.stairs && D.locked ? { x: x0, y: y0 + ch + 4, w: tw, h: 15 } : null, help: { x: x0, y: y0 - 27, w: textW(helpLabel()) + 12, h: 13 },
     re: D.rerolls > 0 ? { x: x0 + tw - rerollW(D), y: y0 - 27, w: rerollW(D), h: 13 } : null };   // the Map Room's 'deal again' chip
 }
 function miniRoom(g, x, y, w, h, col, doors, fresh) {
@@ -89,9 +93,18 @@ function renderDraft(g) {
     ds(g, SPR.i_stairs, b.x + 11, b.y + 7); txt(g, 'THE STAIRWELL', b.x + 22, b.y + 4, on ? '#ffd95e' : '#c8c8e0');
     txt(g, 'wake the warden, then leave this floor', b.x + b.w - 6, b.y + 4, on ? '#fff8e8' : '#9aa3b5', 1);
   }
+  if (L_.lock) {                    // not on offer yet: say what it takes
+    const b = L_.lock; panel(g, b.x, b.y, b.w, b.h, '#3b3b5a', '#1c1830');
+    g.globalAlpha = 0.45; ds(g, SPR.i_stairs, b.x + 11, b.y + 7); g.globalAlpha = 1; txt(g, 'THE STAIRWELL', b.x + 22, b.y + 4, '#6a6a8a');
+    txt(g, 'draft ' + D.locked + ' more room' + (D.locked === 1 ? '' : 's') + ' to unlock it', b.x + b.w - 6, b.y + 4, '#9aa3b5', 1);
+  }
+  { const r = L_.help, hot = Input.inRect(r) && !D.coach; panel(g, r.x, r.y, r.w, r.h, hot ? '#ffd95e' : '#4c5a84', hot ? '#3a3052' : '#24203a'); txt(g, helpLabel(), r.x + r.w / 2, r.y + 3, hot ? '#ffd95e' : '#9cecf2', 0.5); }
   if (L_.re) { const r = L_.re, hot = Input.inRect(r); panel(g, r.x, r.y, r.w, r.h, hot ? '#ffd95e' : '#4c5a84', hot ? '#3a3052' : '#24203a'); txt(g, rerollLabel(D), r.x + r.w / 2, r.y + 3, hot ? '#ffd95e' : '#9cecf2', 0.5); }
   let tip_ = G.tut.step === 2 ? 'A card is a room, its power, a boon and new doors. Doors let monsters in.' : Input.touch ? 'Tap a card to build it. Tap outside to step back.' : 'LEFT/RIGHT choose   ENTER build   ESC step back' + (L_.bar ? '   DOWN stairs' : '');
-  txo(g, tip_, VW / 2, (L_.bar ? L_.bar.y + L_.bar.h : rects[0].y + rects[0].h) + 5, G.tut.step === 2 ? '#fff8e8' : '#9aa3b5', '#1a1426', 0.5);
+  const low = L_.bar || L_.lock;
+  if (!L_.compact) txo(g, tip_, VW / 2, (low ? low.y + low.h : rects[0].y + rects[0].h) + 5, G.tut.step === 2 ? '#fff8e8' : '#9aa3b5', '#1a1426', 0.5);
+  else if (!L_.re) txo(g, Input.touch ? 'tap a card' : 'ENTER build  ESC back' + (L_.bar ? '  DOWN stairs' : ''), VW - 5, rects[0].y - 23, '#9aa3b5', '#1a1426', 1);
+  renderCoach(g, D, L_);
 }
 
 // ---- menus ----

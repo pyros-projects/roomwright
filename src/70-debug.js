@@ -4,7 +4,9 @@ window.RW = {
   get G() { return G; }, App, SPR, Input, Save, Snd, Intro, WEAPONS, CHARMS, ROOM_TYPES, MON, CURVE, FLOORS, HEROES, ELEMENTS, EVO_ROOM, STARTER_ROOMS, DRAFTABLE,
   K: { T, GWT, GHT, CWP, CHP, GRID, STEP, DECK_SIZE, STAIRS_MIN, F_WALK, F_PLAYER, VERSION },
   start(seed, opts) { startRun(seed, opts); },                         // opts: { hero, deck }
-  manual(on) { App.manual = !!on; },                                   // true = the page stops ticking itself; drive it with step()
+  manual(on) { App.manual = !!on; },
+  coach(on) { App.coach = !!on; },                                     // false = no card lessons in drafts (the checks and the bot use this)
+  coachPlan, cardPart, stairsLocked,                                   // true = the page stops ticking itself; drive it with step()
   step(n = 1) { for (let i = 0; i < n; i++) { tick(STEP); Input.endFrame(); } },
   hold(a, on) { if (on) Input.down.add(a); else Input.down.delete(a); },
   press(a) { Input.pressed.add(a); },

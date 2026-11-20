@@ -77,13 +77,15 @@ it and is optional. Without it the game starts on the title screen.
 | The Stairwell (once offered) | Down, then Enter | down + A | tap its bar |
 | Deal again (Map Room, two stars) | R | | |
 | Step back from a draft (free; cards stay) | Esc | B | tap outside the cards |
+| Explain the selected card (in a draft) | H or ? | | tap EXPLAIN |
 | Edit the deck (hero screen) | Q or Tab | | tap the deck |
 | Pause / options | P or Esc | Start | pause button |
 | Mute | M | | |
 | Skip the intro | Enter, Space or Esc, or click | A or B | tap |
 | Watch the intro again (title screen) | I, or click INTRO | | tap INTRO |
 
-Weapons fire on their own. `index.html?seed=123` pins the run's random seed. Progress is saved in
+The first draft walks you through a card: the room, the boon, the doors and the Stairwell. Later drafts
+explain one new thing each, the first time a card shows it. Weapons fire on their own. `index.html?seed=123` pins the run's random seed. Progress is saved in
 `localStorage` under `roomwright.v2`.
 
 ## The intro

@@ -66,7 +66,8 @@ function renderHUD(g) {
       g.drawImage(SPR.door_icon.c, bx + bw + 2, 10);
       // five pips: rooms drafted on this floor; full = the Stairwell is on offer
       for (let i = 0; i < STAIRS_MIN; i++) { g.fillStyle = '#1a1426'; g.fillRect(bx - 2 + i * 5, 20, 4, 4); g.fillStyle = D.stairsBuilt || i < G.fstat.rooms ? '#ffd95e' : '#3b2d4f'; g.fillRect(bx - 1 + i * 5, 21, 2, 2); }
-      if (ready && (Math.floor(t * 2) & 1)) txo(g, 'STAIRS', bx + 27, 19, '#ffd95e', '#1a1426');
+      if (ready) { if (Math.floor(t * 2) & 1) txo(g, 'STAIRS', bx + 27, 19, '#ffd95e', '#1a1426'); }
+      else if (!D.stairsBuilt && !D.boss) txo(g, 'STAIRS ' + Math.min(G.fstat.rooms, STAIRS_MIN) + '/' + STAIRS_MIN, bx + 27, 19, '#9aa3b5', '#1a1426');   // what the pips count
     }
   }
   if (G.roomLabel) { const L_ = G.roomLabel; g.globalAlpha = clamp(Math.min(L_.t * 4, (2.4 - L_.t) * 2), 0, 1); txo(g, '~ ' + L_.text + ' ~', VW / 2, 30, '#ffd95e', '#1a1426', 0.5); g.globalAlpha = 1; }

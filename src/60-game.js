@@ -1,6 +1,6 @@
 /* ============================= 15 GAME LOOP =========================== */
 // modes: (intro ->) title -> prep (<-> deck) -> play <-> draft / pause -> descend -> play ... -> over | win
-const App = { mode: 'title', prevMode: '', modeT: 0, sel: 0, fade: null, record: false, big: {}, manual: false, titleT: 0, titleRoom: 0,
+const App = { mode: 'title', prevMode: '', modeT: 0, sel: 0, fade: null, record: false, big: {}, manual: false, coach: true, titleT: 0, titleRoom: 0,
   prep: { i: 0 }, deck: { cur: 0, msg: '', msgT: 0 }, descend: null };
 
 // ---- save data: options, records, and the meta-game (cards collected, heroes, one deck per hero) ----
@@ -66,7 +66,7 @@ function makeShowcase() {
   G.cam.x = G.rooms[0].px + CWP / 2 - VW / 2; G.cam.y = G.rooms[0].py + CHP / 2 - VH / 2;
 }
 function toTitle() { Snd.music('title'); makeShowcase(); }
-function floorBanner() { banner('FLOOR ' + (G.floor + 1) + ': ' + G.F.name.toUpperCase(), G.floor === 0 ? 'Draft the dungeon. Find the stairs.' : 'New monsters. New rooms. Same idea.', '#ffd95e', 3.2); }
+function floorBanner() { banner('FLOOR ' + (G.floor + 1) + ': ' + G.F.name.toUpperCase(), G.floor === 0 ? 'Draft rooms. After ' + STAIRS_MIN + ', a draft offers the Stairwell down.' : 'New monsters. New rooms. Same idea.', '#ffd95e', 3.2); }
 function startRun(seed, opts = {}) {
   if (seed === undefined) { const q = new URLSearchParams(location.search).get('seed'); seed = q !== null && q !== '' && isFinite(+q) ? +q : (Math.random() * 2147483647) | 0; }   // ?seed=123 pins the run
   const hero = opts.hero && HEROES[opts.hero] ? opts.hero : Save.data.hero;
@@ -168,6 +168,8 @@ const MODES = {
   },
   draft(dt) {
     const D = G.draft, L_ = draftLayout(), rects = L_.rects, n = D.cards.length; D.t += dt; let go = -1, onCard = false, st = false;
+    if (D.coach) { coachInput(D); return; }                              // a lesson is up: input turns its pages
+    if (Input.hit('help') || (Input.mouse.click && Input.inRect(L_.help))) { coachStart(D, true); if (D.coach) { sfx('tick'); return; } }
     if (!D.onStairs) { if (Input.hit('left')) { D.sel = (D.sel + n - 1) % n; sfx('tick'); } if (Input.hit('right')) { D.sel = (D.sel + 1) % n; sfx('tick'); } }
     if (L_.bar) { if (Input.hit('down') && !D.onStairs) { D.onStairs = true; sfx('tick'); } else if (Input.hit('up') && D.onStairs) { D.onStairs = false; sfx('tick'); } }
     for (let i = 0; i < n; i++) {
