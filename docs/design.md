@@ -45,17 +45,26 @@ starts again on each floor. A Map Room's free deals come first; `R` knocks back 
 ## Why the floor plan matters
 
 - **Stars.** Draft a room type you already own and every room of that type levels up (to three
-  stars). Levels last for the whole run.
+  stars). Levels last for the whole run. A room's power is 0.85, 1.6 and 2.6 at one, two and three
+  stars: one star alone is a help, three do real work.
 - **Elements and resonance.** Every room has one of eight elements. Two rooms of the same element
-  joined by an open doorway resonate: +25% room power each, per link. Stone resonates with anything.
-  The draft card previews the bonus for the spot you are about to build on.
+  joined by an open doorway resonate: +40% room power each, per link. Stone resonates with anything.
+  The draft card previews the bonus for the spot you are about to build on. A three-star room with
+  two links is five and a half times a lone one-star room.
 - **Evolutions.** Each weapon evolves in one specific room: reach level 5, then walk into that room
   on the current floor. Twelve weapons evolve in starter rooms. The other twelve evolve in rooms
   native to one floor or belonging to one delver, so you have to build that room before you leave
   its floor, or collect its card and put it in your deck. A weapon card shows the room it needs
   (dimmed when the run can no longer reach it), and drafts lean toward weapons that still can.
-- **Door pressure.** Every sealed door adds 11% to the knocking (the HUD shows the multiplier, each
-  card shows what it would change). Dead ends are quiet; a Crossroads is loud and rich.
+- **Door pressure.** Every sealed door adds to the knocking: 11% on the first floor, 15% on the
+  second, 17% on the third (the HUD shows the multiplier, each card shows what it would change).
+  Dead ends are quiet; a Crossroads is loud and rich. A plan with seven sealed doors is one and a
+  half times as loud as one with three on the first floor, and 1.6 times on the third.
+- **Sieges.** Each floor's elite (King Slime, Elder Shroom, Furnace Golem) goes for the room you
+  built up most: stars first, then resonance. While it stands in that room the room's power is
+  off, and the minimap blinks a red frame around it. On its way there it ignores you, so it can be
+  stopped. Once it has settled in, it turns on you when you come close or walk in, and goes back
+  when you leave: fight it there, or lure it out. A floor where nothing is built up has no target.
 - **Pests** attack the layout instead of you. Latchlings latch a doorway you have to shoulder
   open, Sappers dig a new sealed door into a wall, Hexers switch a room's power off until they die.
 
@@ -65,9 +74,41 @@ A run is three floors: the Cellar, the Undergarden and the Kiln. Each has its ow
 warden, look, music and a handful of **native rooms** that only turn up there. After five rooms the
 draft also offers **the Stairwell**: build it and the floor's warden climbs out. The warden is
 weaker the earlier you call it, and beating it with time to spare pays keys, but every room you
-skip is power you do not take downstairs. Wait too long (the dread bar under the clock) and the
-warden comes for you, enraged. Weapons, charms, hearts and room stars carry down; the floor plan
-starts again from one room.
+skip is power you do not take downstairs. The Stairwell's bar on the draft screen says what it
+would wake right now ("warden at 62%") and how many keys a fast kill would still pay.
+
+Waiting has a price before the clock runs out. Past 60% of the dread clock (the bar under the clock
+turns orange) the knocking grows, up to 60% more at the end. Wait until it runs out and the warden
+comes for you, enraged. And a warden's fight cannot be waited out: after 50 seconds it gains a step
+of fury every 20 seconds, up to eight, and each step makes everything it does a tenth faster. Pips
+under its health bar count the steps. A build that kills slowly meets a quicker warden.
+
+Once the warden is dead the floor is quiet: no monsters, and a Greenhouse grows no more glints.
+Weapons, charms, hearts and room stars carry down; the floor plan starts again from one room.
+
+## What did the work
+
+The end screen and the pause menu show a row of icons with shares: the weapons, room types and
+charms that dealt the run's damage, largest first. The line under an icon says what it is (gold: a
+weapon, blue: a room, green: a charm). Every point of damage has an owner: a bomb in the air is
+still the bombs', a burn belongs to what lit it, a Fairy Ring's cloud to the Fairy Ring.
+
+## Stakes
+
+A win opens Stakes for the delver who won. The hero screen then shows a ladder of six steps: UP and
+DOWN (or a click or tap on those lines) set the step for the next run, and a win at the highest open
+step opens the next. Each step adds one rule and keeps the ones before it.
+
+| Step | Rule |
+|---|---|
+| 1 | Wardens arrive enraged. |
+| 2 | Pests come from the first floor on, and sooner. |
+| 3 | Dice roll in with the waves. |
+| 4 | Hearts drop half as often. |
+| 5 | Monsters are a fifth tougher. |
+| 6 | The dread clock runs a quarter faster. |
+
+The plain game is step 0. The pause menu and the end screen name the step you are playing.
 
 ## The deck
 
