@@ -1,0 +1,51 @@
+[
+ {
+  "name": "room",
+  "text": "One room. Four sealed doors.",
+  "image": "sprites/cap-room.png",
+  "from": 1.5,
+  "to": 4.2
+ },
+ {
+  "name": "knock",
+  "text": "Something is knocking.",
+  "image": "sprites/cap-knock.png",
+  "from": 4.95,
+  "to": 7.2
+ },
+ {
+  "name": "glints",
+  "text": "Glints forge keys.",
+  "image": "sprites/cap-glints.png",
+  "from": 7.95,
+  "to": 10.2
+ },
+ {
+  "name": "lock",
+  "text": "Keys open doors.",
+  "image": "sprites/cap-lock.png",
+  "from": 10.95,
+  "to": 13.2
+ },
+ {
+  "name": "newroom",
+  "text": "Doors hide rooms...",
+  "image": "sprites/cap-newroom.png",
+  "from": 13.95,
+  "to": 17.7
+ },
+ {
+  "name": "warden",
+  "text": "...and monsters.",
+  "image": "sprites/cap-warden.png",
+  "from": 18.45,
+  "to": 20.7
+ },
+ {
+  "name": "plan",
+  "text": "Draft the dungeon.",
+  "image": "sprites/cap-plan.png",
+  "from": 21.45,
+  "to": 25.2
+ }
+]

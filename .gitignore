@@ -1,0 +1,5 @@
+.DS_Store
+.index.build.tmp
+intro/out/
+intro/.env
+__pycache__/

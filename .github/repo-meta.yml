@@ -1,0 +1,23 @@
+description: >
+  A survivors-like where every level-up is a room. Draft the dungeon behind each door. One HTML file,
+  no libraries, with a pixel-art intro film.
+topics:
+  # Broad discovery
+  - game
+  - html5-game
+  - browser-game
+  - pixel-art
+  # Purpose
+  - survivors-like
+  - roguelike
+  - deckbuilder
+  - dungeon-crawler
+  - procedural-art
+  - chiptune
+  # Supported technologies
+  - javascript
+  - canvas
+  - webaudio
+  - single-file
+  - no-dependencies
+homepage: "https://play-roomwright.netlify.app"
