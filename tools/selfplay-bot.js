@@ -76,6 +76,8 @@
       if (g && bd < 600) return g;
       // 2) a maxed weapon and its room is on this floor: go and evolve it
       for (const w of P.weapons) if (!w.evo && w.lv >= 5) { const r = G.rooms.find(r => r.type === RW.WEAPONS[w.id].evo.room && r.reveal >= 1 && r.hexT <= 0); if (r) return { k: 'evo', x: r.px + 168, y: r.py + 150 }; }
+      // 2b) an elite camps in a room and has switched it off: go and fight it there, in good health
+      if (P.hp > P.maxHp * 0.5) for (const e of G.mons) if (!e.dead && e.def.siege && e.camped && e.tr && e.tr.siegeT > 0) return { k: 'siege', x: e.x, y: e.y + 26 };
       // 3) spend keys on the nearest sealed door
       if (P.keys > 0 && G.sealed.length) {
         let best = null; bd = 1e9;

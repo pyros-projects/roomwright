@@ -8,7 +8,7 @@ function steelHaste() {               // Tinker's Oil and a Workshop speed up tr
   return h;
 }
 function liveDoors() { let n = 0; for (const d of G.sealed) if (d.room.reveal >= 1) n++; return n; }
-const doorPressure = () => CURVE.pressure(liveDoors(), charm('wedge'));
+const doorPressure = () => CURVE.pressure(liveDoors(), charm('wedge'), G.floor);
 function clockLimit() {               // seconds until the warden comes for you on its own
   let c = G.F.clock;
   if (G.rooms.some(r => r.type === 'observ' && roomLive(r))) c *= 1 + [0.12, 0.2, 0.28][roomLevel('observ') - 1];
@@ -32,7 +32,7 @@ function fireEvent(ev) {
     for (let i = 0, n = 10 + Math.floor(G.t / 28) + G.floor * 3; i < n; i++) d.queue.push(wpick(mixl, x => x[1])[0]);
   } else if (ev === 'elite') {
     const id = G.F.elite; d.queue.push(id);
-    banner(id === 'kslime' ? 'A KING SLIME SQUEEZES IN' : id === 'eshroom' ? 'AN ELDER SHROOM LUMBERS IN' : 'A FURNACE GOLEM STOMPS IN', '', '#b5e85a', 2.2); sfx('breach');
+    banner(id === 'kslime' ? 'A KING SLIME SQUEEZES IN' : id === 'eshroom' ? 'AN ELDER SHROOM LUMBERS IN' : 'A FURNACE GOLEM STOMPS IN', siegeTarget({ x: d.x, y: d.y }) ? 'It is after the room you built up most.' : '', '#b5e85a', 2.6); sfx('breach');
   }
 }
 function scatterHorde(keep) {         // the small fry flee: wardens fight alone (at first)
@@ -93,7 +93,7 @@ function updateDirector(dt) {
     const d = nearDoor(); if (d && !fight) d.queue.push(id);
   }
   let doors = 0, queued = 0; for (const d of G.sealed) { if (d.room.reveal >= 1) doors++; queued += d.queue.length; }
-  const rate = CURVE.rate(G.floor, m) * CURVE.pressure(doors, charm('wedge')) * (fight ? 0.4 : 1);
+  const rate = CURVE.rate(G.floor, m) * CURVE.pressure(doors, charm('wedge'), G.floor) * (fight ? 0.4 : 1);
   D.acc = Math.min(8, D.acc + rate * dt);
   if (D.acc >= 1 && G.mons.length + queued < CURVE.cap(G.floor, m)) {
     const n = Math.min(Math.floor(D.acc), CURVE.group(G.floor, m)), mixl = F.mix(G.t); D.acc -= n;
@@ -264,7 +264,8 @@ function updateRooms(dt) {
   for (const room of G.rooms) {
     BY = 'r:' + room.type;
     if (room.reveal < 1) { room.reveal = Math.min(1, room.reveal + dt / 0.9); if (room.reveal >= 1) onRoomReady(room); continue; }
-    if (room.hexT > 0) { room.hexT -= dt; if (room.hexT <= 0 && room.type === 'library') recalc(); continue; }   // hexed: switched off
+    if (room.siegeT > 0) room.siegeT -= dt;
+    if (room.hexT > 0) { room.hexT -= dt; if (room.hexT <= 0 && room.type === 'library') recalc(); continue; }   // hexed or besieged: switched off
     room.timer += dt;
     const here = room === cur, mul = roomMul(room);
     switch (room.type) {
@@ -375,7 +376,7 @@ function updateRooms(dt) {
         const c = room.chest;
         if (!c.open && Math.abs(P.x - c.x) < 17 && Math.abs(P.y - (c.y - 4)) < 17) {
           c.open = true; c.spr = 'chest1'; sfx('chest'); G.shake = Math.max(G.shake, 2);
-          const total = Math.max(14, P.keyCost * 0.75) * LV_MUL[roomLevel('vault') - 1]; for (let i = 0; i < 14; i++) dropGlint(c.x, c.y - 4, total / 14);
+          const total = Math.max(14, P.keyCost * 0.75) * CURVE.stars[roomLevel('vault') - 1]; for (let i = 0; i < 14; i++) dropGlint(c.x, c.y - 4, total / 14);
           sparkle(c.x, c.y - 8, 16, PAL.y);
         }
         break; }

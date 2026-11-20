@@ -40,7 +40,7 @@ function drawPlan(g, card, x, y, w, h) {   // 3x3 neighbourhood blueprint: where
     const sx = ox + cw + (cw >> 1) + DIRS[d].x * (cw >> 1), sy = oy + ch + (ch >> 1) + DIRS[d].y * (ch >> 1), k = 2 + (Math.floor(frameT * 5) & 1);
     g.fillStyle = ELEMENTS[me.el === 'stone' ? nb.el : me.el].col; g.fillRect(sx - k, sy - 1, k * 2 + 1, 2); g.fillRect(sx - 1, sy - k, 2, k * 2 + 1);
   }
-  if (card.res > 0) txo(g, '+' + Math.round(card.res * (RES_STEP + 0.1 * charm('trowel')) * 100) + '%', x + 2, y + 2, ELEMENTS[me.el].col, '#1a1426');
+  if (card.res > 0) txo(g, '+' + Math.round(card.res * (CURVE.res + 0.1 * charm('trowel')) * 100) + '%', x + 2, y + 2, ELEMENTS[me.el].col, '#1a1426');
   if (card.evo) { const b = SPR['i_' + card.evo.id]; g.globalAlpha = card.evo.ready ? 1 : 0.55; ds(g, b, x + w - 9, y + 9); g.globalAlpha = 1; txo(g, card.evo.ready ? 'EVOLVE!' : 'Lv' + card.evo.lv + '/5', x + w - 2, y + h - 10, card.evo.ready ? ((Math.floor(frameT * 4) & 1) ? '#ffd95e' : '#fff8e8') : '#9aa3b5', '#1a1426', 1); }
 }
 function drawCard(g, card, r, sel, t, i) {

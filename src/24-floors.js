@@ -31,12 +31,12 @@ const CURVE = {
   group: (f, m) => 1 + Math.min(5, Math.floor(m / 1.4) + f),                              // monsters per knock
   keyCost: n => Math.round(6 + 5 * n + 0.45 * n * n),                                     // glints for the n-th key
   room: (f, m) => [1, 1.8, 3.0][f] * (1 + 0.24 * m),                                      // room power (spikes, owls, embers...)
-  pressure: (doors, wedge) => 0.55 + 0.11 * Math.min(14, doors) * (1 - 0.12 * wedge),     // each sealed door adds to the knocking
+  pressure: (doors, wedge, f) => 0.55 + 0.11 * Math.min(14, doors) * (1 - 0.12 * wedge),  // each sealed door adds to the knocking (f = floor)
+  stars: [1, 1.5, 2.0],                                                                   // room power by star level
+  res: 0.25,                                                                              // +25% room power per resonating neighbour
   bossHp: (f, overstay) => (overstay ? 1.25 : 1),
   costKeep: 0.5,                                                                          // share of key-cost progress kept when you descend
 };
-const LV_MUL = [1, 1.5, 2.0];          // room power by star level
-const RES_STEP = 0.25;                 // +25% per resonating neighbour
 
 // Heroes: a starting weapon, a perk and a default deck (10 room cards). `sig` is unlocked with them.
 // Perk knobs: rooms = room power multiplier, hearts = heart drop rate multiplier (other perks are in 40-actors.js).

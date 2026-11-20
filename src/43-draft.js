@@ -47,7 +47,7 @@ function refreshCard(c, cx, cy, entry) {
   const ev = EVO_ROOM[c.type], w = ev && G.P.weapons.find(w => w.id === ev);
   c.evo = w && !w.evo ? { id: ev, ready: w.lv >= WEAPONS[ev].max, lv: w.lv } : null;
   const before = G.sealed.length, after = before - 1 - c.plan.links + c.plan.fresh;
-  c.pressure = Math.round((CURVE.pressure(after, charm('wedge')) / CURVE.pressure(before, charm('wedge')) - 1) * 100);
+  c.pressure = Math.round((CURVE.pressure(after, charm('wedge'), G.floor) / CURVE.pressure(before, charm('wedge'), G.floor) - 1) * 100);
 }
 function openDraft(door) {
   const cx = door.room.cx + DIRS[door.dir].x, cy = door.room.cy + DIRS[door.dir].y, entry = (door.dir + 2) % 4;

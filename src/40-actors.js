@@ -51,7 +51,7 @@ function addWeapon(id) { G.P.weapons.push({ id, lv: 1, evo: false, cd: 0.5, ang:
 const wStat = w => WEAPONS[w.id].S[w.evo ? 5 : w.lv - 1];
 const charm = id => G.P.charms[id] || 0;
 // power multiplier of one room: stars x resonance (x hero perk). Damage rooms also scale with roomPow().
-const roomMul = room => LV_MUL[roomLevel(room.type) - 1] * (1 + (RES_STEP + 0.1 * charm('trowel')) * room.res) * (HEROES[G.hero].rooms || 1);
+const roomMul = room => CURVE.stars[roomLevel(room.type) - 1] * (1 + (CURVE.res + 0.1 * charm('trowel')) * room.res) * (HEROES[G.hero].rooms || 1);
 const roomLive = room => room && room.reveal >= 1 && room.hexT <= 0;
 function keyCostNow() {
   let c = CURVE.keyCost(G.P.costN) * Math.pow(0.94, charm('keyring'));
@@ -397,6 +397,7 @@ function updateMons(dt) {
     let tx, ty, direct = false;
     if (def.phase) { tx = P.x; ty = P.y; } else { const t = flowTarget(e, def.fly, P); tx = t[0]; ty = t[1]; }
     const ai = def.ai;
+    if (def.siege) { const act = siegeAct(e, dt, room, dp); if (act) { tx = act[0]; ty = act[1]; direct = true; if (act[2]) sp = 0; } }
     if (ai === 'shoot' || ai === 'hex') {
       const s = def.shot; e.shootT -= dt;
       if (dp < s.range) { sp *= dp < s.hold ? 0 : 0.5; if (e.shootT <= 0 && los(e.x, e.y - 4, P.x, P.y - 4)) { e.shootT = rr(s.cd[0], s.cd[1]); e.flash = 0.08; fireEBullet(e.x, e.y - 4, dxp / dp, dyp / dp, s.sp, s.spr); sfx('ebullet'); } }
@@ -463,6 +464,54 @@ function updateMons(dt) {
   }
   EBY = null;
 }
+// A floor's elite goes for the room you built up most (stars first, then resonance) and camps in it. While it
+// stands there the room's power is off, as under a Hexer. On its way it ignores the delver (a touch still hurts),
+// so it can be stopped before it arrives. Once it has settled in, it turns on a delver who comes close or walks
+// into its room, and goes back when they leave: fight it there, or lure it out. A floor with nothing built up
+// (one star everywhere, no resonance) has no target, and the elite hunts the delver like any monster.
+const SIEGE_NEAR = 76;
+function siegeTarget(e) {
+  let best = null, bs = 10, bd = 1e9;
+  for (const r of G.rooms) {
+    if (r.reveal < 1 || r.def.tier === 'x') continue;
+    const s = roomLevel(r.type) * 10 + Math.min(9, r.res), d = Math.hypot(r.px + CWP / 2 - e.x, r.py + CHP / 2 - e.y);
+    if (s > bs || (s === bs && best && d < bd)) { best = r; bs = s; bd = d; }
+  }
+  return best;
+}
+// a free tile to stand on, as near the middle of the room as there is one
+function standTile(r) {
+  const cx = Math.floor((r.px + CWP / 2) / T), cy = Math.floor((r.py + CHP / 2) / T);
+  for (let rad = 0; rad < 6; rad++) for (let dy = -rad; dy <= rad; dy++) for (let dx = -rad; dx <= rad; dx++) {
+    if (Math.max(Math.abs(dx), Math.abs(dy)) !== rad) continue;
+    const i = (cy + dy) * GWT + cx + dx; if (!(G.flags[i] & F_WALK)) return i;
+  }
+  return cy * GWT + cx;
+}
+// returns [x, y, standStill] to steer by, or null to chase the delver like any monster
+function siegeAct(e, dt, room, dp) {
+  e.siegeT = (e.siegeT || 0) - dt;
+  if (e.siegeT <= 0) {                // read the floor plan again now and then: rooms get built, levelled and latched
+    e.siegeT = 1.5; e.tr = siegeTarget(e);
+    if (e.tr) { if (!e.sd) { e.sd = new Uint16Array(GWT * GHT); e.sn = new Int32Array(GWT * GHT); } const c = standTile(e.tr); bfs(F_WALK, e.sd, e.sn, c % GWT, Math.floor(c / GWT)); }
+  }
+  const tr = e.tr; if (!tr) return null;
+  if (room === tr) {
+    tr.hexT = Math.max(tr.hexT, 0.3); tr.siegeT = 0.5;
+    if (!e.camped) {
+      e.camped = true; sfx('hex'); G.shake = Math.max(G.shake, 3);
+      banner('YOUR ' + tr.def.name.toUpperCase() + ' IS UNDER SIEGE', 'Its power is off while the ' + e.def.name + ' stands in it.', '#ff7a7a', 3);
+      tip('siege', 'An elite camps in the room you built up most and switches it off. Fight it there, or lure it out.');
+    }
+  }
+  if (e.camped && (dp < SIEGE_NEAR || room === G.curRoom)) return null;  // it has settled in and the delver is here: fight
+  const ti = Math.floor(e.y / T) * GWT + Math.floor(e.x / T), dd = e.sd[ti];
+  if (dd === 65535) return null;                                         // cut off from its room (a latched gate): hunt instead
+  if (dd <= 1) return [e.x, e.y, true];
+  let nx = e.sn[ti]; if (dd > 3) nx = e.sn[nx];
+  return [(nx % GWT) * T + 8, Math.floor(nx / GWT) * T + 8, false];
+}
+
 // Latchlings lock a doorway of the room they arrive in; Sappers tunnel through one of its bare walls.
 // returns [x, y, standStill] to steer by, null to behave like a normal chaser, or 'gone' once the job is done.
 function pestAct(e, dt, room, ai) {

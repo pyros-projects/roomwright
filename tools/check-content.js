@@ -240,6 +240,32 @@
     ok('every hero starts with a weapon that can evolve in their own deck', Object.values(RW.HEROES).every(h => h.deck.indexOf(RW.WEAPONS[h.weapon].evo.room) >= 0), Object.values(RW.HEROES).map(h => h.weapon + '>' + RW.WEAPONS[h.weapon].evo.room).join(' '));
     fresh(390, { hero: 'pip', deck: ['ember', 'frost', 'hall', 'spikes', 'vault', 'library', 'garden', 'guardian', 'fountain', 'cross'] }); RW.openDraft(G.sealed[0]);
     const cds = G.draft.cards; ok('drafts deal deck cards plus one floor native', cds.length === 3 && G.deck.indexOf(cds[0].type) >= 0 && G.deck.indexOf(cds[1].type) >= 0 && RW.FLOORS[0].natives.indexOf(cds[2].type) >= 0, cds.map(c => c.type).join(','));
+    /* ---- a floor's elite besieges the room you built up most ---- */
+    {
+      fresh(401); ok('siege: a floor with nothing built up has no target', RW.siegeTarget({ x: P.x, y: P.y }) === null);
+      const e1 = build('ember', [1, 0, 0, 0]), sp = build('spikes', [1, 0, 0, 0]), e2 = build('ember', [0, 0, 0, 0]);
+      const t1 = RW.siegeTarget({ x: e1.px + 100, y: e1.py + 100 }), t2 = RW.siegeTarget({ x: e2.px + 100, y: e2.py + 100 }), more = e1.res === e2.res ? null : e1.res > e2.res ? e1 : e2;
+      ok('siege: the target has the most stars; of two such rooms the one that resonates more, else the nearer', G.roomLv.ember === 2 && (more ? t1 === more && t2 === more : t1 === e1 && t2 === e2), 'ember ' + G.roomLv.ember + ', links ' + e1.res + ' and ' + e2.res);
+      const hearth = G.rooms[0]; tp(hearth.px + 60, hearth.py + 60);
+      const k = RW.spawnMon('kslime', hearth.px + 110, hearth.py + 70); k.hp = k.max = 1e6; RW.step(30);
+      const d0 = Math.hypot(k.x - P.x, k.y - P.y), tr = k.tr; let n = 0; while (RW.roomAt(k.x, k.y) !== tr && n++ < 2400) RW.step(1);
+      ok('siege: the elite walks to that room first, past the delver', (tr === e1 || tr === e2) && RW.roomAt(k.x, k.y) === tr && Math.hypot(k.x - P.x, k.y - P.y) > d0, n + ' steps');
+      RW.step(5);
+      ok('siege: the room is off while the elite stands in it, and the minimap knows', tr.hexT > 0 && tr.siegeT > 0 && k.camped === true, tr.hexT.toFixed(2));
+      const m = RW.spawnMon('tin', tr.px + 168, tr.py + 150); m.hp = m.max = 500; RW.step(120);
+      ok('siege: a besieged Ember Hall burns nothing', m.hp === 500, m.hp);
+      RW.step(240); const still = Math.hypot(k.x - (tr.px + 168), k.y - (tr.py + 120));
+      ok('siege: it settles near the middle of the room', still < 60 && RW.roomAt(k.x, k.y) === tr, Math.round(still) + 'px');
+      tp(k.x + 40, k.y + 30); RW.step(40); const dNear = Math.hypot(k.x - P.x, k.y - P.y);
+      ok('siege: it turns on a delver who walks into its room', dNear < 45, Math.round(dNear) + 'px');
+      // lure it out: the delver leaves through the doorway, the elite follows, and the room works again
+      tp(hearth.px + 168, hearth.py + 130); let out = 0; while (RW.roomAt(k.x, k.y) === tr && out++ < 60) { k.x = P.x + 50; k.y = P.y; RW.step(1); }
+      RW.step(40); ok('siege: lured out of the room, its power comes back', tr.hexT <= 0 && RW.roomAt(k.x, k.y) !== tr, tr.hexT.toFixed(2));
+      const away = tr === e1 ? e2 : hearth; tp(away.px + 60, away.py + 60); k.x = sp.px + 168; k.y = sp.py + 130; n = 0; while (RW.roomAt(k.x, k.y) !== tr && n++ < 2400) RW.step(1);   // the delver is rooms away, the elite between
+      ok('siege: left alone, it goes back', RW.roomAt(k.x, k.y) === tr, n + ' steps');
+      RW.killMon(k); RW.step(40); ok('siege: when the elite dies the room works again', tr.hexT <= 0 && tr.siegeT <= 0.5);
+      ok('siege: the game explained it once', RW.Save.data.tips.siege === 1);
+    }
     /* ---- the damage tally and the census ---- */
     {
       // a run with a weapon, a damage room and a burn: every point of damage has an owner, and the shares add up

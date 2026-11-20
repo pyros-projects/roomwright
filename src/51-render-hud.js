@@ -6,6 +6,7 @@ function drawMap(g, x, y, cw, ch, live) {
     const px = x + r.cx * cw, py = y + r.cy * ch, mx = px + (cw >> 1), my = py + (ch >> 1);
     g.fillStyle = '#0d0a1a'; g.fillRect(px, py, cw, ch); g.fillStyle = r.reveal < 1 ? '#3fc1ad' : r.def.col; g.fillRect(px + 1, py + 1, cw - 2, ch - 2);
     if (live && r.hexT > 0) { g.fillStyle = '#6030a0'; g.fillRect(px + 2, py + 2, cw - 4, ch - 4); }
+    if (live && r.siegeT > 0 && (Math.floor(frameT * 4) & 1)) { g.fillStyle = '#ff4a5e'; g.fillRect(px, py, cw, 1); g.fillRect(px, py + ch - 1, cw, 1); g.fillRect(px, py, 1, ch); g.fillRect(px + cw - 1, py, 1, ch); }   // under siege
     for (let d = 0; d < 4; d++) {
       if (!r.doors[d]) continue;
       g.fillStyle = r.doors[d] === 1 ? ((live && (Math.floor(frameT * 3) & 1)) ? '#ffb0b0' : '#ff4a5e') : r.doors[d] === 3 ? '#ffb030' : r.def.col;
@@ -76,7 +77,7 @@ function renderHUD(g) {
   }
   if (G.roomLabel) { const L_ = G.roomLabel; g.globalAlpha = clamp(Math.min(L_.t * 4, (2.4 - L_.t) * 2), 0, 1); txo(g, '~ ' + L_.text + ' ~', VW / 2, 30, '#ffd95e', '#1a1426', 0.5); g.globalAlpha = 1; }
   // minimap
-  const mw = GRID * 7, mh = GRID * 5, mx = VW - mw - 6, my = 5, doors = G.sealed.length, pr = CURVE.pressure(doors, charm('wedge'));
+  const mw = GRID * 7, mh = GRID * 5, mx = VW - mw - 6, my = 5, doors = G.sealed.length, pr = CURVE.pressure(doors, charm('wedge'), G.floor);
   g.fillStyle = 'rgba(13,10,26,0.6)'; g.fillRect(mx - 2, my - 2, mw + 4, mh + 4); g.fillStyle = '#3b2d4f'; g.fillRect(mx - 2, my - 2, mw + 4, 1); g.fillRect(mx - 2, my + mh + 1, mw + 4, 1); g.fillRect(mx - 2, my - 2, 1, mh + 4); g.fillRect(mx + mw + 1, my - 2, 1, mh + 4);
   drawMap(g, mx, my, 7, 5, true);
   txo(g, G.rooms.length + (G.rooms.length === 1 ? ' room  ' : ' rooms  ') + doors + (doors === 1 ? ' door' : ' doors'), VW - 6, my + mh + 5, '#9aa3b5', '#1a1426', 1);
