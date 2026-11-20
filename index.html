@@ -4808,7 +4808,7 @@ const Save = {
   data: null,
   fresh() {
     const rooms = {}; for (const id of STARTER_ROOMS) rooms[id] = 1;
-    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0 }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {}, intro: 0 };
+    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0 }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {} };
   },
   load() {
     this.data = this.fresh();
@@ -4820,7 +4820,7 @@ const Save = {
         for (const id in s.heroes || {}) if (HEROES[id]) d.heroes[id] = 1;
         if (HEROES[s.hero] && d.heroes[s.hero]) d.hero = s.hero;
         for (const id in s.decks || {}) if (HEROES[id] && Array.isArray(s.decks[id])) d.decks[id] = s.decks[id].filter(r => typeof r === 'string');
-        Object.assign(d.tips, s.tips); d.intro = s.intro ? 1 : 0;
+        Object.assign(d.tips, s.tips);
       } else { const old = JSON.parse(localStorage.getItem('roomwright.v1')); if (old && old.opts) Object.assign(this.data.opts, old.opts); }   // keep v0.1 volume settings
     } catch (e) { /* storage unavailable or corrupt: play without persistence */ }
     this.apply();
@@ -5012,7 +5012,7 @@ const MODES = {
 function tick(dt) {
   frameT += dt;
   if (App.mode !== App.prevMode) { App.prevMode = App.mode; App.modeT = 0; } else App.modeT += dt;
-  if (App.mode !== 'intro' && Intro.state !== 'off') Intro.stop(false);     // a test hook left the intro: put the film away
+  if (App.mode !== 'intro' && Intro.state !== 'off') Intro.stop();     // a test hook left the intro: put the film away
   if (Input.hit('mute')) { const o = Save.data.opts; o.mute = o.mute ? 0 : 1; Save.apply(); Save.store(); }
   if (App.fade) {
     const f = App.fade; f.t += dt;
@@ -5040,7 +5040,7 @@ function boot() {
     const l = document.createElement('link'); l.rel = 'icon'; l.href = c.toDataURL(); document.head.appendChild(l); }
   Save.load(); resize(); addEventListener('resize', resize);
   makeShowcase(); Intro.load();
-  if (!introWanted() || !Intro.begin()) Snd.music('title');   // the film first, on a save that has not seen it
+  if (!introWanted() || !Intro.begin()) Snd.music('title');   // the film first, on every boot
   const autoPause = () => { if (App.mode === 'play' && G && !G.over && !G.won && !App.manual) { App.mode = 'pause'; App.sel = 0; } };
   document.addEventListener('visibilitychange', () => { if (document.hidden) { autoPause(); Snd.suspend(); } else Snd.resume(); Intro.hold(document.hidden); });
   addEventListener('blur', autoPause);
@@ -5048,10 +5048,10 @@ function boot() {
 }
 
 /* ========================== 15b INTRO CINEMATIC ======================= */
-// intro.mp4 sits next to index.html (intro/build.sh makes it). A save that has not seen it gets it before the
-// title; after that the title offers it again (I, or the corner label). Enter, Space, Esc, a click or a tap
-// skips it. Without the file, or in a browser that cannot play it, the game starts on the title as before.
-//   index.html?intro=0   never play it        index.html?intro=1   play it even if this save has seen it
+// intro.mp4 sits next to index.html (intro/build.sh makes it). Every boot plays it before the title, and the
+// title offers it again (I, or the corner label). Enter, Space, Esc, a click or a tap skips it. Nothing about
+// it is stored. Without the file, or in a browser that cannot play it, the game starts on the title as before.
+//   index.html?intro=0   start on the title (the checks use this)
 const Intro = (() => {
   let el = null, hint = null, src = 'intro.mp4';
   let state = 'off';                  // off | wait (loading, or held until a first key or tap) | play
@@ -5066,7 +5066,7 @@ const Intro = (() => {
     el.preload = 'metadata'; el.playsInline = true; el.setAttribute('playsinline', ''); el.setAttribute('webkit-playsinline', '');
     el.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;object-fit:contain;background:#0d0a1a;z-index:5;display:none;opacity:0;pointer-events:none;transition:opacity .35s';
     el.addEventListener('error', () => { failed = true; });
-    el.addEventListener('ended', () => { if (state === 'play') finish(true); });
+    el.addEventListener('ended', () => { if (state === 'play') finish(); });
     el.src = src; document.body.appendChild(el); vol();
   }
   // the film carries music and effects in one track, so it follows the louder of the two sliders
@@ -5086,28 +5086,27 @@ const Intro = (() => {
     let p; try { p = el.play(); } catch (e) { no(e); return; }
     if (p && p.then) p.then(ok, no); else ok();
   }
-  function stop(seen) {               // put the film away; it fades out over whatever comes next
+  function stop() {                   // put the film away; it fades out over whatever comes next
     if (state === 'off') return;
     state = 'off'; gate = false; tap = false;
     try { el.pause(); } catch (e) { /* ignore */ }
     el.style.opacity = 0; if (hint) hint.style.opacity = 0;
     const gone = el; setTimeout(() => { if (state === 'off') gone.style.display = 'none'; }, 400);
-    if (seen && !Save.data.intro) { Save.data.intro = 1; Save.store(); }
   }
-  function finish(seen) { if (state === 'off') return; stop(seen); App.mode = 'title'; App.titleT = 0; Snd.music('title'); }   // back to the title
+  function finish() { if (state === 'off') return; stop(); App.mode = 'title'; App.titleT = 0; Snd.music('title'); }   // back to the title
   function update(dt) {
     t += dt;
-    if (failed) { finish(false); return; }
+    if (failed) { finish(); return; }
     const skip = Input.confirm() || Input.hit('back') || Input.hit('intro') || tap; tap = false;
     if (state === 'wait') {
-      if (!gate) { start(); if (t > 8) finish(false); }                 // never arrived: go on without it
-      else if (skip && !asking) { if (++tries > 1) finish(false); else start(); }   // a gamepad is no gesture: one try, then move on
+      if (!gate) { start(); if (t > 8) finish(); }                      // never arrived: go on without it
+      else if (skip && !asking) { if (++tries > 1) finish(); else start(); }   // a gamepad is no gesture: one try, then move on
       return;
     }
     hintT -= dt; if (hint) hint.style.opacity = hintT > 0 ? 0.9 : 0;
-    if (skip && t - tPlay > 0.6) { finish(true); return; }
+    if (skip && t - tPlay > 0.6) { finish(); return; }
     const ct = el.currentTime;
-    if (ct === lastCT && !el.paused) { stallT += dt; if (stallT > 5) finish(false); } else { stallT = 0; lastCT = ct; }
+    if (ct === lastCT && !el.paused) { stallT += dt; if (stallT > 5) finish(); } else { stallT = 0; lastCT = ct; }
   }
   function showHint() {               // the skip label, in the game's own lettering
     const s = coarse() ? 'TAP TO SKIP' : 'ENTER: SKIP';
@@ -5135,7 +5134,7 @@ const Intro = (() => {
     get state() { return state; }, get gate() { return gate; }, get el() { return el; },
     get ok() { return !!el && !failed && el.readyState >= 1; } };
 })();
-function introWanted() { const q = new URLSearchParams(location.search).get('intro'); return q !== '0' && (q === '1' || !Save.data.intro); }
+const introWanted = () => new URLSearchParams(location.search).get('intro') !== '0';
 const introRect = () => ({ x: 0, y: VH - 18, w: textW('I  INTRO') + 12, h: 18 });
 function renderIntro(g) {             // under the film: black, or the prompt for the key that lets it start
   g.fillStyle = '#0d0a1a'; g.fillRect(0, 0, VW, VH);

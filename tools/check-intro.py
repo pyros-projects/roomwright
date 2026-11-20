@@ -34,7 +34,7 @@ def check(name, ok, info=""):
 def state(page):
     return page.evaluate(
         """() => ({ mode: RW.App.mode, intro: RW.Intro.state, gate: RW.Intro.gate, ok: RW.Intro.ok,
-            seen: RW.Save.data.intro, t: RW.Intro.el.currentTime, paused: RW.Intro.el.paused,
+            t: RW.Intro.el.currentTime, paused: RW.Intro.el.paused,
             shown: getComputedStyle(RW.Intro.el).display !== 'none' && +getComputedStyle(RW.Intro.el).opacity > 0.5,
             dur: RW.Intro.el.duration, w: RW.Intro.el.videoWidth, h: RW.Intro.el.videoHeight })"""
     )
@@ -105,11 +105,11 @@ def main():
         check("the film is 30 seconds of 1600x900", abs(s["dur"] - 30) < 0.2 and (s["w"], s["h"]) == (1600, 900),
               f"{s['dur']:.2f}s {s['w']}x{s['h']}")
 
-        # ---- a save that has not seen it gets the film before the title
+        # ---- every boot plays the film before the title
         page.evaluate("localStorage.removeItem(RW.Save.KEY)")
         page.goto(url, wait_until=READY)
         s = until(page, lambda s: s["intro"] == "play" or s["gate"])
-        check("a fresh save boots into the intro", s["mode"] == "intro", s["mode"])
+        check("the game boots into the intro", s["mode"] == "intro", s["mode"])
         if s["gate"]:                   # the browser wants a gesture before sound: the prompt is up
             shot("1-gate")
             check("held for a first key, the film is not playing yet", s["paused"] and not s["shown"])
@@ -133,18 +133,26 @@ def main():
         s = until(page, lambda s: s["mode"] == "title")
         check("Enter skips to the title", s["mode"] == "title" and s["intro"] == "off" and s["paused"], s["mode"])
         check("the title music starts", page.evaluate("RW.Snd.track") == "title", page.evaluate("RW.Snd.track"))
-        check("the save remembers it", s["seen"] == 1 and page.evaluate("JSON.parse(localStorage.getItem(RW.Save.KEY)).intro") == 1)
+        check("nothing about the intro is stored", page.evaluate(
+            "!document.cookie && !Object.keys(localStorage).some(k => /intro/i.test(k + localStorage.getItem(k)))"))
         s = until(page, lambda s: not s["shown"], 1500)
         page.wait_for_timeout(500)
         check("the film leaves the screen", not s["shown"] and page.evaluate("RW.Intro.el.style.display") == "none")
         shot("3-title")
 
-        # ---- seen once: straight to the title next time, and the title offers it again
+        # ---- the next boot plays it again, also for a save written by the version that kept a flag
+        page.evaluate("localStorage.setItem(RW.Save.KEY, JSON.stringify(Object.assign({}, RW.Save.data, { intro: 1 })))")
         page.goto(url, wait_until=READY)
-        s = until(page, lambda s: s["ok"], 3000)
+        s = until(page, lambda s: s["intro"] == "play" or s["gate"])
+        check("the second boot plays it again", s["mode"] == "intro", s["mode"])
+        if s["gate"]:
+            page.keyboard.press("x"); s = until(page, lambda s: s["intro"] == "play")
+        page.wait_for_timeout(800)
+        page.keyboard.press("Enter")
+        s = until(page, lambda s: s["mode"] == "title")
         page.wait_for_timeout(500)
-        s = state(page)
-        check("the second boot goes straight to the title", s["mode"] == "title" and s["intro"] == "off", s["mode"])
+
+        # ---- the title offers it again
         page.keyboard.press("i")
         s = until(page, lambda s: s["intro"] == "play" or s["gate"])
         if s["gate"]:
@@ -190,10 +198,7 @@ def main():
         page.evaluate("RW.toTitle()")
         page.wait_for_timeout(500)
 
-        # ---- ?intro=1 forces it; a missing film is skipped quietly
-        page.goto(url + "?intro=1", wait_until=READY)
-        s = until(page, lambda s: s["intro"] == "play" or s["gate"])
-        check("?intro=1 plays it for a save that has seen it", s["mode"] == "intro" and s["seen"] == 1, s["mode"])
+        # ---- a missing film is skipped quietly
         page.evaluate("RW.Intro.load('no-such-film.mp4'); RW.Intro.begin()")
         s = until(page, lambda s: s["mode"] == "title", 9000)
         check("a missing film falls back to the title", s["mode"] == "title" and not s["ok"], s["mode"])

@@ -148,13 +148,14 @@ The parts you are most likely to touch:
 
 ### The intro
 
-The first time a save boots, the game plays `intro.mp4` before the title screen: one room and four
-sealed doors, the knocking, glints forging a key, the key in the lock, a new room, the Warden, the
-floor plan growing, the logo. The film ends on the logo where the title screen draws it, and the
-title fades in under it. A browser only starts a film with sound after a key press or a tap, so on
-a first visit the game shows `PRESS ANY KEY` first. The save then records that the film has played.
-Later boots go to the title, and `I` (or the INTRO label in the corner) plays it again. `M` mutes it
-like everything else. `index.html?intro=0` never plays it, `?intro=1` always does.
+Every time the game boots, it plays `intro.mp4` before the title screen: one room and four sealed
+doors, the knocking, glints forging a key, the key in the lock, a new room, the Warden, the floor
+plan growing, the logo. The film ends on the logo where the title screen draws it, and the title
+fades in under it. A browser only starts a film with sound after a key press or a tap, so the game
+shows `PRESS ANY KEY` first. Enter, Space, Esc, a click or a tap skips the film. The game stores
+nothing about it, so the next boot plays it again. On the title, `I` (or the INTRO label in the
+corner) plays it once more. `M` mutes it like everything else. `index.html?intro=0` starts on the
+title.
 
 `src/61-intro.js` is the player: a `<video>` laid over the canvas, the skip label drawn in the
 game's font, and the fallbacks (no file, no codec, a stalled download) that lead to the title.
@@ -210,9 +211,10 @@ console error, then runs four scripts:
   and deck screens, victory, endless, and the gamepad mapping driven by a simulated pad.
 - `tools/check-audio.js`: every sound effect and music track puts a signal on the master bus. It
   measures level, not whether it sounds good, and is skipped where the browser has no audio.
-- `tools/check-intro.py`: the intro on a fresh save (held for the first key, then playing with
-  sound), skipping with Enter, Esc and a click, the save flag, the replay from the title, the
-  film's own ending, the `?intro` switches and the fallback when the film is missing. Run it alone
+- `tools/check-intro.py`: the intro at boot (held for the first key, then playing with sound),
+  skipping with Enter, Esc and a click, the next boot playing it again with nothing stored, the
+  replay from the title, the film's own ending, `?intro=0` and the fallback when the film is
+  missing. Run it alone
   with `uv run --with playwright tools/check-intro.py`. It presses real keys, because a browser
   starts a film with sound only after a real gesture. Without a Chromium for Playwright it is
   skipped.
@@ -251,5 +253,9 @@ care:
 Balance has only been tuned against the bot, not against people. Nobody has listened to the audio
 or held a real gamepad: the checks confirm that every sound produces a signal and that the pad
 mapping works with a simulated pad, nothing more. Nobody has listened to the intro's soundtrack
-either. Its levels are measured: -15.7 LUFS, peak -1.6 dBFS. There is no rebindable-controls screen, and room cards cannot yet be banned or weighted
+either. Its levels are measured: -15.7 LUFS, peak -1.6 dBFS.
+
+## License
+
+[MIT](LICENSE) There is no rebindable-controls screen, and room cards cannot yet be banned or weighted
 inside a deck.

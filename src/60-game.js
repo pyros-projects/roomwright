@@ -9,7 +9,7 @@ const Save = {
   data: null,
   fresh() {
     const rooms = {}; for (const id of STARTER_ROOMS) rooms[id] = 1;
-    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0 }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {}, intro: 0 };
+    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0 }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {} };
   },
   load() {
     this.data = this.fresh();
@@ -21,7 +21,7 @@ const Save = {
         for (const id in s.heroes || {}) if (HEROES[id]) d.heroes[id] = 1;
         if (HEROES[s.hero] && d.heroes[s.hero]) d.hero = s.hero;
         for (const id in s.decks || {}) if (HEROES[id] && Array.isArray(s.decks[id])) d.decks[id] = s.decks[id].filter(r => typeof r === 'string');
-        Object.assign(d.tips, s.tips); d.intro = s.intro ? 1 : 0;
+        Object.assign(d.tips, s.tips);
       } else { const old = JSON.parse(localStorage.getItem('roomwright.v1')); if (old && old.opts) Object.assign(this.data.opts, old.opts); }   // keep v0.1 volume settings
     } catch (e) { /* storage unavailable or corrupt: play without persistence */ }
     this.apply();
@@ -213,7 +213,7 @@ const MODES = {
 function tick(dt) {
   frameT += dt;
   if (App.mode !== App.prevMode) { App.prevMode = App.mode; App.modeT = 0; } else App.modeT += dt;
-  if (App.mode !== 'intro' && Intro.state !== 'off') Intro.stop(false);     // a test hook left the intro: put the film away
+  if (App.mode !== 'intro' && Intro.state !== 'off') Intro.stop();     // a test hook left the intro: put the film away
   if (Input.hit('mute')) { const o = Save.data.opts; o.mute = o.mute ? 0 : 1; Save.apply(); Save.store(); }
   if (App.fade) {
     const f = App.fade; f.t += dt;
@@ -241,7 +241,7 @@ function boot() {
     const l = document.createElement('link'); l.rel = 'icon'; l.href = c.toDataURL(); document.head.appendChild(l); }
   Save.load(); resize(); addEventListener('resize', resize);
   makeShowcase(); Intro.load();
-  if (!introWanted() || !Intro.begin()) Snd.music('title');   // the film first, on a save that has not seen it
+  if (!introWanted() || !Intro.begin()) Snd.music('title');   // the film first, on every boot
   const autoPause = () => { if (App.mode === 'play' && G && !G.over && !G.won && !App.manual) { App.mode = 'pause'; App.sel = 0; } };
   document.addEventListener('visibilitychange', () => { if (document.hidden) { autoPause(); Snd.suspend(); } else Snd.resume(); Intro.hold(document.hidden); });
   addEventListener('blur', autoPause);
