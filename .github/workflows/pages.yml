@@ -4,9 +4,9 @@
 # and one step only makes sure it matches src/. After the upload the last step fetches the live copy
 # and compares it with the commit, so a green run means the new game is being served.
 #
-# A branch being playtested is published next to it, at .../roomwright/next/, while that branch
-# exists. PREVIEW names it. The preview keeps its own save (see Save.KEY), so playing it never
-# touches a player's progress in the released game.
+# A branch being playtested is published next to it under its own name, for example
+# .../roomwright/v0.3/, while that branch exists. PREVIEW names it. A copy served from a version
+# folder keeps its own save (see Save.KEY), so playing it never touches progress in the released game.
 #
 # Runs on a push to main or to a version branch that changes the game, or by hand from the Actions tab.
 name: Deploy to GitHub Pages
@@ -76,7 +76,7 @@ jobs:
         run: |
           mkdir _site
           cp live/index.html live/intro.mp4 _site/
-          if [ -d next ]; then mkdir _site/next; cp next/index.html next/intro.mp4 _site/next/; fi
+          if [ -d next ]; then mkdir "_site/$PREVIEW"; cp next/index.html next/intro.mp4 "_site/$PREVIEW/"; fi
 
       - uses: actions/configure-pages@v6
 
@@ -107,4 +107,4 @@ jobs:
             echo "Live at $2/"
           }
           same live "$url"
-          if [ -d next ]; then same next "$url/next"; fi
+          if [ -d next ]; then same next "$url/$PREVIEW"; fi
