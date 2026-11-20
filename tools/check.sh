@@ -23,7 +23,8 @@ ab() { "$AB" "${FLAGS[@]}" "$@"; }
 FAILED=0
 
 GAME="${GAME_URL:-file://$DIR/index.html}"
-PAGE="$GAME?intro=0"
+# A new address on every run: a browser that kept the page from before a deploy would otherwise check the old copy.
+PAGE="$GAME?intro=0&run=$(date +%s)"
 ab open "$PAGE" >/dev/null
 ab wait 400 >/dev/null
 BOOT="$(ab eval "RW.App.mode + ' ' + Object.keys(RW.SPR).length + ' sprites'" | tail -1)"
