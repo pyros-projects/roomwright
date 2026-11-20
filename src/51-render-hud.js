@@ -19,7 +19,9 @@ function drawMap(g, x, y, cw, ch, live) {
     if (Math.floor(frameT * 4) & 1) { g.fillStyle = '#ffffff'; g.fillRect(Math.round(x + P.x / CWP * cw) - 1, Math.round(y + P.y / CHP * ch) - 1, 2, 2); }
   }
 }
-const HINTS = ['Move with WASD or the arrow keys. Your weapon swings by itself.', 'You carry a KEY. Push into any knocking door to use it.', '', 'A new room! Grab the BOON waiting inside.', 'Glints @ forge new keys. More rooms, more power.', 'Tap SPACE to dash through danger.'];
+const HINTS = ['Move with WASD or the arrow keys, or hold the mouse button and drag. Your weapon swings by itself.', 'You carry a KEY. Push into any knocking door to use it.', '', 'A new room! Grab the BOON waiting inside.', 'Glints @ forge new keys. More rooms, more power.', 'Tap SPACE or right-click to dash through danger.'];
+const TOUCH_HINTS = { 0: 'Drag on the left half to move. Your weapon swings by itself.', 5: 'Tap the right half to dash through danger.' };
+const hintFor = step => (Input.touch && TOUCH_HINTS[step]) || HINTS[step];   // a finger gets its own words for moving and dashing
 function drawLoadout(g, x, y, P, slots) {   // weapons (with level) then charms; returns the x after the last icon
   for (let i = 0; i < (slots ? MAX_WEAPONS : P.weapons.length); i++) {
     const w = P.weapons[i];
@@ -105,7 +107,7 @@ function renderHUD(g) {
     g.globalAlpha = 1;
   }
   // tutorial hint or one-time tip
-  const hint = App.mode !== 'play' ? '' : (G.tut.step < HINTS.length && HINTS[G.tut.step]) || G.tipText;
+  const hint = App.mode !== 'play' ? '' : (G.tut.step < HINTS.length && hintFor(G.tut.step)) || G.tipText;
   if (hint) {
     const lines = wrapText(hint, VW - 44), w = Math.max(...lines.map(textW)) + 16, h = lines.length * 10 + 6, x = Math.round(VW / 2 - w / 2), y = VH - 30 - h;
     panel(g, x, y, w, h, '#ffd95e', '#241d3a'); lines.forEach((ln, i) => txt(g, ln, VW / 2, y + 4 + i * 10, '#fff8e8', 0.5));

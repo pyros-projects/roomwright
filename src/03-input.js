@@ -21,7 +21,20 @@ const Input = (() => {
   addEventListener('blur', () => { down.clear(); stick.on = false; stick.x = stick.y = 0; });
   const toView = e => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * VW / r.width, y: (e.clientY - r.top) * VH / r.height }; };
   cv.addEventListener('mousemove', e => { const p = toView(e); mouse.x = p.x; mouse.y = p.y; mouse.moved = true; });
-  cv.addEventListener('mousedown', e => { const p = toView(e); mouse.x = p.x; mouse.y = p.y; mouse.click = true; Snd.ensure(); cv.focus(); e.preventDefault(); });
+  // In a run the left button is a stick, as a finger is: hold it and drag to walk; the right button dashes.
+  // Everywhere else, and on the top strip of the HUD, a press is a click.
+  const tilt = p => { let dx = (p.x - stick.ox) / 22, dy = (p.y - stick.oy) / 22; const l = Math.hypot(dx, dy); if (l > 1) { dx /= l; dy /= l; } stick.x = l < 0.2 ? 0 : dx; stick.y = l < 0.2 ? 0 : dy; };
+  const drop = () => { stick.on = false; stick.x = stick.y = 0; };
+  cv.addEventListener('mousedown', e => {
+    const p = toView(e); mouse.x = p.x; mouse.y = p.y; Snd.ensure(); cv.focus(); e.preventDefault();
+    if (App.mode === 'play' && p.y > 30) {
+      if (e.button === 2) pressed.add('dash');
+      else if (e.button === 0 && !stick.on) { stick.on = true; stick.id = 'mouse'; stick.ox = p.x; stick.oy = p.y; stick.x = stick.y = 0; }
+    } else mouse.click = true;
+  });
+  // on the window, because the drag may leave the canvas; a release the page never saw shows as no button held
+  addEventListener('mousemove', e => { if (stick.on && stick.id === 'mouse') { if (e.buttons & 1) tilt(toView(e)); else drop(); } });
+  addEventListener('mouseup', e => { if (e.button === 0 && stick.on && stick.id === 'mouse') drop(); });
   cv.addEventListener('contextmenu', e => e.preventDefault());
   cv.addEventListener('touchstart', e => {
     e.preventDefault(); Snd.ensure(); touch = true;
@@ -35,12 +48,9 @@ const Input = (() => {
   }, { passive: false });
   cv.addEventListener('touchmove', e => {
     e.preventDefault();
-    for (const t of e.changedTouches) if (stick.on && t.identifier === stick.id) {
-      const p = toView(t); let dx = (p.x - stick.ox) / 22, dy = (p.y - stick.oy) / 22; const l = Math.hypot(dx, dy); if (l > 1) { dx /= l; dy /= l; }
-      stick.x = l < 0.2 ? 0 : dx; stick.y = l < 0.2 ? 0 : dy;
-    }
+    for (const t of e.changedTouches) if (stick.on && t.identifier === stick.id) tilt(toView(t));
   }, { passive: false });
-  const tend = e => { for (const t of e.changedTouches) if (t.identifier === stick.id) { stick.on = false; stick.x = stick.y = 0; } };
+  const tend = e => { for (const t of e.changedTouches) if (t.identifier === stick.id) drop(); };
   cv.addEventListener('touchend', tend); cv.addEventListener('touchcancel', tend);
   let navX = 0, navY = 0;
   function poll() {                   // gamepad

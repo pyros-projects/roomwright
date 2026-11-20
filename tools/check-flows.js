@@ -125,6 +125,44 @@
     ok('knock back: a loaded die breaks into two dice with no loot', !!bigd && G.mons.filter(m => m.type === 'die' && m.noLoot).length >= 2 && G.picks.length === picks0, bigd ? G.mons.length - mons0 : 'no loaded die');
     G.mons.forEach(m => RW.killMon(m)); kd.queue.length = 0; RW.step(3);
     RW.enterFloor(1); ok('knock back: a new floor forgives', G.fstat.knocks === 0 && G.fstat.wrath === 0 && RW.knockTier() === 0);
+    /* ---- mouse and touch: simulated events exercise the mapping (not a real hand). Last, because one touch
+            switches the labels to their touch wording for the rest of the page's life. ---- */
+    const cvs = document.getElementById('game'), V = RW.view(), cbox = cvs.getBoundingClientRect();
+    const at = (vx, vy) => ({ clientX: cbox.left + vx * cbox.width / V.VW, clientY: cbox.top + vy * cbox.height / V.VH });
+    const mouse = (type, vx, vy, button = 0, buttons = 1) => cvs.dispatchEvent(new MouseEvent(type, { ...at(vx, vy), button, buttons, bubbles: true, cancelable: true }));
+    const fresh = () => { RW.start(77, { hero: 'pip' }); G = RW.G; P = G.P; G.tut.step = 9; G.dir.calm = 1e9; G.dir.ti = 99; P.inv = 1e9; P.keys = 9; RW.step(5); };
+    const mx = V.VW / 2, my = V.VH * 0.6;
+    fresh(); let px0 = P.x; mouse('mousedown', mx, my); mouse('mousemove', mx + 40, my); RW.step(30);
+    ok('mouse: holding the left button and dragging walks', RW.Input.stick.on && P.x > px0 + 20, Math.round(P.x - px0) + 'px');
+    ok('mouse: a press in a run is no click', RW.App.mode === 'play' && !RW.Input.mouse.click);
+    let py0 = P.y; mouse('mousemove', mx, my - 40); RW.step(30); ok('mouse: the drag steers', P.y < py0 - 20, Math.round(P.y - py0) + 'px');
+    mouse('mouseup', mx, my - 40, 0, 0); RW.step(2); px0 = P.x; py0 = P.y; RW.step(20);
+    ok('mouse: letting go stops', !RW.Input.stick.on && Math.hypot(P.x - px0, P.y - py0) < 1, Math.hypot(P.x - px0, P.y - py0).toFixed(1) + 'px');
+    mouse('mousedown', mx, my); mouse('mousemove', mx + 40, my); RW.step(5); mouse('mousemove', mx + 60, my, 0, 0); RW.step(2);
+    ok('mouse: a release the page never saw still lets go', !RW.Input.stick.on);
+    RW.step(40); P.dashCd = 0; mouse('mousedown', mx, my, 2, 2); RW.step(2); ok('mouse: the right button dashes', P.dashCd > 0, P.dashCd.toFixed(2)); mouse('mouseup', mx, my, 2, 0);
+    RW.step(40); RW.openDraft(G.sealed[0]); RW.step(40); let cr = RW.draftLayout().rects[1], rooms0 = G.rooms.length;
+    mouse('mousedown', cr.x + cr.w / 2, cr.y + cr.h / 2); RW.step(3); mouse('mouseup', cr.x + cr.w / 2, cr.y + cr.h / 2, 0, 0);
+    ok('mouse: a click on a card still builds it, and starts no stick', RW.App.mode === 'play' && G.rooms.length === rooms0 + 1 && !RW.Input.stick.on, RW.App.mode + ', ' + G.rooms.length + ' rooms');
+    ok('hints: keys and mouse on a desk', /WASD/.test(RW.hintFor(0)) && /mouse/.test(RW.hintFor(0)) && /SPACE/.test(RW.hintFor(5)), RW.hintFor(0));
+    if (typeof Touch === 'function' && typeof TouchEvent === 'function') {
+      const touch = (type, pts) => { const ts = pts.map(([id, vx, vy]) => new Touch({ identifier: id, target: cvs, ...at(vx, vy) })); cvs.dispatchEvent(new TouchEvent(type, { changedTouches: ts, touches: type === 'touchstart' || type === 'touchmove' ? ts : [], bubbles: true, cancelable: true })); };
+      const lx = V.VW * 0.25, ly = V.VH * 0.7, rx = V.VW * 0.8, ry = V.VH * 0.6;
+      fresh(); px0 = P.x; touch('touchstart', [[1, lx, ly]]); touch('touchmove', [[1, lx + 40, ly]]); RW.step(30);
+      ok('touch: a drag on the left half walks', RW.Input.touch && RW.Input.stick.on && P.x > px0 + 20, Math.round(P.x - px0) + 'px');
+      P.dashCd = 0; touch('touchstart', [[2, rx, ry]]); RW.step(2); ok('touch: a second finger dashes while the stick is held', P.dashCd > 0 && RW.Input.stick.on, P.dashCd.toFixed(2)); touch('touchend', [[2, rx, ry]]);
+      ok('touch: lifting the second finger keeps the stick', RW.Input.stick.on);
+      touch('touchend', [[1, lx + 40, ly]]); RW.step(20); px0 = P.x; RW.step(20);   // 20 steps first: the dash above is still carrying the delver
+      ok('touch: lifting the finger stops', !RW.Input.stick.on && Math.abs(P.x - px0) < 1, 'stick ' + (RW.Input.stick.on ? 'held' : 'free') + ', ' + (P.x - px0).toFixed(1) + 'px');
+      RW.step(40); P.dashCd = 0; touch('touchstart', [[3, rx, ry]]); RW.step(2); ok('touch: a tap on the right half dashes', P.dashCd > 0 && !RW.Input.stick.on, P.dashCd.toFixed(2)); touch('touchend', [[3, rx, ry]]);
+      ok('hints: a finger gets its own words', !/WASD|SPACE|mouse|click/.test(RW.hintFor(0) + RW.hintFor(5)) && /Drag/.test(RW.hintFor(0)) && /Tap/.test(RW.hintFor(5)), RW.hintFor(0) + ' / ' + RW.hintFor(5));
+      RW.step(40); touch('touchstart', [[4, V.VW / 2 + 51, 11]]); RW.step(2); touch('touchend', [[4, V.VW / 2 + 51, 11]]); ok('touch: the pause mark pauses', RW.App.mode === 'pause', RW.App.mode);
+      RW.step(30); const res = RW.pauseLayout().rects[0]; touch('touchstart', [[5, res.x + res.w / 2, res.y + res.h / 2]]); RW.step(2); touch('touchend', [[5, 0, 0]]); ok('touch: a tap on Resume resumes', RW.App.mode === 'play', RW.App.mode);
+      RW.step(20); RW.openDraft(G.sealed[0]); RW.step(40); rooms0 = G.rooms.length; touch('touchstart', [[6, 3, V.VH - 3]]); RW.step(2); touch('touchend', [[6, 0, 0]]);
+      ok('touch: a tap beside the cards steps back', RW.App.mode === 'play' && G.rooms.length === rooms0, RW.App.mode);
+      RW.step(70); RW.openDraft(G.sealed[0]); RW.step(40); cr = RW.draftLayout().rects[0]; touch('touchstart', [[7, cr.x + cr.w / 2, cr.y + cr.h / 2]]); RW.step(3); touch('touchend', [[7, 0, 0]]);
+      ok('touch: a tap on a card builds it, and starts no stick', RW.App.mode === 'play' && G.rooms.length === rooms0 + 1 && !RW.Input.stick.on, RW.App.mode + ', ' + G.rooms.length + ' rooms');
+    } else out.push('SKIP touch checks: this browser has no Touch constructor');
   } catch (e) { out.push('EXCEPTION ' + String(e && e.stack || e).slice(0, 500)); }
   try { localStorage.setItem(RW.Save.KEY, saved); RW.Save.load(); RW.toTitle(); } catch (e) { /* ignore */ }
   return out.join('\n');

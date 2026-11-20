@@ -4,7 +4,8 @@
 
 `window.RW` exposes the run state and test hooks (`RW.state()`, `RW.manual(true)` + `RW.step(n)` to
 drive the clock yourself, `RW.hold/press` for input actions, `RW.openDraft`, `RW.chooseCard`,
-`RW.chooseStairs`, `RW.spawnMon`, `RW.summonBoss`, `RW.enterFloor`, ...).
+`RW.chooseStairs`, `RW.spawnMon`, `RW.summonBoss`, `RW.enterFloor`, `RW.view()` and `RW.draftLayout()`
+for aiming pointer events, ...).
 
 The scripts below run headless with [agent-browser](https://github.com/vercel-labs/agent-browser).
 Both take `AGENT_BROWSER=/path/to/agent-browser` and `AB_FLAGS='...'` for extra global flags (for
@@ -17,9 +18,11 @@ console error, then runs four scripts:
   charm, warden and unlock does what its card says.
 - `tools/check-flows.js`: first run, pause and options, drafting, the Stairwell, game over, hero
   and deck screens, victory, endless, the gamepad mapping driven by a simulated pad, and the card
-  coach (the first-draft walkthrough, one lesson per new thing, H to explain a card again) and the
-  knock back (what each knock calls, the dice, no loot, the shorter clock).
-  `RW.coach(false)` switches the coach off; the other checks and the bot run without it.
+  coach (the first-draft walkthrough, one lesson per new thing, H to explain a card again), the
+  knock back (what each knock calls, the dice, no loot, the shorter clock), and the mouse and touch
+  mapping driven by simulated events: walking by drag, the dash, the pause mark, taps on cards and
+  beside them. Simulated events are not a hand on a phone: they show that the mapping works, not
+  how it feels. `RW.coach(false)` switches the coach off; the other checks and the bot run without it.
 - `tools/check-audio.js`: every sound effect and music track puts a signal on the master bus. It
   measures level, not whether it sounds good, and is skipped where the browser has no audio.
 - `tools/check-intro.py`: the intro at boot (held for the first key, then playing with sound),

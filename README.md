@@ -68,10 +68,10 @@ it and is optional. Without it the game starts on the title screen.
 
 ## Controls
 
-| | Keyboard | Gamepad | Touch |
+| | Keyboard and mouse | Gamepad | Touch |
 |---|---|---|---|
-| Move | WASD / arrows | left stick / d-pad | drag on the left half |
-| Dash (brief invulnerability) | Space / Shift | A or X | tap the right half |
+| Move | WASD / arrows, or hold the left mouse button and drag | left stick / d-pad | drag on the left half |
+| Dash (brief invulnerability) | Space / Shift, or right-click | A or X | tap the right half |
 | Open a door | walk into it while holding a key | same | same |
 | Choose a card | Left/Right + Enter, or 1 2 3 4, or click | stick + A | tap the card |
 | The Stairwell (once offered) | Down, then Enter | down + A | tap its bar |
