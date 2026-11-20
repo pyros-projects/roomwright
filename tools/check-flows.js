@@ -100,6 +100,31 @@
     ok('coach: the open Stairwell gets its own lesson', G.draft.stairs && parts() === 'bar' && G.draft.coach.steps[0].id === 'c_stairs', parts());
     press('ok', 30); ok('coach: and it is remembered', !G.draft.coach && tips.c_stairs === 1);
     press('back', 10); RW.coach(false); RW.openDraft(G.sealed[0]); RW.step(40); ok('coach: RW.coach(false) switches it off', !G.draft.coach); press('back', 10); RW.coach(true);
+    delete tips.c_back; RW.openDraft(G.sealed[0]); RW.step(40); plan = RW.coachPlan(G.draft, false);
+    ok('coach: a draft with nothing else new teaches the free step back and the knock back', plan.length === 1 && plan[0].id === 'c_back', plan.map(s => s.id).join(',')); press('back', 10);
+    /* ---- knock back: a new hand behind a door, at a price ---- */
+    RW.coach(false); RW.start(9); G = RW.G; P = G.P; G.dir.calm = 1e9; G.dir.ti = 99; P.inv = 1e9; P.keys = 5; RW.step(30);
+    const kd = G.sealed[0], isElite = q => !!RW.MON[q.id].elite, count = id => kd.queue.filter(q => q.id === id).length;
+    RW.openDraft(kd); RW.step(30); const hand = kd.cards, lim0 = RW.clockLimit(), picks0 = G.picks.length, kills0 = G.stats.kills; press('reroll', 1);
+    ok('knock back: R closes the draft, keeps the key and deals a new hand', RW.App.mode === 'play' && P.keys === 5 && kd.cards !== hand && G.fstat.knocks === 1, RW.App.mode + ', keys ' + P.keys);
+    ok('knock back: the first answer is a moderate pack: no elite, no dice, the clock untouched', kd.queue.length === 8 && !kd.queue.some(isElite) && !count('die') && !kd.queue.some(q => q.rage) && RW.clockLimit() === lim0, kd.queue.length + ' queued');
+    RW.step(200); let called = G.mons.filter(m => m.noLoot);
+    ok('knock back: the pack comes out of that door', called.length + G.stats.kills - kills0 >= 8, called.length + ' alive, ' + (G.stats.kills - kills0) + ' dead');
+    called.forEach(m => RW.killMon(m)); RW.step(3);
+    ok('knock back: its monsters carry no glints', G.picks.length === picks0, G.picks.length - picks0);
+    RW.openDraft(kd); RW.step(30); press('reroll', 1);
+    ok('knock back: the second one makes you pay: a bigger enraged pack, an elite, two dice, a shorter clock', kd.queue.length === 21 && kd.queue.filter(isElite).length === 1 && count('die') === 2 && kd.queue.every(q => q.rage) && RW.clockLimit() === lim0 - 30,
+      kd.queue.length + ' queued, ' + count('die') + ' dice, clock ' + (RW.clockLimit() - lim0));
+    RW.step(160); const die = G.mons.find(m => m.type === 'die'), b0 = G.ebullets.length;
+    if (die) { die.x = P.x + 60; die.y = P.y; die.shootT = 0.05; G.ebullets.length = 0; RW.step(8); }
+    ok('knock back: a die rolls and throws a ring of 8 to 18 bullets', !!die && G.ebullets.length >= 8 && G.ebullets.length <= 18 && G.ebullets.length % 2 === 0, die ? G.ebullets.length : 'no die came out');
+    G.mons.forEach(m => RW.killMon(m)); G.ebullets.length = 0; kd.queue.length = 0; RW.step(3);
+    RW.openDraft(kd); RW.step(30); press('reroll', 1);
+    ok('knock back: from the third on a loaded die leads the pack', count('bigdie') === 1 && count('die') === 3 && kd.queue.filter(q => q.id === G.F.elite).length === 2 && RW.clockLimit() === lim0 - 75, kd.queue.length + ' queued, clock ' + (RW.clockLimit() - lim0));
+    RW.step(120); const bigd = G.mons.find(m => m.type === 'bigdie'), mons0 = G.mons.length; if (bigd) { RW.killMon(bigd); RW.step(2); }
+    ok('knock back: a loaded die breaks into two dice with no loot', !!bigd && G.mons.filter(m => m.type === 'die' && m.noLoot).length >= 2 && G.picks.length === picks0, bigd ? G.mons.length - mons0 : 'no loaded die');
+    G.mons.forEach(m => RW.killMon(m)); kd.queue.length = 0; RW.step(3);
+    RW.enterFloor(1); ok('knock back: a new floor forgives', G.fstat.knocks === 0 && G.fstat.wrath === 0 && RW.knockTier() === 0);
   } catch (e) { out.push('EXCEPTION ' + String(e && e.stack || e).slice(0, 500)); }
   try { localStorage.setItem(RW.Save.KEY, saved); RW.Save.load(); RW.toTitle(); } catch (e) { /* ignore */ }
   return out.join('\n');

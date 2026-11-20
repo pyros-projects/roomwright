@@ -137,6 +137,34 @@ function buildArtMore() {
   swap('wraith', 'ghost', [[PAL.w, '#e2d4ff'], [PAL.c, '#9a62d6'], [PAL.B, '#3b2d4f']]);
   for (const f of [0, 1]) reg('eshroom' + f, scaleCanvas(SPR['spore' + f].c, 2));
   for (const f of [0, 1]) reg('bigtin' + f, scaleCanvas(SPR['tin' + f].c, 2));
+  // the dice a knock back calls: snake eyes on one frame, a five on the other, so it seems to roll as it hops
+  A('die0', [
+    '.wwwwwwwwww.',
+    'wwwwwwwwwwwW',
+    'wwwwwwwwwwwW',
+    'wwwwwwwwwwwW',
+    'wwkkwwwkkwwW',
+    'wwkkwwwkkwwW',
+    'wwwwwwwwwwwW',
+    'wwwwwwwwwwwW',
+    'wwwwwwwwwwwW',
+    'wwwwwwwwwwwW',
+    'wWWWWWWWWWWW',
+    '.WWWWWWWWWW.']);
+  A('die1', [
+    '.wwwwwwwwww.',
+    'wwwwwwwwwwwW',
+    'wwkkwwwkkwwW',
+    'wwkkwwwkkwwW',
+    'wwwwwwwwwwwW',
+    'wwwwwkkwwwwW',
+    'wwwwwkkwwwwW',
+    'wwwwwwwwwwwW',
+    'wwkkwwwkkwwW',
+    'wwkkwwwkkwwW',
+    'wWWWWWWWWWWW',
+    '.WWWWWWWWWW.']);
+  for (const f of [0, 1]) reg('bigdie' + f, scaleCanvas(SPR['die' + f].c, 2));
 
   /* ---- boss 2: Mother Morel (procedural 44x46) ---- */
   const mkMorel = (open, squash) => {

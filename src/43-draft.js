@@ -64,6 +64,28 @@ function openDraft(door) {
   if (stairs) tip('stairs', 'The STAIRWELL is on offer now (press DOWN in a draft). Its warden guards the way to the next floor.');
 }
 function closeDraft() { G.draft = null; App.mode = 'play'; sfx('back'); }
+// Knock back (R in a draft, once a Map Room has no free deal left): new cards behind this door, the key stays,
+// and the door answers. KNOCK[k] is the price of the k-th knock on a floor: a pack out of this very door.
+// The first is moderate. From the second on you pay: a bigger pack, all of it enraged, led by the floor's elite
+// and by dice that throw rings of bullets (from the third knock on, a loaded die twice the size), and the
+// warden's clock runs shorter. Monsters called this way carry no glints and no hearts, so a knock never farms.
+const KNOCK = [{ n: 8, elites: 0, dice: 0, big: 0, clock: 0 }, { n: 18, elites: 1, dice: 2, big: 0, clock: 30 }, { n: 26, elites: 2, dice: 3, big: 1, clock: 45 }];
+const knockTier = () => Math.min(G.fstat.knocks, KNOCK.length - 1);
+function knockBack() {
+  const D = G.draft; if (!D) return false;
+  const d = D.door, k = G.fstat.knocks, K = KNOCK[knockTier()], mixl = G.F.mix(G.t), more = Math.max(0, k - (KNOCK.length - 1));
+  const n = K.n + G.floor * Math.round(K.n / 4) + more * 6, elites = Math.min(3, K.elites + more), big = Math.min(3, K.big + more);
+  G.fstat.knocks++; G.fstat.wrath += K.clock; d.cards = makeCards(d); d.hold = true;
+  for (let i = 0; i < K.dice; i++) d.queue.push({ id: 'die', rage: true });
+  for (let i = 0; i < big; i++) d.queue.push({ id: 'bigdie', rage: true });
+  for (let i = 0; i < elites; i++) d.queue.push({ id: G.F.elite, rage: true });
+  for (let i = 0; i < n; i++) d.queue.push({ id: wpick(mixl, x => x[1])[0], rage: k > 0 });
+  d.shake = 1.2; G.shake = Math.max(G.shake, k > 0 ? 8 : 4); sfx('breach'); if (k > 0) sfx('roar');
+  banner(k === 0 ? 'KNOCK BACK' : k === 1 ? 'KNOCK BACK!' : 'KNOCK BACK!!',
+    k === 0 ? 'The door answers.' : k === 1 ? 'The dice are cast. They are angry, and the warden stirs.' : 'The house always wins. Everything behind that door is coming.', k === 0 ? '#ff9ec4' : '#ff7a7a', 3);
+  G.draft = null; App.mode = 'play';
+  return true;
+}
 function rerollDraft() {
   const D = G.draft; if (!D || D.rerolls <= 0) return false;
   D.door.rerolled++; D.door.cards = makeCards(D.door); D.cards = D.door.cards; D.rerolls--; D.t = 0; D.sel = Math.min(D.sel, D.cards.length - 1);

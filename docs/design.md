@@ -15,12 +15,32 @@ does, and where the next monsters will come from.
 The first draft stops on one card and walks through it in four steps: the room, the boon, the new
 doors and the Stairwell. Each step frames that part of the card and says one sentence about it.
 After that a draft explains at most one new thing, the first time a card shows it: a room that
-levels up (stars), resonance, an evolution, a dead end, the Stairwell once it is open. `H` (or `?`,
-or the EXPLAIN chip) explains the selected card again at any time.
+levels up (stars), resonance, an evolution, a dead end, the Stairwell once it is open, and what to do
+with a hand you do not want. `H` (or `?`, or the EXPLAIN chip) explains the selected card again at
+any time.
 
 The Stairwell is on the draft screen from the first draft. Until it is on offer it is a locked bar
 that says how many rooms it still needs, and the HUD shows the same count next to the clock
 (`STAIRS 2/5`).
+
+## Knock back
+
+A hand you do not want has two answers. Stepping back with Esc is free, and every door holds its
+own three cards, so another door is a free second look. Or knock back: press `R` in a draft and the
+cards behind this door change. The key stays, and the door answers with a pack out of that very
+door.
+
+| Knock on this floor | What comes out | The warden's clock |
+|---|---|---|
+| first | 8 monsters | unchanged |
+| second | 18 enraged monsters, the floor's elite, two dice | 30 seconds shorter |
+| third and later | 26 or more enraged monsters, two elites, three dice, a loaded die | 45 seconds shorter each |
+
+The dice are what you get for cheating them. A die hops after you and throws a ring of 8 to 18
+bullets, as many as it rolled. A loaded die is twice the size, throws two rings of up to 28 and
+breaks into two dice. Enraged monsters move a quarter faster. Deeper floors add to every pack.
+Nothing a knock calls carries glints or hearts, so a knock is never a way to farm. The count
+starts again on each floor. A Map Room's free deals come first; `R` knocks back once they are used.
 
 ## Why the floor plan matters
 

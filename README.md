@@ -76,6 +76,7 @@ it and is optional. Without it the game starts on the title screen.
 | Choose a card | Left/Right + Enter, or 1 2 3 4, or click | stick + A | tap the card |
 | The Stairwell (once offered) | Down, then Enter | down + A | tap its bar |
 | Deal again (Map Room, two stars) | R | | |
+| Knock back: new cards behind this door, at a price | R | | tap KNOCK BACK |
 | Step back from a draft (free; cards stay) | Esc | B | tap outside the cards |
 | Explain the selected card (in a draft) | H or ? | | tap EXPLAIN |
 | Edit the deck (hero screen) | Q or Tab | | tap the deck |

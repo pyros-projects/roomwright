@@ -6,7 +6,7 @@ window.RW = {
   start(seed, opts) { startRun(seed, opts); },                         // opts: { hero, deck }
   manual(on) { App.manual = !!on; },
   coach(on) { App.coach = !!on; },                                     // false = no card lessons in drafts (the checks and the bot use this)
-  coachPlan, cardPart, stairsLocked,                                   // true = the page stops ticking itself; drive it with step()
+  coachPlan, cardPart, stairsLocked, knockBack, knockTier, KNOCK,                                   // true = the page stops ticking itself; drive it with step()
   step(n = 1) { for (let i = 0; i < n; i++) { tick(STEP); Input.endFrame(); } },
   hold(a, on) { if (on) Input.down.add(a); else Input.down.delete(a); },
   press(a) { Input.pressed.add(a); },

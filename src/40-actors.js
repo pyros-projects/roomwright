@@ -32,7 +32,7 @@ function enterFloor(f) {
   G.rooms = []; G.cells.fill(null); G.sealed = []; G.jams = []; G.flags.fill(F_ALL); G.tag.fill(0); G.tagRoom.fill(0); G.distG.fill(65535); G.distF.fill(65535); G.flowTile = -1; G.flowT = -9;
   G.mons = []; G.shots = []; G.ebullets = []; G.picks = []; G.boons = []; G.patches = []; G.zones = []; G.allies = []; G.mats = []; G.parts = []; G.texts = []; G.fxs = [];
   G.dir = { acc: 0, ti: 0, boss: null, bossDead: false, calm: f === 0 ? 7 : 5, pestT: {}, stairsBuilt: false, overstay: false, warned: false };
-  G.fstat = { rooms: 0, t0: G.tRun, kills0: G.stats.kills, swift: 0 };
+  G.fstat = { rooms: 0, t0: G.tRun, kills0: G.stats.kills, swift: 0, knocks: 0, wrath: 0 };   // knocks, wrath: see knockBack
   G.stairs = null; G.bossDown = false; G.leaving = 0; G.hearthPortal = null; G.draft = null; G.won = false; G.banner = null; G.shake = 0;
   const c = (GRID - 1) >> 1, hearth = buildRoom(c, c, 'hearth', [1, 1, 1, 1]); hearth.seen = true; G.curRoom = hearth;
   refreshSealed(); recalcLinks();
@@ -325,18 +325,18 @@ function addZone(x, y, r, d, kind, dmg, extra) { if (G.zones.length < 70) G.zone
 function killMon(e) {
   if (e.dead) return; e.dead = true; const def = e.def, P = G.P, room = roomAt(e.x, e.y); G.stats.kills++;
   burst(e.x, e.y - 4, def.elite ? 18 : 6, def.col, def.elite ? 90 : 60); sfx('kill');
-  let gl = def.glint;
+  let gl = e.noLoot ? 0 : def.glint;      // a pack called by a knock back carries nothing
   if (room && roomLive(room)) {
     if (room.type === 'grave') gl *= 1 + roomLevel('grave');
     if (room.type === 'fairy') addZone(e.x, e.y, 20, 3, 'cloud', 6 * roomPow(room));
   }
   if (gl) dropGlint(e.x, e.y, gl);
-  if (def.split) for (let i = 0; i < def.split; i++) { const a = i / def.split * TAU + 0.4, s = spawnMon('slime', e.x + Math.cos(a) * 6, e.y + Math.sin(a) * 6); s.kx = Math.cos(a) * 110; s.ky = Math.sin(a) * 110; }
+  if (def.split) for (let i = 0; i < def.split; i++) { const a = i / def.split * TAU + 0.4, s = spawnMon(def.into || 'slime', e.x + Math.cos(a) * 6, e.y + Math.sin(a) * 6); s.kx = Math.cos(a) * 110; s.ky = Math.sin(a) * 110; s.noLoot = e.noLoot; s.haste = e.haste; }
   if (def.ember) addZone(e.x, e.y, 13, 2.6, 'fire');
   if (def.burst) for (let i = 0; i < def.burst; i++) { const a = i / def.burst * TAU + 0.3; fireEBullet(e.x, e.y - 3, Math.cos(a), Math.sin(a), 74, 's_spore', 1.6); }
   if (def.mimic) { for (let i = 0; i < e.keys; i++) dropPick('key', e.x, e.y); if (e.boon) G.boons.push({ x: e.x, y: e.y, boon: e.boon, mul: e.boonMul || 1, t: 0 }); G.shake = Math.max(G.shake, 4); }
-  if (def.elite) { G.stats.elites++; if (!def.mimic) { dropPick('heart', e.x, e.y); if (charm('magpie')) dropPick('key', e.x, e.y); } }
-  else if (!def.boss && rand() < 0.012 * (HEROES[G.hero].hearts || 1) && P.hp < P.maxHp) dropPick('heart', e.x, e.y);
+  if (def.elite) { G.stats.elites++; if (!def.mimic && !e.noLoot) { dropPick('heart', e.x, e.y); if (charm('magpie')) dropPick('key', e.x, e.y); } }
+  else if (!def.boss && !e.noLoot && rand() < 0.012 * (HEROES[G.hero].hearts || 1) && P.hp < P.maxHp) dropPick('heart', e.x, e.y);
   if (def.boss) bossDied(e);
 }
 function fireEBullet(x, y, dx, dy, sp, spr, life) { if (G.ebullets.length < 180) G.ebullets.push({ x, y, vx: dx * sp, vy: dy * sp, t: 0, spr: spr || 's_ebullet', life: life || 7 }); }
@@ -364,7 +364,7 @@ function updateMons(dt) {
     if (live && room.type === 'glacier' && e.gl !== room.id) { e.gl = room.id; e.stun = Math.max(e.stun, 1.2 * (0.5 + 0.5 * roomMul(room))); sfx('freeze'); }
     if (def.ai === 'hex' && room) { if (room.hexT <= 0 && room.def.tier !== 'x') { sfx('hex'); tip('hex', 'A Hexer switches off the room it stands in. Get rid of it.'); } room.hexT = 0.3; }
     if (e.stun > 0) { e.stun -= dt; e.kx = e.ky = 0; if (dp < e.r + P.r + 1) hurtPlayer(def.dmg, e); continue; }
-    let sp = def.spd;
+    let sp = def.spd * (e.haste || 1);
     if (e.slowT > 0) { e.slowT -= dt; sp *= 1 - e.slow; }
     if (live && room.type === 'frost') { sp *= Math.max(0.3, 1 - 0.38 * roomMul(room) * P.sealPow); e.chill = 0.2; } else if (e.chill > 0) e.chill -= dt;
     if (live && G.tag[Math.floor(e.y / T) * GWT + Math.floor(e.x / T)] === TAG_BRAMBLE && !def.fly && !def.phase) sp *= 0.72;
@@ -407,6 +407,15 @@ function updateMons(dt) {
     } else if (ai === 'ring') {
       e.shootT -= dt;
       if (e.shootT <= 0 && dp < 190) { e.shootT = 3.6; e.flash = 0.15; const off = rand() * TAU; for (let k = 0; k < 10; k++) fireEBullet(e.x, e.y - 8, Math.cos(off + k * TAU / 10), Math.sin(off + k * TAU / 10), 64, 's_fire'); sfx('ebullet'); G.shake = Math.max(G.shake, 2); }
+    } else if (ai === 'dice') {             // it rolls, then throws a ring: the more pips, the more bullets
+      const s = def.shot, ring = (n, off) => { for (let k = 0; k < n; k++) fireEBullet(e.x, e.y - 6, Math.cos(off + k * TAU / n), Math.sin(off + k * TAU / n), s.sp, s.spr); };
+      e.shootT -= dt;
+      if (e.stT > 0 && (e.stT -= dt) <= 0) ring(e.cx, e.cy + Math.PI / e.cx);     // the loaded die throws again, turned half a step
+      if (e.shootT <= 0 && dp < s.range) {
+        const n = s.n + (1 + Math.floor(rand() * 6)) * s.per, off = rand() * TAU;
+        e.shootT = rr(s.cd[0], s.cd[1]); e.flash = 0.15; ring(n, off); sfx('dice'); G.shake = Math.max(G.shake, 1.5);
+        if (s.twice) { e.stT = 0.4; e.cx = n; e.cy = off; }
+      }
     } else if (ai === 'brood') {
       const s = def.shot; e.shootT -= dt; e.stT -= dt;
       if (e.shootT <= 0 && dp < s.range && los(e.x, e.y - 4, P.x, P.y - 4)) { e.shootT = rr(s.cd[0], s.cd[1]); e.flash = 0.12; fireFan(e, s.sp, s.fan, s.spr, P); }

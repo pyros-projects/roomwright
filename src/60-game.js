@@ -181,6 +181,7 @@ const MODES = {
     if (D.t > 0.25 && st) { chooseStairs(); return; }
     if (D.t > 0.25 && go >= 0) { chooseCard(go); return; }
     if (D.rerolls > 0 && (Input.hit('reroll') || (L_.re && Input.mouse.click && Input.inRect(L_.re)))) { rerollDraft(); return; }
+    if (L_.kb && D.t > 0.25 && (Input.hit('reroll') || (Input.mouse.click && Input.inRect(L_.kb)))) { knockBack(); return; }   // no free deal: knock back
     if (Input.hit('back') || (Input.touch && Input.mouse.click && !onCard && D.t > 0.3)) { D.door.hold = true; closeDraft(); }
   },
   pause() {

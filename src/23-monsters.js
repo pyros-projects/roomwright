@@ -3,6 +3,7 @@
 //   hop / fly / phase (walks through walls) / heavy (resists knockback) / split / burst (thorns on death)
 //   ai: 'shoot' (stop and fire) - 'turret' (rooted) - 'charge' - 'bomber' - 'ring' / 'brood' (elites)
 //       'latch' (locks a doorway) - 'dig' (breaches a wall) - 'hex' (switches off the room it stands in)
+//       'dice' (rolls, then throws a ring of bullets: n + roll * per of them; `twice` throws a second ring)
 const MON = {
   /* floor 1: the Cellar */
   slime:   { spr: 'slime',   hp: 7,   spd: 30, r: 5,  dmg: 1, glint: 1,  col: PAL.n, sh: 'sh_s', hop: 1 },
@@ -31,6 +32,9 @@ const MON = {
   eshroom: { spr: 'eshroom', hp: 300, spd: 22, r: 11, dmg: 2, glint: 35, col: PAL.r, sh: 'sh_l', heavy: 1, elite: 1, crown: 1, ai: 'brood', shot: { cd: [3, 4], sp: 60, range: 180, fan: 5, spr: 's_spore' } },
   golem:   { spr: 'golem',   hp: 420, spd: 24, r: 11, dmg: 2, glint: 40, col: PAL.g, sh: 'sh_l', heavy: 1, elite: 1, ai: 'ring' },
   mimic:   { spr: 'mimic',   hp: 150, spd: 46, r: 8,  dmg: 2, glint: 20, col: PAL.T, sh: 'sh_m', hop: 1, heavy: 1, elite: 1, mimic: 1 },
+  /* called by a knock back (43-draft.js): the dice you tried to cheat. They are in no floor's mix. */
+  die:     { spr: 'die',     hp: 46,  spd: 30, r: 6,  dmg: 1, glint: 2,  col: PAL.w, sh: 'sh_m', hop: 1, ai: 'dice', shot: { cd: [2.3, 3.1], sp: 58, range: 210, n: 6, per: 2, spr: 's_ebullet' } },
+  bigdie:  { spr: 'bigdie',  hp: 320, spd: 22, r: 11, dmg: 2, glint: 20, col: PAL.w, sh: 'sh_l', hop: 1, heavy: 1, elite: 1, split: 2, into: 'die', ai: 'dice', shot: { cd: [2.6, 3.2], sp: 54, range: 240, n: 10, per: 3, twice: 1, spr: 's_ebullet' } },
   /* wardens (one per floor) */
   gatejaw: { spr: 'boss',    hp: 950,  spd: 31, r: 16, dmg: 2, glint: 0, col: PAL.T, sh: 'sh_xl', boss: 1, heavy: 1, name: 'GATEJAW', sub: 'the hungry door' },
   morel:   { spr: 'morel',   hp: 4200, spd: 30, r: 16, dmg: 2, glint: 0, col: PAL.O, sh: 'sh_xl', boss: 1, heavy: 1, name: 'MOTHER MOREL', sub: 'she overgrows everything' },

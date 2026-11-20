@@ -12,16 +12,17 @@ const doorPressure = () => CURVE.pressure(liveDoors(), charm('wedge'));
 function clockLimit() {               // seconds until the warden comes for you on its own
   let c = G.F.clock;
   if (G.rooms.some(r => r.type === 'observ' && roomLive(r))) c *= 1 + [0.12, 0.2, 0.28][roomLevel('observ') - 1];
-  return c;
+  return Math.max(45, c - G.fstat.wrath);   // every knock back after the first shortens it
 }
 function doorWeight(d) {
   const ix = d.x + d.nx * 24, iy = d.y + d.ny * 24, dist = G.distG[Math.floor(iy / T) * GWT + Math.floor(ix / T)], far = dist === 65535 ? 80 : dist;
   return 1 / (1 + (far / 22) * (far / 22)) + 0.04;
 }
 function nearDoor() { let best = null, bw = -1; for (const d of G.sealed) { if (d.room.reveal < 1) continue; const w = doorWeight(d); if (w > bw) { bw = w; best = d; } } return best; }
-function emitFrom(d, type) {
-  const lat = rr(-13, 13), e = spawnMon(type, d.x - d.ny * lat, d.y + d.nx * lat);
+function emitFrom(d, q) {               // q: a monster id, or { id, rage } for a pack called by a knock back
+  const lat = rr(-13, 13), e = spawnMon(q.id || q, d.x - d.ny * lat, d.y + d.nx * lat);
   e.emerge = 0.42; e.evx = d.nx * 92; e.evy = d.ny * 92; e.face = d.nx < 0 ? -1 : 1;
+  if (q.id) { e.noLoot = true; if (q.rage) e.haste = 1.25; }
   return e;
 }
 function fireEvent(ev) {

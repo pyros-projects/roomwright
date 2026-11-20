@@ -1,6 +1,7 @@
 /* ========================== 14c RENDER: screens ======================= */
 // ---- draft ----
 const rerollLabel = D => (Input.touch ? '' : 'R  ') + 'DEAL AGAIN  x' + D.rerolls, rerollW = D => textW(rerollLabel(D)) + 12;
+const knockLabel = () => (Input.touch ? '' : 'R  ') + 'KNOCK BACK' + ['', '  !', '  !!'][knockTier()], knockW = () => textW(knockLabel()) + 12;   // the marks: what the next knock costs
 function draftLayout() {
   const D = G.draft, n = D.cards.length, gap = n > 3 ? 4 : 6, barH = D.stairs || D.locked ? 19 : 0;   // the Stairwell bar, open or still locked
   // A card needs 175px for three lines of room text above its boon. A view too short for that plus the bar
@@ -10,7 +11,8 @@ function draftLayout() {
   const x0 = Math.round((VW - tw) / 2), y0 = compact ? 28 : Math.round((VH - ch - barH) / 2) + 5;
   return { compact, rects: D.cards.map((_, i) => ({ x: x0 + i * (cw + gap), y: y0, w: cw, h: ch })), bar: D.stairs ? { x: x0, y: y0 + ch + 4, w: tw, h: 15 } : null,
     lock: !D.stairs && D.locked ? { x: x0, y: y0 + ch + 4, w: tw, h: 15 } : null, help: { x: x0, y: y0 - 27, w: textW(helpLabel()) + 12, h: 13 },
-    re: D.rerolls > 0 ? { x: x0 + tw - rerollW(D), y: y0 - 27, w: rerollW(D), h: 13 } : null };   // the Map Room's 'deal again' chip
+    re: D.rerolls > 0 ? { x: x0 + tw - rerollW(D), y: y0 - 27, w: rerollW(D), h: 13 } : null,     // the Map Room's 'deal again' chip
+    kb: D.rerolls > 0 ? null : { x: x0 + tw - knockW(), y: y0 - 27, w: knockW(), h: 13 } };       // or, without a free deal, 'knock back'
 }
 function miniRoom(g, x, y, w, h, col, doors, fresh) {
   g.fillStyle = shade(col, 0.5); g.fillRect(x + 1, y + 1, w - 2, h - 2); g.fillStyle = col; g.fillRect(x + 2, y + 2, w - 4, h - 4);
@@ -85,7 +87,8 @@ function drawCard(g, card, r, sel, t, i) {
 function renderDraft(g) {
   const D = G.draft, L_ = draftLayout(), rects = L_.rects;
   g.fillStyle = 'rgba(13,10,26,0.78)'; g.fillRect(0, 0, VW, VH);
-  txo(g, 'WHAT LIES BEHIND THIS DOOR?', VW / 2, rects[0].y - 23, '#ffd95e', '#1a1426', 0.5);
+  const keys_ = Input.touch ? 'tap a card to build it' : 'ENTER build   ESC step back' + (L_.bar ? '   DOWN stairs' : '');   // a compact view has no room below: the legend takes the title's place
+  txo(g, L_.compact ? keys_ : 'WHAT LIES BEHIND THIS DOOR?', VW / 2, rects[0].y - 23, L_.compact ? '#9aa3b5' : '#ffd95e', '#1a1426', 0.5);
   D.cards.forEach((c, i) => drawCard(g, c, rects[i], !D.onStairs && i === D.sel, D.t, i));
   if (L_.bar) {
     const b = L_.bar, on = D.onStairs;
@@ -99,11 +102,11 @@ function renderDraft(g) {
     txt(g, 'draft ' + D.locked + ' more room' + (D.locked === 1 ? '' : 's') + ' to unlock it', b.x + b.w - 6, b.y + 4, '#9aa3b5', 1);
   }
   { const r = L_.help, hot = Input.inRect(r) && !D.coach; panel(g, r.x, r.y, r.w, r.h, hot ? '#ffd95e' : '#4c5a84', hot ? '#3a3052' : '#24203a'); txt(g, helpLabel(), r.x + r.w / 2, r.y + 3, hot ? '#ffd95e' : '#9cecf2', 0.5); }
+  if (L_.kb) { const r = L_.kb, hot = Input.inRect(r) && !D.coach, col = ['#ff9ec4', '#ffd95e', '#ff7a7a'][knockTier()]; panel(g, r.x, r.y, r.w, r.h, hot ? '#fff8e8' : col, hot ? '#3a3052' : '#24203a'); txt(g, knockLabel(), r.x + r.w / 2, r.y + 3, hot ? '#fff8e8' : col, 0.5); }
   if (L_.re) { const r = L_.re, hot = Input.inRect(r); panel(g, r.x, r.y, r.w, r.h, hot ? '#ffd95e' : '#4c5a84', hot ? '#3a3052' : '#24203a'); txt(g, rerollLabel(D), r.x + r.w / 2, r.y + 3, hot ? '#ffd95e' : '#9cecf2', 0.5); }
   let tip_ = G.tut.step === 2 ? 'A card is a room, its power, a boon and new doors. Doors let monsters in.' : Input.touch ? 'Tap a card to build it. Tap outside to step back.' : 'LEFT/RIGHT choose   ENTER build   ESC step back' + (L_.bar ? '   DOWN stairs' : '');
   const low = L_.bar || L_.lock;
   if (!L_.compact) txo(g, tip_, VW / 2, (low ? low.y + low.h : rects[0].y + rects[0].h) + 5, G.tut.step === 2 ? '#fff8e8' : '#9aa3b5', '#1a1426', 0.5);
-  else if (!L_.re) txo(g, Input.touch ? 'tap a card' : 'ENTER build  ESC back' + (L_.bar ? '  DOWN stairs' : ''), VW - 5, rects[0].y - 23, '#9aa3b5', '#1a1426', 1);
   renderCoach(g, D, L_);
 }
 

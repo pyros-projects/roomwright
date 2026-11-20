@@ -1540,6 +1540,34 @@ function buildArtMore() {
   swap('wraith', 'ghost', [[PAL.w, '#e2d4ff'], [PAL.c, '#9a62d6'], [PAL.B, '#3b2d4f']]);
   for (const f of [0, 1]) reg('eshroom' + f, scaleCanvas(SPR['spore' + f].c, 2));
   for (const f of [0, 1]) reg('bigtin' + f, scaleCanvas(SPR['tin' + f].c, 2));
+  // the dice a knock back calls: snake eyes on one frame, a five on the other, so it seems to roll as it hops
+  A('die0', [
+    '.wwwwwwwwww.',
+    'wwwwwwwwwwwW',
+    'wwwwwwwwwwwW',
+    'wwwwwwwwwwwW',
+    'wwkkwwwkkwwW',
+    'wwkkwwwkkwwW',
+    'wwwwwwwwwwwW',
+    'wwwwwwwwwwwW',
+    'wwwwwwwwwwwW',
+    'wwwwwwwwwwwW',
+    'wWWWWWWWWWWW',
+    '.WWWWWWWWWW.']);
+  A('die1', [
+    '.wwwwwwwwww.',
+    'wwwwwwwwwwwW',
+    'wwkkwwwkkwwW',
+    'wwkkwwwkkwwW',
+    'wwwwwwwwwwwW',
+    'wwwwwkkwwwwW',
+    'wwwwwkkwwwwW',
+    'wwwwwwwwwwwW',
+    'wwkkwwwkkwwW',
+    'wwkkwwwkkwwW',
+    'wWWWWWWWWWWW',
+    '.WWWWWWWWWW.']);
+  for (const f of [0, 1]) reg('bigdie' + f, scaleCanvas(SPR['die' + f].c, 2));
 
   /* ---- boss 2: Mother Morel (procedural 44x46) ---- */
   const mkMorel = (open, squash) => {
@@ -2202,6 +2230,7 @@ function themeFor(type, f) {
 //   hop / fly / phase (walks through walls) / heavy (resists knockback) / split / burst (thorns on death)
 //   ai: 'shoot' (stop and fire) - 'turret' (rooted) - 'charge' - 'bomber' - 'ring' / 'brood' (elites)
 //       'latch' (locks a doorway) - 'dig' (breaches a wall) - 'hex' (switches off the room it stands in)
+//       'dice' (rolls, then throws a ring of bullets: n + roll * per of them; `twice` throws a second ring)
 const MON = {
   /* floor 1: the Cellar */
   slime:   { spr: 'slime',   hp: 7,   spd: 30, r: 5,  dmg: 1, glint: 1,  col: PAL.n, sh: 'sh_s', hop: 1 },
@@ -2230,6 +2259,9 @@ const MON = {
   eshroom: { spr: 'eshroom', hp: 300, spd: 22, r: 11, dmg: 2, glint: 35, col: PAL.r, sh: 'sh_l', heavy: 1, elite: 1, crown: 1, ai: 'brood', shot: { cd: [3, 4], sp: 60, range: 180, fan: 5, spr: 's_spore' } },
   golem:   { spr: 'golem',   hp: 420, spd: 24, r: 11, dmg: 2, glint: 40, col: PAL.g, sh: 'sh_l', heavy: 1, elite: 1, ai: 'ring' },
   mimic:   { spr: 'mimic',   hp: 150, spd: 46, r: 8,  dmg: 2, glint: 20, col: PAL.T, sh: 'sh_m', hop: 1, heavy: 1, elite: 1, mimic: 1 },
+  /* called by a knock back (43-draft.js): the dice you tried to cheat. They are in no floor's mix. */
+  die:     { spr: 'die',     hp: 46,  spd: 30, r: 6,  dmg: 1, glint: 2,  col: PAL.w, sh: 'sh_m', hop: 1, ai: 'dice', shot: { cd: [2.3, 3.1], sp: 58, range: 210, n: 6, per: 2, spr: 's_ebullet' } },
+  bigdie:  { spr: 'bigdie',  hp: 320, spd: 22, r: 11, dmg: 2, glint: 20, col: PAL.w, sh: 'sh_l', hop: 1, heavy: 1, elite: 1, split: 2, into: 'die', ai: 'dice', shot: { cd: [2.6, 3.2], sp: 54, range: 240, n: 10, per: 3, twice: 1, spr: 's_ebullet' } },
   /* wardens (one per floor) */
   gatejaw: { spr: 'boss',    hp: 950,  spd: 31, r: 16, dmg: 2, glint: 0, col: PAL.T, sh: 'sh_xl', boss: 1, heavy: 1, name: 'GATEJAW', sub: 'the hungry door' },
   morel:   { spr: 'morel',   hp: 4200, spd: 30, r: 16, dmg: 2, glint: 0, col: PAL.O, sh: 'sh_xl', boss: 1, heavy: 1, name: 'MOTHER MOREL', sub: 'she overgrows everything' },
@@ -2657,7 +2689,7 @@ function enterFloor(f) {
   G.rooms = []; G.cells.fill(null); G.sealed = []; G.jams = []; G.flags.fill(F_ALL); G.tag.fill(0); G.tagRoom.fill(0); G.distG.fill(65535); G.distF.fill(65535); G.flowTile = -1; G.flowT = -9;
   G.mons = []; G.shots = []; G.ebullets = []; G.picks = []; G.boons = []; G.patches = []; G.zones = []; G.allies = []; G.mats = []; G.parts = []; G.texts = []; G.fxs = [];
   G.dir = { acc: 0, ti: 0, boss: null, bossDead: false, calm: f === 0 ? 7 : 5, pestT: {}, stairsBuilt: false, overstay: false, warned: false };
-  G.fstat = { rooms: 0, t0: G.tRun, kills0: G.stats.kills, swift: 0 };
+  G.fstat = { rooms: 0, t0: G.tRun, kills0: G.stats.kills, swift: 0, knocks: 0, wrath: 0 };   // knocks, wrath: see knockBack
   G.stairs = null; G.bossDown = false; G.leaving = 0; G.hearthPortal = null; G.draft = null; G.won = false; G.banner = null; G.shake = 0;
   const c = (GRID - 1) >> 1, hearth = buildRoom(c, c, 'hearth', [1, 1, 1, 1]); hearth.seen = true; G.curRoom = hearth;
   refreshSealed(); recalcLinks();
@@ -2950,18 +2982,18 @@ function addZone(x, y, r, d, kind, dmg, extra) { if (G.zones.length < 70) G.zone
 function killMon(e) {
   if (e.dead) return; e.dead = true; const def = e.def, P = G.P, room = roomAt(e.x, e.y); G.stats.kills++;
   burst(e.x, e.y - 4, def.elite ? 18 : 6, def.col, def.elite ? 90 : 60); sfx('kill');
-  let gl = def.glint;
+  let gl = e.noLoot ? 0 : def.glint;      // a pack called by a knock back carries nothing
   if (room && roomLive(room)) {
     if (room.type === 'grave') gl *= 1 + roomLevel('grave');
     if (room.type === 'fairy') addZone(e.x, e.y, 20, 3, 'cloud', 6 * roomPow(room));
   }
   if (gl) dropGlint(e.x, e.y, gl);
-  if (def.split) for (let i = 0; i < def.split; i++) { const a = i / def.split * TAU + 0.4, s = spawnMon('slime', e.x + Math.cos(a) * 6, e.y + Math.sin(a) * 6); s.kx = Math.cos(a) * 110; s.ky = Math.sin(a) * 110; }
+  if (def.split) for (let i = 0; i < def.split; i++) { const a = i / def.split * TAU + 0.4, s = spawnMon(def.into || 'slime', e.x + Math.cos(a) * 6, e.y + Math.sin(a) * 6); s.kx = Math.cos(a) * 110; s.ky = Math.sin(a) * 110; s.noLoot = e.noLoot; s.haste = e.haste; }
   if (def.ember) addZone(e.x, e.y, 13, 2.6, 'fire');
   if (def.burst) for (let i = 0; i < def.burst; i++) { const a = i / def.burst * TAU + 0.3; fireEBullet(e.x, e.y - 3, Math.cos(a), Math.sin(a), 74, 's_spore', 1.6); }
   if (def.mimic) { for (let i = 0; i < e.keys; i++) dropPick('key', e.x, e.y); if (e.boon) G.boons.push({ x: e.x, y: e.y, boon: e.boon, mul: e.boonMul || 1, t: 0 }); G.shake = Math.max(G.shake, 4); }
-  if (def.elite) { G.stats.elites++; if (!def.mimic) { dropPick('heart', e.x, e.y); if (charm('magpie')) dropPick('key', e.x, e.y); } }
-  else if (!def.boss && rand() < 0.012 * (HEROES[G.hero].hearts || 1) && P.hp < P.maxHp) dropPick('heart', e.x, e.y);
+  if (def.elite) { G.stats.elites++; if (!def.mimic && !e.noLoot) { dropPick('heart', e.x, e.y); if (charm('magpie')) dropPick('key', e.x, e.y); } }
+  else if (!def.boss && !e.noLoot && rand() < 0.012 * (HEROES[G.hero].hearts || 1) && P.hp < P.maxHp) dropPick('heart', e.x, e.y);
   if (def.boss) bossDied(e);
 }
 function fireEBullet(x, y, dx, dy, sp, spr, life) { if (G.ebullets.length < 180) G.ebullets.push({ x, y, vx: dx * sp, vy: dy * sp, t: 0, spr: spr || 's_ebullet', life: life || 7 }); }
@@ -2989,7 +3021,7 @@ function updateMons(dt) {
     if (live && room.type === 'glacier' && e.gl !== room.id) { e.gl = room.id; e.stun = Math.max(e.stun, 1.2 * (0.5 + 0.5 * roomMul(room))); sfx('freeze'); }
     if (def.ai === 'hex' && room) { if (room.hexT <= 0 && room.def.tier !== 'x') { sfx('hex'); tip('hex', 'A Hexer switches off the room it stands in. Get rid of it.'); } room.hexT = 0.3; }
     if (e.stun > 0) { e.stun -= dt; e.kx = e.ky = 0; if (dp < e.r + P.r + 1) hurtPlayer(def.dmg, e); continue; }
-    let sp = def.spd;
+    let sp = def.spd * (e.haste || 1);
     if (e.slowT > 0) { e.slowT -= dt; sp *= 1 - e.slow; }
     if (live && room.type === 'frost') { sp *= Math.max(0.3, 1 - 0.38 * roomMul(room) * P.sealPow); e.chill = 0.2; } else if (e.chill > 0) e.chill -= dt;
     if (live && G.tag[Math.floor(e.y / T) * GWT + Math.floor(e.x / T)] === TAG_BRAMBLE && !def.fly && !def.phase) sp *= 0.72;
@@ -3032,6 +3064,15 @@ function updateMons(dt) {
     } else if (ai === 'ring') {
       e.shootT -= dt;
       if (e.shootT <= 0 && dp < 190) { e.shootT = 3.6; e.flash = 0.15; const off = rand() * TAU; for (let k = 0; k < 10; k++) fireEBullet(e.x, e.y - 8, Math.cos(off + k * TAU / 10), Math.sin(off + k * TAU / 10), 64, 's_fire'); sfx('ebullet'); G.shake = Math.max(G.shake, 2); }
+    } else if (ai === 'dice') {             // it rolls, then throws a ring: the more pips, the more bullets
+      const s = def.shot, ring = (n, off) => { for (let k = 0; k < n; k++) fireEBullet(e.x, e.y - 6, Math.cos(off + k * TAU / n), Math.sin(off + k * TAU / n), s.sp, s.spr); };
+      e.shootT -= dt;
+      if (e.stT > 0 && (e.stT -= dt) <= 0) ring(e.cx, e.cy + Math.PI / e.cx);     // the loaded die throws again, turned half a step
+      if (e.shootT <= 0 && dp < s.range) {
+        const n = s.n + (1 + Math.floor(rand() * 6)) * s.per, off = rand() * TAU;
+        e.shootT = rr(s.cd[0], s.cd[1]); e.flash = 0.15; ring(n, off); sfx('dice'); G.shake = Math.max(G.shake, 1.5);
+        if (s.twice) { e.stT = 0.4; e.cx = n; e.cy = off; }
+      }
     } else if (ai === 'brood') {
       const s = def.shot; e.shootT -= dt; e.stT -= dt;
       if (e.shootT <= 0 && dp < s.range && los(e.x, e.y - 4, P.x, P.y - 4)) { e.shootT = rr(s.cd[0], s.cd[1]); e.flash = 0.12; fireFan(e, s.sp, s.fan, s.spr, P); }
@@ -3572,16 +3613,17 @@ const doorPressure = () => CURVE.pressure(liveDoors(), charm('wedge'));
 function clockLimit() {               // seconds until the warden comes for you on its own
   let c = G.F.clock;
   if (G.rooms.some(r => r.type === 'observ' && roomLive(r))) c *= 1 + [0.12, 0.2, 0.28][roomLevel('observ') - 1];
-  return c;
+  return Math.max(45, c - G.fstat.wrath);   // every knock back after the first shortens it
 }
 function doorWeight(d) {
   const ix = d.x + d.nx * 24, iy = d.y + d.ny * 24, dist = G.distG[Math.floor(iy / T) * GWT + Math.floor(ix / T)], far = dist === 65535 ? 80 : dist;
   return 1 / (1 + (far / 22) * (far / 22)) + 0.04;
 }
 function nearDoor() { let best = null, bw = -1; for (const d of G.sealed) { if (d.room.reveal < 1) continue; const w = doorWeight(d); if (w > bw) { bw = w; best = d; } } return best; }
-function emitFrom(d, type) {
-  const lat = rr(-13, 13), e = spawnMon(type, d.x - d.ny * lat, d.y + d.nx * lat);
+function emitFrom(d, q) {               // q: a monster id, or { id, rage } for a pack called by a knock back
+  const lat = rr(-13, 13), e = spawnMon(q.id || q, d.x - d.ny * lat, d.y + d.nx * lat);
   e.emerge = 0.42; e.evx = d.nx * 92; e.evy = d.ny * 92; e.face = d.nx < 0 ? -1 : 1;
+  if (q.id) { e.noLoot = true; if (q.rage) e.haste = 1.25; }
   return e;
 }
 function fireEvent(ev) {
@@ -4018,6 +4060,28 @@ function openDraft(door) {
   if (stairs) tip('stairs', 'The STAIRWELL is on offer now (press DOWN in a draft). Its warden guards the way to the next floor.');
 }
 function closeDraft() { G.draft = null; App.mode = 'play'; sfx('back'); }
+// Knock back (R in a draft, once a Map Room has no free deal left): new cards behind this door, the key stays,
+// and the door answers. KNOCK[k] is the price of the k-th knock on a floor: a pack out of this very door.
+// The first is moderate. From the second on you pay: a bigger pack, all of it enraged, led by the floor's elite
+// and by dice that throw rings of bullets (from the third knock on, a loaded die twice the size), and the
+// warden's clock runs shorter. Monsters called this way carry no glints and no hearts, so a knock never farms.
+const KNOCK = [{ n: 8, elites: 0, dice: 0, big: 0, clock: 0 }, { n: 18, elites: 1, dice: 2, big: 0, clock: 30 }, { n: 26, elites: 2, dice: 3, big: 1, clock: 45 }];
+const knockTier = () => Math.min(G.fstat.knocks, KNOCK.length - 1);
+function knockBack() {
+  const D = G.draft; if (!D) return false;
+  const d = D.door, k = G.fstat.knocks, K = KNOCK[knockTier()], mixl = G.F.mix(G.t), more = Math.max(0, k - (KNOCK.length - 1));
+  const n = K.n + G.floor * Math.round(K.n / 4) + more * 6, elites = Math.min(3, K.elites + more), big = Math.min(3, K.big + more);
+  G.fstat.knocks++; G.fstat.wrath += K.clock; d.cards = makeCards(d); d.hold = true;
+  for (let i = 0; i < K.dice; i++) d.queue.push({ id: 'die', rage: true });
+  for (let i = 0; i < big; i++) d.queue.push({ id: 'bigdie', rage: true });
+  for (let i = 0; i < elites; i++) d.queue.push({ id: G.F.elite, rage: true });
+  for (let i = 0; i < n; i++) d.queue.push({ id: wpick(mixl, x => x[1])[0], rage: k > 0 });
+  d.shake = 1.2; G.shake = Math.max(G.shake, k > 0 ? 8 : 4); sfx('breach'); if (k > 0) sfx('roar');
+  banner(k === 0 ? 'KNOCK BACK' : k === 1 ? 'KNOCK BACK!' : 'KNOCK BACK!!',
+    k === 0 ? 'The door answers.' : k === 1 ? 'The dice are cast. They are angry, and the warden stirs.' : 'The house always wins. Everything behind that door is coming.', k === 0 ? '#ff9ec4' : '#ff7a7a', 3);
+  G.draft = null; App.mode = 'play';
+  return true;
+}
 function rerollDraft() {
   const D = G.draft; if (!D || D.rerolls <= 0) return false;
   D.door.rerolled++; D.door.cards = makeCards(D.door); D.cards = D.door.cards; D.rerolls--; D.t = 0; D.sel = Math.min(D.sel, D.cards.length - 1);
@@ -4068,7 +4132,7 @@ function chooseStairs() {
 /* ============================ 13b CARD COACH ========================== */
 // Teaches the draft card on the card itself. The first draft walks through its parts: the room, the boon,
 // the doors, the Stairwell. Later drafts explain one new thing each, the first time a card shows it: a
-// level-up, resonance, an evolution, a dead end, the open Stairwell. H (or the EXPLAIN chip) explains the
+// level-up, resonance, an evolution, a dead end, the open Stairwell, and what to do with a hand you do not want. H (or the EXPLAIN chip) explains the
 // selected card again at any time. A lesson is shown once per save (Save.data.tips). RW.coach(false)
 // switches the coach off for automated runs.
 const stairsLocked = () => (G.dir.boss || G.dir.stairsBuilt || G.bossDown) ? 0 : Math.max(0, STAIRS_MIN - G.fstat.rooms);   // rooms still to draft before the Stairwell is offered
@@ -4089,12 +4153,14 @@ function coachPlan(D, all) {
     : 'This room type has all its stars. Another one still adds its power to the floor.');
   const res = i => add('c_res', i, 'plan', 'RESONANCE', 'The room next door has the same element. Joined by a doorway, each makes the other stronger: the +% on the map.');
   const evo = i => { const e = cards[i].evo, w = WEAPONS[e.id]; add('c_evo', i, 'plan', 'EVOLUTION', e.ready ? w.name + ' is ready. Walk into this room and it evolves.' : w.name + ' evolves in this room. Bring it to level ' + w.max + ', then walk in.'); };
+  const back = () => add('c_back', -1, 'chip', 'NOTHING YOU WANT?', 'Esc is free, and every door holds its own cards. Or knock back (R): new cards here, and what waits behind the door comes out. A second knock on the same floor costs far more.');
   const first = f => cards.findIndex(f);
   let i = D.sel;
   if (all) {                          // H: everything the selected card shows
     const c = cards[i]; room(i); if (c.lv > 0) stars(i); if (c.res > 0) res(i); if (c.evo) evo(i); boon(i);
     if (c.plan.fresh === 0) dead(i); else doors(i);
     if (D.stairs) stairs(); else if (D.locked) locked();
+    if (D.rerolls <= 0) back();
   } else if (!seen.c_card) {          // the first draft: the parts of a card, on one that has new doors
     if (cards[i].plan.fresh === 0 && first(c => c.plan.fresh > 0) >= 0) i = first(c => c.plan.fresh > 0);
     room(i); boon(i); doors(i); if (D.stairs) stairs(); else if (D.locked) locked();
@@ -4103,9 +4169,10 @@ function coachPlan(D, all) {
   else if (!seen.c_res && (i = first(c => c.res > 0)) >= 0) res(i);
   else if (!seen.c_evo && (i = first(c => c.evo)) >= 0) evo(i);
   else if (!seen.c_dead && (i = first(c => c.plan.fresh === 0)) >= 0) dead(i);
+  else if (!seen.c_back && D.rerolls <= 0) back();      // nothing else new: what to do with a hand you do not want
   return steps;
 }
-function coachFocus(D) { const s = D.coach.steps[D.coach.i]; if (s.card >= 0) { D.sel = s.card; D.onStairs = false; } else if (D.stairs) D.onStairs = true; }
+function coachFocus(D) { const s = D.coach.steps[D.coach.i]; if (s.card >= 0) { D.sel = s.card; D.onStairs = false; } else if (s.part === 'bar' && D.stairs) D.onStairs = true; }
 function coachStart(D, all) {
   if (!App.coach || G.demo) return;
   const steps = coachPlan(D, all); if (!steps.length) return;
@@ -4130,7 +4197,7 @@ function cardPart(r, part) {
 }
 function renderCoach(g, D, L_) {
   const C = D.coach; if (!C || D.t < 0.45) return;
-  const s = C.steps[C.i], r = s.card >= 0 ? L_.rects[s.card] : null, box = r ? cardPart(r, s.part) : (L_.bar || L_.lock); if (!box) return;
+  const s = C.steps[C.i], r = s.card >= 0 ? L_.rects[s.card] : null, box = r ? cardPart(r, s.part) : s.part === 'chip' ? (L_.kb || L_.re) : (L_.bar || L_.lock); if (!box) return;
   // dim everything except the part in question, and frame that part
   g.fillStyle = 'rgba(13,10,26,0.76)';
   g.fillRect(0, 0, VW, box.y); g.fillRect(0, box.y + box.h, VW, VH - box.y - box.h); g.fillRect(0, box.y, box.x, box.h); g.fillRect(box.x + box.w, box.y, VW - box.x - box.w, box.h);
@@ -4143,7 +4210,7 @@ function renderCoach(g, D, L_) {
   if (r) {
     if (r.x + r.w + 4 + pw <= VW - 2) px = r.x + r.w + 4; else if (r.x - pw - 4 >= 2) px = r.x - pw - 4;
     py = clamp(Math.round(box.y + box.h / 2 - ph / 2), 3, VH - ph - 3);
-  }
+  } else if (s.part === 'chip') { px = clamp(box.x + box.w - pw, 2, VW - pw - 2); py = box.y + box.h + 5; }   // a chip sits at the top: the note hangs under it
   panel(g, px, py, pw, ph, '#ffd95e', '#241d3a');
   txt(g, s.title, px + 6, py + 5, '#ffd95e');
   lines.forEach((ln, k) => txt(g, ln, px + 6, py + 17 + k * 9, '#fff8e8'));
@@ -4578,6 +4645,7 @@ function renderHUD(g) {
 /* ========================== 14c RENDER: screens ======================= */
 // ---- draft ----
 const rerollLabel = D => (Input.touch ? '' : 'R  ') + 'DEAL AGAIN  x' + D.rerolls, rerollW = D => textW(rerollLabel(D)) + 12;
+const knockLabel = () => (Input.touch ? '' : 'R  ') + 'KNOCK BACK' + ['', '  !', '  !!'][knockTier()], knockW = () => textW(knockLabel()) + 12;   // the marks: what the next knock costs
 function draftLayout() {
   const D = G.draft, n = D.cards.length, gap = n > 3 ? 4 : 6, barH = D.stairs || D.locked ? 19 : 0;   // the Stairwell bar, open or still locked
   // A card needs 175px for three lines of room text above its boon. A view too short for that plus the bar
@@ -4587,7 +4655,8 @@ function draftLayout() {
   const x0 = Math.round((VW - tw) / 2), y0 = compact ? 28 : Math.round((VH - ch - barH) / 2) + 5;
   return { compact, rects: D.cards.map((_, i) => ({ x: x0 + i * (cw + gap), y: y0, w: cw, h: ch })), bar: D.stairs ? { x: x0, y: y0 + ch + 4, w: tw, h: 15 } : null,
     lock: !D.stairs && D.locked ? { x: x0, y: y0 + ch + 4, w: tw, h: 15 } : null, help: { x: x0, y: y0 - 27, w: textW(helpLabel()) + 12, h: 13 },
-    re: D.rerolls > 0 ? { x: x0 + tw - rerollW(D), y: y0 - 27, w: rerollW(D), h: 13 } : null };   // the Map Room's 'deal again' chip
+    re: D.rerolls > 0 ? { x: x0 + tw - rerollW(D), y: y0 - 27, w: rerollW(D), h: 13 } : null,     // the Map Room's 'deal again' chip
+    kb: D.rerolls > 0 ? null : { x: x0 + tw - knockW(), y: y0 - 27, w: knockW(), h: 13 } };       // or, without a free deal, 'knock back'
 }
 function miniRoom(g, x, y, w, h, col, doors, fresh) {
   g.fillStyle = shade(col, 0.5); g.fillRect(x + 1, y + 1, w - 2, h - 2); g.fillStyle = col; g.fillRect(x + 2, y + 2, w - 4, h - 4);
@@ -4662,7 +4731,8 @@ function drawCard(g, card, r, sel, t, i) {
 function renderDraft(g) {
   const D = G.draft, L_ = draftLayout(), rects = L_.rects;
   g.fillStyle = 'rgba(13,10,26,0.78)'; g.fillRect(0, 0, VW, VH);
-  txo(g, 'WHAT LIES BEHIND THIS DOOR?', VW / 2, rects[0].y - 23, '#ffd95e', '#1a1426', 0.5);
+  const keys_ = Input.touch ? 'tap a card to build it' : 'ENTER build   ESC step back' + (L_.bar ? '   DOWN stairs' : '');   // a compact view has no room below: the legend takes the title's place
+  txo(g, L_.compact ? keys_ : 'WHAT LIES BEHIND THIS DOOR?', VW / 2, rects[0].y - 23, L_.compact ? '#9aa3b5' : '#ffd95e', '#1a1426', 0.5);
   D.cards.forEach((c, i) => drawCard(g, c, rects[i], !D.onStairs && i === D.sel, D.t, i));
   if (L_.bar) {
     const b = L_.bar, on = D.onStairs;
@@ -4676,11 +4746,11 @@ function renderDraft(g) {
     txt(g, 'draft ' + D.locked + ' more room' + (D.locked === 1 ? '' : 's') + ' to unlock it', b.x + b.w - 6, b.y + 4, '#9aa3b5', 1);
   }
   { const r = L_.help, hot = Input.inRect(r) && !D.coach; panel(g, r.x, r.y, r.w, r.h, hot ? '#ffd95e' : '#4c5a84', hot ? '#3a3052' : '#24203a'); txt(g, helpLabel(), r.x + r.w / 2, r.y + 3, hot ? '#ffd95e' : '#9cecf2', 0.5); }
+  if (L_.kb) { const r = L_.kb, hot = Input.inRect(r) && !D.coach, col = ['#ff9ec4', '#ffd95e', '#ff7a7a'][knockTier()]; panel(g, r.x, r.y, r.w, r.h, hot ? '#fff8e8' : col, hot ? '#3a3052' : '#24203a'); txt(g, knockLabel(), r.x + r.w / 2, r.y + 3, hot ? '#fff8e8' : col, 0.5); }
   if (L_.re) { const r = L_.re, hot = Input.inRect(r); panel(g, r.x, r.y, r.w, r.h, hot ? '#ffd95e' : '#4c5a84', hot ? '#3a3052' : '#24203a'); txt(g, rerollLabel(D), r.x + r.w / 2, r.y + 3, hot ? '#ffd95e' : '#9cecf2', 0.5); }
   let tip_ = G.tut.step === 2 ? 'A card is a room, its power, a boon and new doors. Doors let monsters in.' : Input.touch ? 'Tap a card to build it. Tap outside to step back.' : 'LEFT/RIGHT choose   ENTER build   ESC step back' + (L_.bar ? '   DOWN stairs' : '');
   const low = L_.bar || L_.lock;
   if (!L_.compact) txo(g, tip_, VW / 2, (low ? low.y + low.h : rects[0].y + rects[0].h) + 5, G.tut.step === 2 ? '#fff8e8' : '#9aa3b5', '#1a1426', 0.5);
-  else if (!L_.re) txo(g, Input.touch ? 'tap a card' : 'ENTER build  ESC back' + (L_.bar ? '  DOWN stairs' : ''), VW - 5, rects[0].y - 23, '#9aa3b5', '#1a1426', 1);
   renderCoach(g, D, L_);
 }
 
@@ -5079,6 +5149,7 @@ const MODES = {
     if (D.t > 0.25 && st) { chooseStairs(); return; }
     if (D.t > 0.25 && go >= 0) { chooseCard(go); return; }
     if (D.rerolls > 0 && (Input.hit('reroll') || (L_.re && Input.mouse.click && Input.inRect(L_.re)))) { rerollDraft(); return; }
+    if (L_.kb && D.t > 0.25 && (Input.hit('reroll') || (Input.mouse.click && Input.inRect(L_.kb)))) { knockBack(); return; }   // no free deal: knock back
     if (Input.hit('back') || (Input.touch && Input.mouse.click && !onCard && D.t > 0.3)) { D.door.hold = true; closeDraft(); }
   },
   pause() {
@@ -5253,7 +5324,7 @@ window.RW = {
   start(seed, opts) { startRun(seed, opts); },                         // opts: { hero, deck }
   manual(on) { App.manual = !!on; },
   coach(on) { App.coach = !!on; },                                     // false = no card lessons in drafts (the checks and the bot use this)
-  coachPlan, cardPart, stairsLocked,                                   // true = the page stops ticking itself; drive it with step()
+  coachPlan, cardPart, stairsLocked, knockBack, knockTier, KNOCK,                                   // true = the page stops ticking itself; drive it with step()
   step(n = 1) { for (let i = 0; i < n; i++) { tick(STEP); Input.endFrame(); } },
   hold(a, on) { if (on) Input.down.add(a); else Input.down.delete(a); },
   press(a) { Input.pressed.add(a); },
