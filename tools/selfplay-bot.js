@@ -1,7 +1,8 @@
 // Self-play bot for Roomwright.
 // Inject into the page (e.g. `agent-browser eval --stdin < tools/selfplay-bot.js`), then call:
 //   BOT.full(seed, maxSeconds, opts)   play one whole run in fast-forward (deterministic) -> summary object
-//                                      opts: { hero, deck, skill, policy, persona, stairs }
+//                                      opts: { hero, deck, skill, policy, persona, stairs, stakes }
+//                                      stakes: the step of Stakes to play at (default 0, whatever the save says)
 //                                      policy: how it picks a draft card. 'score' (its own reading of the card, the
 //                                      default), 'random', or 'first' (always the left card). The gap between them
 //                                      is the pick gap: how much the draft decides (docs/checks.md). 'tight' and
@@ -226,7 +227,7 @@
     full(seed, maxSecs, opts = {}) {
       B.goal = null; B.goalT = 0; B.picks = []; B.rs = seed * 7 + 1; B.skill = opts.skill === undefined ? 1 : opts.skill; B.lastK = -1;
       B.policy = opts.policy || 'score'; B.persona = opts.persona || 'kiter'; B.stairs = opts.stairs || 'mid'; B.held = 8; B.holdT = 0;
-      RW.manual(true); RW.coach(false); RW.start(seed, opts); RW.G.tut.step = 9;
+      RW.manual(true); RW.coach(false); RW.start(seed, Object.assign({ stakes: 0 }, opts)); RW.G.tut.step = 9;   // the step is always set here: a win in this page opens Stakes in its save, and the next run would inherit the new step
       const n = Math.round((maxSecs || 1800) * 60); let err = null; const floors = [];
       try {
         let lastFloor = 0, f0 = 0;

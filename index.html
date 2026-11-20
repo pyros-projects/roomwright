@@ -3819,6 +3819,7 @@ function updateDirector(dt) {
   while (D.ti < F.timeline.length && G.t >= F.timeline[D.ti].t) fireEvent(F.timeline[D.ti++].ev);
   if (!D.boss && !G.endless) {                                          // the dread clock
     const lim = clockLimit();
+    if (G.t >= lim * 0.6) tip('dread', 'The bar under the clock turned orange: from here the knocking grows until the warden comes.');
     if (!D.warned && G.t >= lim - 15) { D.warned = true; banner('THE WARDEN STIRS...', 'It comes for you in 15 seconds.', '#ff7a7a', 3.2); sfx('breach'); }
     if (G.t >= lim) { D.overstay = true; summonBoss(null); }
   }
