@@ -48,10 +48,13 @@ The parts you are most likely to touch:
 matches `src/`, uploads the two files to GitHub Pages, then fetches the live copy and compares it
 with the commit. The same workflow can be started by hand from the Actions tab.
 
-A branch that is being playtested is published next to it under its own name, for example
-<https://pyros-projects.github.io/roomwright/v0.3/>, for as long as the branch exists; `PREVIEW` in
-the workflow names it. A copy served from a version folder keeps its own save, so a playtest never
-touches progress in the released game.
+Every version branch (`v0.3`, `v0.4`, ...) is published next to it under its own name, for example
+<https://pyros-projects.github.io/roomwright/v0.3/>, for as long as the branch exists. That holds for
+the branch being playtested and for the ones already merged: version branches are not deleted after
+a merge, so any version can be opened and compared with the ones before it. A copy served from a
+version folder keeps its own save, so playing it never touches progress in the released game. A push
+to a version branch from `v0.4` on publishes all of them again. A run uses the workflow of the branch
+that was pushed: until 0.4 is merged, a deploy started from `main` or `v0.3` publishes only those two.
 
 So run `tools/build.sh` before you commit a change in `src/`: a stale `index.html` stops the deploy.
 After a deploy, run the full checks against the live copy:
