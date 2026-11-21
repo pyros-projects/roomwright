@@ -289,7 +289,10 @@ const Snd = (() => {
     applyVol(); return true;
   }
   function applyVol() { if (!ac) return; sfxBus.gain.value = vol.sfx * 0.9; musBus.gain.value = vol.music * 0.5; }
-  function env(g, t0, d, v, a) { g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(v, t0 + a); g.gain.exponentialRampToValueAtTime(0.0001, t0 + Math.max(d, a + 0.01)); }
+  // A gain node passes everything until its first scheduled value. A source that starts on the very sample of that
+  // value could slip one sample through at full level (a tick in a hat, on steps that land on a whole sample), so
+  // the gain is shut before the envelope is written.
+  function env(g, t0, d, v, a) { g.gain.value = 0; g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(v, t0 + a); g.gain.exponentialRampToValueAtTime(0.0001, t0 + Math.max(d, a + 0.01)); }
   function tone(f, d, o = {}) {
     const t0 = (o.at !== undefined ? o.at : ac.currentTime) + (o.t || 0), osc = ac.createOscillator(), g = ac.createGain();
     osc.type = o.type || 'square'; osc.frequency.setValueAtTime(f, t0);

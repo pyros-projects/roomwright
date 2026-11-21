@@ -41,11 +41,12 @@ console error, then runs five scripts:
   missing. Run it alone with `uv run --with playwright tools/check-intro.py`. It presses real
   keys, because a browser starts a film with sound only after a real gesture. Without a Chromium
   for Playwright it is skipped.
-- `tools/check-music.py`: two passes of every music track, rendered by the game's own sequencer
-  faster than real time: the page gets an audio context that renders into memory and a clock the
+- `tools/check-music.py`: every music track, rendered by the game's own sequencer faster than real
+  time (a short track twice, a long one once and two bars into its repeat): the page gets an audio context that renders into memory and a clock the
   check turns by hand. It fails on an error anywhere in a piece, on a bar under -50 dBFS (an empty
   bar reads -59 or less, a bar with notes -45 or more) and on a mean level outside -48 to -35 dBFS,
-  the range in which the music sits under the sound effects. Run it alone with
+  the range in which the music sits under the sound effects, and on a single sample that jumps out
+  of the wave (a tick). Run it alone with
   `uv run --with playwright tools/check-music.py`. Like the audio check it reads levels, not
   whether a piece sounds good.
 

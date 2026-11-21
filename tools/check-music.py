@@ -8,8 +8,8 @@ Prints one PASS/FAIL/SKIP line per check and exits non-zero on a failure.
 How: before the game boots, the page gets an AudioContext that renders into memory and a sequencer clock
 that this check turns by hand. The game's code then schedules a track in a moment, and the samples are
 read back. A track shorter than half a minute is played twice, because a pattern track brings its lead in
-on the second pass; a longer one is played once and two bars into its repeat. This reads levels and finds
-gaps; it cannot tell whether a piece sounds good.
+on the second pass; a longer one is played once and two bars into its repeat. This reads levels, finds gaps
+and finds single samples that jump out of the wave (a tick); it cannot tell whether a piece sounds good.
 
 The browser is found as in tools/check-intro.py. Without a Chromium for Playwright it is skipped.
 """
@@ -29,6 +29,7 @@ _spec.loader.exec_module(_intro)                 # for its launch(): one way to 
 out, failed = [], False
 QUIET = -50                 # a bar under this level counts as silent
 LEVEL = (-48, -35)          # where a track's mean level has to lie, at the default music volume
+TICK = 0.05                 # a sample this far from both its neighbours is a tick; the music's own waves stay under 0.03
 
 # Runs before the game's script. The sequencer is the only 50 ms interval in the game.
 BEFORE = """(() => {
@@ -42,7 +43,7 @@ BEFORE = """(() => {
 
 # Renders a track and measures it bar by bar. A live start puts the first step 50 ms after a block boundary
 # of the audio clock, which is a whole sample; the clock here starts the same way.
-RENDER = """async (track) => {
+RENDER = """async ([track, limit]) => {
   const M = window.__music, S = RW.Snd, pass = S.secs(track), bar = S.secs(track, 1), bars = Math.round(pass / bar);
   const played = pass < 30 ? 2 * bars : bars + 2;         // in bars
   M.seconds = played * bar + 2; M.now = 0.05;
@@ -60,8 +61,14 @@ RENDER = """async (track) => {
     levels.push(+(10 * Math.log10(sq / (i1 - i0) + 1e-12)).toFixed(1));
     square += sq;
   }
+  // how far a sample stands out from both its neighbours at once: `jut` is the largest such distance, `spikes` counts those over the limit
+  let spikes = 0, spike = 0, jut = 0;
+  for (let i = 1; i < x.length - 1; i++) {
+    const a = x[i] - x[i - 1], b = x[i] - x[i + 1]; if (a * b <= 0) continue;
+    const d = Math.min(Math.abs(a), Math.abs(b)); if (d > limit) { spikes++; spike = Math.max(spike, Math.abs(x[i])); } else jut = Math.max(jut, d);
+  }
   const db = v => +(20 * Math.log10(v + 1e-9)).toFixed(1);
-  return { threw, bars, played, seconds: +pass.toFixed(1), levels, peak: db(peak), level: +(10 * Math.log10(square / (played * bar * rate) + 1e-12)).toFixed(1) };
+  return { threw, bars, played, seconds: +pass.toFixed(1), levels, spikes, spike: db(spike), jut: +jut.toFixed(4), peak: db(peak), level: +(10 * Math.log10(square / (played * bar * rate) + 1e-12)).toFixed(1) };
 }"""
 
 
@@ -88,7 +95,7 @@ def main():
         tracks = page.evaluate("RW.Snd.tracks")
         for track in tracks:
             page.goto(args.url + f"?intro=0&track={track}", wait_until="domcontentloaded")      # a new page: one render per context
-            r = page.evaluate(RENDER, track)
+            r = page.evaluate(RENDER, [track, TICK])
             what = f"{r['bars']} bars, {r['seconds']} s, {r['played']} bars played"
             check(f"{track}: plays through without an error", not r["threw"], r["threw"] or what)
             # A bar with notes reads -45 dBFS or more. An empty one reads -59 or less even right after a loud bar,
@@ -98,6 +105,8 @@ def main():
             # The music sits under the sound effects. The mean says so; the peak comes after the compressor and barely moves.
             low, high = LEVEL
             check(f"{track}: the level is in the music's range ({low} to {high} dBFS)", low < r["level"] < high, f"{r['level']} dBFS, peak {r['peak']}")
+            # A step that starts exactly on a sample once let one sample of a hat's noise through at full level.
+            check(f"{track}: no single sample jumps out", not r["spikes"], f"{r['spikes']} of them, up to {r['spike']} dBFS" if r["spikes"] else f"the wave's own largest: {r['jut']} of {TICK}")
         check("no page errors", not errors, "; ".join(errors)[:200])
         browser.close()
     print("\n".join(out))
