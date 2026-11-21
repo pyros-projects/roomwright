@@ -4,9 +4,12 @@
 # and one step only makes sure it matches src/. After the upload the last step fetches the live copy
 # and compares it with the commit, so a green run means the new game is being served.
 #
-# A branch being playtested is published next to it under its own name, for example
-# .../roomwright/v0.3/, while that branch exists. PREVIEW names it. A copy served from a version
-# folder keeps its own save (see Save.KEY), so playing it never touches progress in the released game.
+# Every version branch (v0.3, v0.4, ...) is published next to it under its own name, for example
+# .../roomwright/v0.3/, for as long as the branch exists: the one being playtested and the ones already
+# merged, so a version can be compared with those before it. A copy served from a version folder keeps
+# its own save (see Save.KEY), so playing it never touches progress in the released game.
+# A run uses the workflow file of the branch that was pushed. Branches from before this file listed every
+# version (main until 0.4 is merged, and v0.3) still publish only main and v0.3 when they are pushed.
 #
 # Runs on a push to main or to a version branch that changes the game, or by hand from the Actions tab.
 name: Deploy to GitHub Pages
@@ -21,9 +24,6 @@ on:
       - tools/build.sh
       - .github/workflows/pages.yml
   workflow_dispatch:
-
-env:
-  PREVIEW: v0.3
 
 permissions:
   contents: read
@@ -49,34 +49,34 @@ jobs:
           ref: main
           path: live
 
-      - name: Is a branch being playtested?
-        id: preview
+      - name: Every version branch
         env:
           REPO: ${{ github.repository }}
         run: |
-          if git ls-remote --exit-code --heads "https://github.com/$REPO" "$PREVIEW" > /dev/null; then
-            echo "found=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "found=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: The branch being playtested
-        if: steps.preview.outputs.found == 'true'
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ env.PREVIEW }}
-          path: next
+          mkdir versions
+          # a version branch is v and a number with dots: v0.3, v0.4, v1; anything else that starts with v is not one
+          # listed into a variable first: if the listing fails, the step fails, and the versions do not silently go offline
+          heads="$(git ls-remote --heads "https://github.com/$REPO" 'v*')"
+          while read -r sha ref; do
+            name="${ref#refs/heads/}"
+            if ! printf '%s' "$name" | grep -Eq '^v[0-9]+(\.[0-9]+)*$'; then continue; fi
+            git clone --quiet --depth 1 --branch "$name" "https://github.com/$REPO" "versions/$name"
+            echo "$name at $sha"
+          done <<< "$heads"
 
       - name: index.html matches src/
         run: |
           live/tools/build.sh --check
-          if [ -d next ]; then next/tools/build.sh --check; fi
+          for v in versions/*/; do if [ -d "$v" ]; then "${v}tools/build.sh" --check; fi; done
 
       - name: Collect the files
         run: |
           mkdir _site
           cp live/index.html live/intro.mp4 _site/
-          if [ -d next ]; then mkdir "_site/$PREVIEW"; cp next/index.html next/intro.mp4 "_site/$PREVIEW/"; fi
+          for v in versions/*/; do
+            [ -d "$v" ] || continue
+            name="$(basename "$v")"; mkdir "_site/$name"; cp "${v}index.html" "${v}intro.mp4" "_site/$name/"
+          done
 
       - uses: actions/configure-pages@v6
 
@@ -107,4 +107,4 @@ jobs:
             echo "Live at $2/"
           }
           same live "$url"
-          if [ -d next ]; then same next "$url/$PREVIEW"; fi
+          for v in versions/*/; do if [ -d "$v" ]; then same "${v%/}" "$url/$(basename "$v")"; fi; done
