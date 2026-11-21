@@ -18,7 +18,7 @@ Both take `AGENT_BROWSER=/path/to/agent-browser` and `AB_FLAGS='...'` for extra 
 example `--args --no-sandbox,--disable-gpu` inside a sandbox or CI container).
 
 `tools/check.sh` is the regression pass (about two minutes). It boots the page and fails on any
-console error, then runs four scripts:
+console error, then runs five scripts:
 
 - `tools/check-content.js`: every room power, star level, resonance, pest, weapon, evolution,
   charm, warden and unlock does what its card says. Also: every point of damage has an owner and
@@ -41,6 +41,13 @@ console error, then runs four scripts:
   missing. Run it alone with `uv run --with playwright tools/check-intro.py`. It presses real
   keys, because a browser starts a film with sound only after a real gesture. Without a Chromium
   for Playwright it is skipped.
+- `tools/check-music.py`: two passes of every music track, rendered by the game's own sequencer
+  faster than real time: the page gets an audio context that renders into memory and a clock the
+  check turns by hand. It fails on an error anywhere in a piece, on a bar under -50 dBFS (an empty
+  bar reads -59 or less, a bar with notes -45 or more) and on a mean level outside -48 to -35 dBFS,
+  the range in which the music sits under the sound effects. Run it alone with
+  `uv run --with playwright tools/check-music.py`. Like the audio check it reads levels, not
+  whether a piece sounds good.
 
 `tools/selfplay-bot.js` is a bot that plays whole runs through the hooks using only what a player
 has. `tools/selfplay.sh` runs it:

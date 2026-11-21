@@ -3,7 +3,7 @@
 // that show up in drafts whatever deck you brought (that is how new cards are found).
 
 const FLOORS = [
-  { id: 'cellar', name: 'The Cellar', clock: 360, music: 'dungeon', boss: 'gatejaw', elite: 'kslime',
+  { id: 'cellar', name: 'The Cellar', clock: 360, music: 'cellar', boss: 'gatejaw', elite: 'kslime',
     tint: null, void: '#0d0a1a', grid: '#1a1532', mark: '#2a2350', flame: 'sflame', glow: 'warm',
     natives: ['powder', 'ballista', 'maproom', 'dice', 'spring'],
     mix(t) { const m = t / 60, l = [['slime', 3]]; if (m >= 0.75) l.push(['bat', 1.3]); if (m >= 1.75) l.push(['bones', 1.6]); if (m >= 2.75) l.push(['spore', 1.0]); if (m >= 4.25) l.push(['tin', 0.7]); return l; },

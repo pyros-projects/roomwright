@@ -102,21 +102,13 @@ const Snd = (() => {
     last[name] = now; FX[name](a);
   }
 
-  // ---- music: a 3-voice step sequencer (bass / harp arpeggio / flute lead) + noise drums
+  // ---- music: a step sequencer. A track is a pattern (three voices: bass / harp arpeggio / flute lead, and noise
+  // drums) or a written score (below)
   const MIN = [0, 3, 7], MAJ = [0, 4, 7];
   const TRACKS = {
     title: { bpm: 80, chords: [[45, MIN], [41, MAJ], [48, MAJ], [43, MAJ]], arp: [0, -1, 1, -1, 2, -1, 3, -1, 2, -1, 1, -1, 2, -1, 1, -1], bass: { 0: 0, 8: 7 }, drums: 0, leadAlways: true, leadVol: 0.07,
       lead: [[[0, 76, 8], [8, 81, 8]], [[0, 77, 8], [8, 72, 8]], [[0, 79, 8], [8, 76, 8]], [[0, 74, 14]]] },
-    dungeon: { bpm: 112, chords: [[45, MIN], [41, MAJ], [48, MAJ], [43, MAJ], [45, MIN], [41, MAJ], [43, MAJ], [40, MAJ]], arp: [0, 1, 2, 3, 2, 1, 2, 1, 0, 1, 2, 3, 2, 1, 2, 1], bass: { 0: 0, 6: 0, 8: 12, 12: 7, 14: 0 }, drums: 1, leadVol: 0.085,
-      lead: [
-        [[0, 76, 4], [4, 81, 2], [6, 79, 2], [8, 76, 4], [12, 72, 2], [14, 74, 2]],
-        [[0, 77, 6], [6, 76, 2], [8, 74, 2], [10, 72, 2], [12, 69, 4]],
-        [[0, 79, 4], [4, 76, 2], [6, 79, 2], [8, 84, 6], [14, 83, 2]],
-        [[0, 83, 2], [2, 81, 2], [4, 79, 4], [8, 74, 4], [12, 79, 2], [14, 83, 2]],
-        [[0, 81, 6], [6, 76, 2], [8, 81, 2], [10, 83, 2], [12, 84, 4]],
-        [[0, 84, 2], [2, 81, 2], [4, 77, 4], [8, 81, 4], [12, 84, 4]],
-        [[0, 83, 4], [4, 79, 4], [8, 86, 6], [14, 83, 2]],
-        [[0, 80, 4], [4, 83, 4], [8, 76, 8]]] },
+    cellar: { bpm: 112, bars: 48, score: cellarScore },       // floor 1, written out: src/25-music.js
     garden: { bpm: 100, chords: [[38, MIN], [46, MAJ], [41, MAJ], [48, MAJ], [38, MIN], [46, MAJ], [43, MIN], [45, MAJ]], arp: [0, 2, 1, 2, 3, 2, 1, 2, 0, 2, 1, 2, 3, 2, 1, 2], bass: { 0: 0, 6: 7, 8: 12, 14: 7 }, drums: 1, leadVol: 0.08,
       lead: [
         [[0, 74, 4], [4, 77, 4], [8, 81, 6], [14, 79, 2]],
@@ -144,8 +136,37 @@ const Snd = (() => {
         [[0, 84, 2], [2, 81, 2], [4, 77, 2], [6, 81, 2], [8, 84, 2], [10, 86, 2], [12, 84, 2], [14, 81, 2]],
         [[0, 83, 4], [4, 80, 4], [8, 83, 2], [10, 86, 2], [12, 88, 4]]] },
   };
+  // ---- a written score: seven voices and a drum kit. Bass, arpeggio, lead, kick, snare and hat sound as the
+  // patterns' do; the others are built from the same waves. A note's loudness is a velocity: the level goes with
+  // its square, around the velocity named here.
+  const VOICES = {   // voice: [level, at this velocity, wave, attack, seconds from (steps long, seconds per step), vibrato on long notes]
+    bass: [0.2, 78, 'triangle', 0.01, (len, spb) => spb * (len <= 6 ? 2.4 : len * 0.95)],     // short notes are the pattern's pluck, long ones ring for their length
+    arp: [0.03, 66, 'square', 0, (len, spb) => spb * len * 1.6],
+    lead: [0.085, 86, 'triangle', 0.02, (len, spb) => spb * len * 0.98, 1],
+    answer: [0.048, 80, 'square', 0.02, (len, spb) => spb * len * 0.98, 1],
+    counter: [0.06, 90, 'triangle', 0.03, (len, spb) => spb * len * 0.98, 1],
+    pluck: [0.022, 74, 'square', 0, (len, spb) => spb * 1.6],
+    bell: [0.04, 62, 'triangle', 0, (len, spb) => spb * 6],
+  };
+  const DRUMS = {    // sound: [level, at this velocity, seconds, then a falling sine (from Hz, to Hz) or noise (filter, Hz)]
+    kick: [0.26, 76, 0.13, 140, 42], boom: [0.26, 76, 0.22, 140, 42], thud: [0.08, 46, 0.08, 200, 120],
+    tom1: [0.14, 70, 0.09, 260, 150], tom2: [0.14, 70, 0.09, 330, 190], tom3: [0.14, 70, 0.09, 420, 240], pop: [0.1, 50, 0.07, 520, 300], lowpop: [0.1, 50, 0.07, 390, 220],
+    snare: [0.07, 66, 0.1, 'bandpass', 1900], slap: [0.07, 72, 0.1, 'bandpass', 1900], clap: [0.07, 72, 0.12, 'bandpass', 2400], claves: [0.06, 60, 0.04, 'bandpass', 2600],
+    hat: [0.022, 58, 0.03, 'highpass', 7000], cabasa: [0.022, 54, 0.03, 'highpass', 7000], shaker: [0.022, 50, 0.05, 'highpass', 5000], cymbal: [0.03, 60, 0.3, 'highpass', 8000],
+  };
+  function note(n, t, spb) {                                // n: [step, voice, pitch or drum sound, steps long, velocity]
+    const [, voice, p, len, vel] = n;
+    if (voice === 'drum') {
+      const [lv, ref, d, a, b] = DRUMS[p], v = lv * (vel / ref) ** 2;
+      if (typeof a === 'number') tone(a, d, { at: t, v, f2: b, type: 'sine', bus: musBus }); else noise(d, { at: t, v, f: b, ft: a, bus: musBus });
+      return;
+    }
+    const [lv, ref, type, a, dur, vib] = VOICES[voice];
+    tone(mtof(p), dur(len, spb), { at: t, v: lv * (vel / ref) ** 2, type, bus: musBus, a, vib: vib && len >= 4 });
+  }
   let cur = null, curName = null, step = 0, nextT = 0;
   function sched(tr, s, t, spb) {
+    if (tr.score) { for (const n of tr.steps[s % tr.steps.length]) note(n, t, spb); return; }
     const len = tr.chords.length, bar = Math.floor(s / 16) % len, st = s % 16, ch = tr.chords[bar], loop = Math.floor(s / (16 * len));
     const b = tr.bass[st]; if (b !== undefined) tone(mtof(ch[0] + b), spb * 2.4, { at: t, v: 0.2, type: 'triangle', bus: musBus, a: 0.01 });
     const ai = tr.arp[st]; if (ai >= 0) tone(mtof(ch[0] + 24 + (ai === 3 ? 12 : ch[1][ai])), spb * 1.6, { at: t, v: 0.03, type: 'square', bus: musBus });
@@ -162,8 +183,16 @@ const Snd = (() => {
     if (nextT < ac.currentTime) nextT = ac.currentTime + 0.05;
     while (nextT < ac.currentTime + 0.25) { sched(cur, step, nextT, spb); step++; nextT += spb; }
   }, 50);
-  function music(name) { if (curName === name) return; curName = name; cur = name ? TRACKS[name] : null; step = 0; nextT = 0; }
-  // test hooks (tools/check-audio.js): the peak level on the master bus, and what there is to play
+  function music(name) {
+    if (curName === name) return; curName = name; cur = name ? TRACKS[name] : null; step = 0; nextT = 0;
+    if (cur && cur.score && !cur.steps) {                   // a written score is laid out by step the first time it plays
+      const steps = Array.from({ length: 16 * cur.bars }, () => []);
+      for (const n of cur.score()) steps[n[0]].push(n);
+      cur.steps = steps;
+    }
+  }
+  // test hooks (tools/check-audio.js, tools/check-music.py): the peak level on the master bus, what there is to play,
+  // and how many seconds one pass of a track takes (or, with `bars`, that many of its bars)
   let tap = null;
   function probe() {
     if (!ac) return null;
@@ -171,6 +200,6 @@ const Snd = (() => {
     const buf = new Float32Array(tap.fftSize);
     return () => { tap.getFloatTimeDomainData(buf); let p = 0; for (let i = 0; i < buf.length; i++) p = Math.max(p, Math.abs(buf[i])); return p; };
   }
-  return { ensure, play, music, vol, applyVol, probe, get names() { return Object.keys(FX); }, get tracks() { return Object.keys(TRACKS); }, get track() { return curName; }, get on() { return !!ac && ac.state === 'running'; }, suspend() { if (ac && ac.state === 'running') ac.suspend(); }, resume() { if (ac && ac.state === 'suspended') ac.resume(); } };
+  return { ensure, play, music, vol, applyVol, probe, get names() { return Object.keys(FX); }, get tracks() { return Object.keys(TRACKS); }, get track() { return curName; }, secs(name, bars) { const tr = TRACKS[name]; return (bars || tr.bars || tr.chords.length) * 240 / tr.bpm; }, get on() { return !!ac && ac.state === 'running'; }, suspend() { if (ac && ac.state === 'running') ac.suspend(); }, resume() { if (ac && ac.state === 'suspended') ac.resume(); } };
 })();
 const sfx = (n, a) => Snd.play(n, a);

@@ -62,7 +62,8 @@ resonance, evolutions, door pressure, pests, sieges, the three floors, Stakes, t
 New in 0.3: the card you pick decides more. Doors cost more the deeper you are, a room with stars and
 resonance does real work, each floor's elite goes for your best room, and a warden grows faster the
 longer its fight lasts. The end screen shows what dealt the run's damage. After a first win, Stakes
-adds one rule per step for those who want it harder.
+adds one rule per step for those who want it harder. The Cellar has new music: 48 bars on the floor's
+old tune, written note by note and still synthesised live.
 
 ## Play
 
