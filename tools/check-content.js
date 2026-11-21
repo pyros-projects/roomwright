@@ -240,6 +240,125 @@
     ok('every hero starts with a weapon that can evolve in their own deck', Object.values(RW.HEROES).every(h => h.deck.indexOf(RW.WEAPONS[h.weapon].evo.room) >= 0), Object.values(RW.HEROES).map(h => h.weapon + '>' + RW.WEAPONS[h.weapon].evo.room).join(' '));
     fresh(390, { hero: 'pip', deck: ['ember', 'frost', 'hall', 'spikes', 'vault', 'library', 'garden', 'guardian', 'fountain', 'cross'] }); RW.openDraft(G.sealed[0]);
     const cds = G.draft.cards; ok('drafts deal deck cards plus one floor native', cds.length === 3 && G.deck.indexOf(cds[0].type) >= 0 && G.deck.indexOf(cds[1].type) >= 0 && RW.FLOORS[0].natives.indexOf(cds[2].type) >= 0, cds.map(c => c.type).join(','));
+    /* ---- Stakes: one rule per step, and each rule is in force from its step on ---- */
+    {
+      const at = (n, seed) => { fresh(seed || 471, { stakes: n }); G.endless = false; return G; };
+      at(0); ok('stakes: a run without them has none of the rules', G.stakes === 0 && !RW.stake(1) && RW.STAKES.length === 6);
+      at(99); ok('stakes: the step is kept within the ladder', G.stakes === 6, G.stakes);
+      // 1: wardens arrive enraged
+      at(0); G.t = 60; const calmBoss = RW.summonBoss(null); at(1); G.t = 60; const angry = RW.summonBoss(null);
+      ok('stakes 1: wardens arrive enraged', !calmBoss.rage && angry.rage === true && !G.dir.overstay);
+      // 2: pests from the first floor on, and sooner
+      const pestsBy = (n, secs) => { at(n, 472); G.dir.calm = 0; G.dir.ti = 99; G.t = secs; RW.step(3); return G.sealed.reduce((a, d) => a.concat(d.queue), []).concat(G.mons.map(m => m.type)); };
+      const p0 = pestsBy(0, 110), p2 = pestsBy(2, 110), l0 = pestsBy(0, 108), l2 = pestsBy(2, 108);
+      ok('stakes 2: a Sapper on the first floor, where there was none', !p0.includes('sapper') && p2.includes('sapper'), p2.filter(x => x === 'sapper' || x === 'latch').join(','));
+      ok('stakes 2: and the Latchling comes sooner', !l0.includes('latch') && l2.includes('latch'));
+      // 3: dice roll in with the waves
+      at(2); G.t = 130; const m2 = RW.floorMix().map(x => x[0]); at(3); G.t = 100; const early = RW.floorMix().map(x => x[0]); G.t = 130; const m3 = RW.floorMix().map(x => x[0]);
+      ok('stakes 3: dice join the waves after two minutes on a floor', !m2.includes('die') && !early.includes('die') && m3.includes('die'), m3.join(','));
+      // 4: hearts drop half as often (the same 5000 kills, hurt, with and without the rule)
+      const hearts = n => { at(n, 473); P.hp = 1; let c = 0; for (let i = 0; i < 5000; i++) { const e = RW.spawnMon('bat', P.x + 300, P.y); RW.killMon(e); } for (const p of G.picks) if (p.k === 'heart') c++; G.mons.length = 0; return c; };
+      const h0 = hearts(0), h4 = hearts(4);
+      ok('stakes 4: hearts drop half as often', h0 > 30 && h4 > h0 * 0.3 && h4 < h0 * 0.7, h0 + ' -> ' + h4 + ' in 5000 kills');
+      // 5: monsters are a fifth tougher, wardens too
+      at(4); G.t = 60; const b4 = RW.spawnMon('bones', P.x + 200, P.y).max, w4 = RW.summonBoss(null).max; at(5); G.t = 60; const b5 = RW.spawnMon('bones', P.x + 200, P.y).max, w5 = RW.summonBoss(null).max;
+      ok('stakes 5: monsters and wardens are a fifth tougher', Math.abs(b5 / b4 - 1.2) < 0.06 && Math.abs(w5 / w4 - 1.2) < 0.01, b4 + ' -> ' + b5 + ', ' + w4 + ' -> ' + w5);
+      // 6: the dread clock runs a quarter faster
+      at(5); const c5 = RW.clockLimit(); at(6); const c6 = RW.clockLimit();
+      ok('stakes 6: the dread clock runs a quarter faster', Math.abs(c6 / c5 - 0.75) < 1e-9, c5 + ' -> ' + c6);
+      ok('stakes: the run record names the step', RW.record(false).stakes === 6);
+      ok('stakes: every rule fits one line of the hero screen', RW.STAKES.every(t => RW.textW(t) <= 330), Math.max(...RW.STAKES.map(t => RW.textW(t))) + 'px');
+    }
+    /* ---- door pressure bites harder the deeper you are ---- */
+    {
+      const pr = (doors, f) => RW.CURVE.pressure(doors, 0, f), step = f => +(pr(5, f) - pr(4, f)).toFixed(3);
+      ok('doors: one sealed door adds more to the knocking on each floor down', step(0) < step(1) && step(1) < step(2) && step(0) === RW.CURVE.door[0], [step(0), step(1), step(2)].join(' < '));
+      ok('doors: a plan with three doors is equally quiet on every floor only at zero doors', pr(0, 0) === pr(0, 2) && pr(7, 2) / pr(3, 2) > pr(7, 0) / pr(3, 0), (pr(7, 0) / pr(3, 0)).toFixed(2) + ' on floor 1, ' + (pr(7, 2) / pr(3, 2)).toFixed(2) + ' on floor 3');
+      fresh(461); G.endless = false; G.t = 10; const f0 = RW.knocking(); G.floor = 2; const f2 = RW.knocking(); G.floor = 0;
+      ok('doors: the HUD multiplier follows the floor', f2 > f0, f0.toFixed(2) + ' -> ' + f2.toFixed(2));
+    }
+    /* ---- the price of waiting: the knocking grows late in the clock, and a warden's fight speeds up ---- */
+    {
+      fresh(451); G.endless = false; const lim = RW.clockLimit(), dread = RW.CURVE.dread;
+      G.t = lim * 0.3; const early = RW.dreadMul(); G.t = lim * 0.6; const edge = RW.dreadMul(); G.t = lim * 0.8; const mid = RW.dreadMul(); G.t = lim * 0.999; const late = RW.dreadMul();
+      ok('dread: the knocking is unchanged for the first 60% of the clock', early === 1 && edge === 1, early + ', ' + edge);
+      ok('dread: then it grows, up to +' + Math.round(dread * 100) + '% when the clock runs out', mid > 1 && mid < late && Math.abs(mid - (1 + dread / 2)) < 0.01 && Math.abs(late - (1 + dread)) < 0.01, mid.toFixed(2) + ', ' + late.toFixed(2));
+      ok('dread: the HUD multiplier is door pressure times it', Math.abs(RW.knocking() - RW.doorPressure() * late) < 1e-9, RW.knocking().toFixed(2));
+      G.t = 0; ok('stairs: woken at once, the warden has half its strength', RW.wardenShare() === 0.5 && RW.swiftLeft() === 2, RW.wardenShare());
+      G.t = G.F.clock / 2; const share = RW.wardenShare(); const boss = RW.summonBoss(null);
+      ok('stairs: the warden that comes has the share the Stairwell showed', share === 0.75 && boss.max === Math.round(boss.def.hp * 0.75), share + ', ' + boss.max);
+      ok('dread: during the fight the knocking does not grow', RW.dreadMul() === 1);
+      const F = RW.CURVE.fury; boss.hp = boss.max = 1e9; boss.emerge = 0; P.x = boss.x + 400; RW.step(Math.round((F.after - 2) * 60));
+      ok('fury: none for the first ' + F.after + ' seconds of a fight', !boss.fury, boss.fury);
+      RW.step(4 * 60); ok('fury: then a first step, announced', boss.fury === 1 && G.banner && /IMPATIENT/.test(G.banner.text), boss.fury + ' ' + (G.banner && G.banner.text));
+      RW.step(F.every * 60); ok('fury: a step more every ' + F.every + ' seconds', boss.fury === 2, boss.fury);
+      RW.step(F.every * 60 * (F.max + 2)); ok('fury: it stops at ' + F.max + ' steps', boss.fury === F.max, boss.fury);
+      // each step makes the warden that much faster: the same 2 seconds of walking, with and without fury
+      const walk = fury => { fresh(452); G.endless = false; const b = RW.summonBoss(null); b.hp = b.max = 1e9; b.emerge = 0; b.st = 0; b.stT = 99; b.fightT = 0; b.fury = fury; if (fury) b.fightT = F.after + (fury - 1) * F.every + 1; b.x = P.x - 150; b.y = P.y; const x0 = b.x; for (let i = 0; i < 60; i++) { b.st = 0; b.stT = 99; RW.step(1); } return b.x - x0; };
+      const w0 = walk(0), w5 = walk(5);
+      ok('fury: five steps make the warden half again as fast', w0 > 10 && Math.abs(w5 / w0 - (1 + 5 * F.step)) < 0.08, w0.toFixed(1) + ' -> ' + w5.toFixed(1) + 'px');
+      // a floor whose warden is dead grows no glints
+      fresh(453); G.endless = false; const gh = build('greenhouse', [1, 0, 0, 0]); gh.grow = 0; RW.step(120); const growing = gh.grow; G.bossDown = true; gh.grow = 0; RW.step(120);
+      ok('quiet floor: a Greenhouse stops growing once the warden is dead', growing > 1 && gh.grow === 0, growing.toFixed(1) + ' -> ' + gh.grow);
+    }
+    /* ---- a floor's elite besieges the room you built up most ---- */
+    {
+      fresh(401); ok('siege: a floor with nothing built up has no target', RW.siegeTarget({ x: P.x, y: P.y }) === null);
+      const e1 = build('ember', [1, 0, 0, 0]), sp = build('spikes', [1, 0, 0, 0]), e2 = build('ember', [0, 0, 0, 0]);
+      const t1 = RW.siegeTarget({ x: e1.px + 100, y: e1.py + 100 }), t2 = RW.siegeTarget({ x: e2.px + 100, y: e2.py + 100 }), more = e1.res === e2.res ? null : e1.res > e2.res ? e1 : e2;
+      ok('siege: the target has the most stars; of two such rooms the one that resonates more, else the nearer', G.roomLv.ember === 2 && (more ? t1 === more && t2 === more : t1 === e1 && t2 === e2), 'ember ' + G.roomLv.ember + ', links ' + e1.res + ' and ' + e2.res);
+      const hearth = G.rooms[0]; tp(hearth.px + 60, hearth.py + 60);
+      const k = RW.spawnMon('kslime', hearth.px + 110, hearth.py + 70); k.hp = k.max = 1e6; RW.step(30);
+      const d0 = Math.hypot(k.x - P.x, k.y - P.y), tr = k.tr; let n = 0; while (RW.roomAt(k.x, k.y) !== tr && n++ < 2400) RW.step(1);
+      ok('siege: the elite walks to that room first, past the delver', (tr === e1 || tr === e2) && RW.roomAt(k.x, k.y) === tr && Math.hypot(k.x - P.x, k.y - P.y) > d0, n + ' steps');
+      RW.step(5);
+      ok('siege: the room is off while the elite stands in it, and the minimap knows', tr.hexT > 0 && tr.siegeT > 0 && k.camped === true, tr.hexT.toFixed(2));
+      const m = RW.spawnMon('tin', tr.px + 168, tr.py + 150); m.hp = m.max = 500; RW.step(120);
+      ok('siege: a besieged Ember Hall burns nothing', m.hp === 500, m.hp);
+      RW.step(240); const still = Math.hypot(k.x - (tr.px + 168), k.y - (tr.py + 120));
+      ok('siege: it settles near the middle of the room', still < 60 && RW.roomAt(k.x, k.y) === tr, Math.round(still) + 'px');
+      tp(k.x + 40, k.y + 30); RW.step(40); const dNear = Math.hypot(k.x - P.x, k.y - P.y);
+      ok('siege: it turns on a delver who walks into its room', dNear < 45, Math.round(dNear) + 'px');
+      // lure it out: the delver leaves through the doorway, the elite follows, and the room works again
+      tp(hearth.px + 168, hearth.py + 130); let out = 0; while (RW.roomAt(k.x, k.y) === tr && out++ < 60) { k.x = P.x + 50; k.y = P.y; RW.step(1); }
+      RW.step(40); ok('siege: lured out of the room, its power comes back', tr.hexT <= 0 && RW.roomAt(k.x, k.y) !== tr, tr.hexT.toFixed(2));
+      const away = tr === e1 ? e2 : hearth; tp(away.px + 60, away.py + 60); k.x = sp.px + 168; k.y = sp.py + 130; n = 0; while (RW.roomAt(k.x, k.y) !== tr && n++ < 2400) RW.step(1);   // the delver is rooms away, the elite between
+      ok('siege: left alone, it goes back', RW.roomAt(k.x, k.y) === tr, n + ' steps');
+      RW.killMon(k); RW.step(40); ok('siege: when the elite dies the room works again', tr.hexT <= 0 && tr.siegeT <= 0.5);
+      ok('siege: the game explained it once', RW.Save.data.tips.siege === 1);
+    }
+    /* ---- the damage tally and the census ---- */
+    {
+      // a run with a weapon, a damage room and a burn: every point of damage has an owner, and the shares add up
+      fresh(303); G.dir.calm = 1e9; const ember = build('ember', [1, 0, 0, 0]);
+      for (let i = 0; i < 6; i++) RW.spawnMon('slime', P.x + 18 + i * 3, P.y); RW.step(240);
+      for (let i = 0; i < 8; i++) RW.spawnMon('bones', ember.px + 150 + i * 6, ember.py + 120); tp(ember.px + 168, ember.py + 150); RW.step(300);
+      const list = RW.tallyList(), sum = list.reduce((a, t) => a + t.dmg, 0), keys = list.map(t => t.key);
+      ok('tally: every point of damage has an owner', sum === G.stats.dmg && sum > 0, sum + ' of ' + G.stats.dmg);
+      ok('tally: the shares add up to the whole', Math.abs(list.reduce((a, t) => a + t.share, 0) - 1) < 1e-9);
+      ok('tally: the starting weapon and the Ember Hall are both named', keys.includes('w:keyblade') && keys.includes('r:ember'), keys.join(' '));
+      ok('tally: nothing is left unnamed here', !keys.some(k => /other|x:/.test(k)), keys.join(' '));
+      ok('tally: largest first, and the room share is the rooms\' part', list.every((t, i) => !i || list[i - 1].dmg >= t.dmg) && Math.abs(RW.tallyShare('r') - list.filter(t => t.kind === 'r').reduce((a, t) => a + t.share, 0)) < 1e-9, RW.tallyShare('r').toFixed(2));
+      ok('tally: RW.state() carries it', RW.state().tally.length === list.length && RW.state().dmg === G.stats.dmg);
+      // shots, zones and burns keep their owner after the weapon that made them has moved on
+      fresh(304); P.weapons.length = 0; RW.applyBoon({ kind: 'w', id: 'bomb' }); for (let i = 0; i < 6; i++) RW.spawnMon('bones', P.x + 40 + i * 4, P.y - 20); RW.step(300);
+      ok('tally: a bomb in the air is still the bombs\'', Object.keys(G.tally).join() === 'w:bomb', Object.keys(G.tally).join());
+      fresh(305); P.weapons.length = 0; RW.applyBoon({ kind: 'w', id: 'pepper' }); for (let i = 0; i < 4; i++) RW.spawnMon('tin', P.x + 30, P.y + i * 6 - 9); RW.step(200);
+      ok('tally: a burn belongs to what lit it', Object.keys(G.tally).join() === 'w:pepper', Object.keys(G.tally).join());
+      // the census: what hit the delver, and the record of a run that ended
+      fresh(306); P.inv = 0; G.hits.length = 0; const bat = RW.spawnMon('bat', P.x + 3, P.y); RW.step(8);
+      ok('census: a touch is named after the monster', G.hits.length === 1 && G.hits[0].by === 'bat', JSON.stringify(G.hits));
+      RW.killMon(bat); P.inv = 0; const sh = RW.spawnMon('spore', P.x + 60, P.y); sh.shootT = 0; RW.step(120);
+      ok('census: a bullet is named after who fired it', G.hits.some(h => h.by === 'spore'), JSON.stringify(G.hits.map(h => h.by)));
+      RW.killMon(sh); G.hits.length = 0; for (let i = 0; i < 5; i++) { P.inv = 0; P.hp = 8; RW.hurtPlayer(1, null, 'test' + i); }
+      ok('census: only the last three hits are kept, oldest first', G.hits.map(h => h.by).join() === 'test2,test3,test4', G.hits.map(h => h.by).join());
+      const before = RW.Save.data.census.length; P.inv = 0; P.shield = 0; P.hp = 1; G.endless = false; RW.hurtPlayer(5, null, 'the last straw'); RW.step(140);
+      const rec = RW.Save.data.census[RW.Save.data.census.length - 1];
+      ok('census: a run that ends leaves a record', RW.App.mode === 'over' && RW.Save.data.census.length === Math.min(20, before + 1) && rec && rec.floor === 1 && rec.won === false && rec.by[rec.by.length - 1] === 'the last straw' && rec.doors === G.sealed.length && /keyblade1/.test(rec.weapons), JSON.stringify(rec));
+      ok('census: it is in the save, and RW.census() returns it', JSON.parse(localStorage.getItem(RW.Save.KEY)).census.length === RW.Save.data.census.length && RW.census() === RW.Save.data.census);
+      for (let i = 0; i < 25; i++) RW.Save.data.census.push(rec); RW.Save.store(); RW.Save.load();
+      ok('census: the save keeps the last 20 runs', RW.Save.data.census.length === 20, RW.Save.data.census.length);
+    }
     ok('no NaN anywhere', isFinite(P.x) && isFinite(P.y) && isFinite(P.glints) && G.mons.every(e => isFinite(e.x)));
   } catch (e) { res.push('EXCEPTION ' + String(e && e.stack || e).slice(0, 600)); }
   try { localStorage.setItem(RW.Save.KEY, saved); RW.Save.load(); } catch (e) { /* ignore */ }

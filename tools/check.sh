@@ -5,8 +5,9 @@
 #
 # Loads index.html headless, makes sure it boots with a clean console, then runs
 # tools/check-content.js, tools/check-flows.js and tools/check-audio.js and prints every FAIL line.
-# Then runs the intro cinematic checks (tools/check-intro.py, which needs uv and Playwright).
-# Exits non-zero on failure. The audio and intro checks are skipped (not failed) where they cannot run.
+# Then runs the intro cinematic checks and the music checks (tools/check-intro.py and tools/check-music.py,
+# which need uv and Playwright).
+# Exits non-zero on failure. The audio, intro and music checks are skipped (not failed) where they cannot run.
 # The pages here open with ?intro=0, so the film never sits in front of the other checks.
 #
 # Env:  GAME_URL       check a deployed copy instead of the local file, e.g. GAME_URL=https://example.net/
@@ -70,6 +71,19 @@ if command -v uv >/dev/null 2>&1; then
   if [ -n "$BAD" ]; then printf '%s\n' "$BAD"; FAILED=1; fi
 else
   echo "check-intro: SKIP (uv is not installed)"
+fi
+
+# the music: every track rendered in full by the game's sequencer, faster than real time
+if command -v uv >/dev/null 2>&1; then
+  OUT="$(uv run -q --with playwright "$DIR/tools/check-music.py" --url "$GAME" 2>&1)" || FAILED=1
+  PASS="$(printf '%s\n' "$OUT" | grep -c '^PASS' || true)"
+  BAD="$(printf '%s\n' "$OUT" | grep -vE '^(PASS|SKIP)' || true)"
+  SKIP="$(printf '%s\n' "$OUT" | grep -E '^SKIP' || true)"
+  echo "check-music: $PASS passed"
+  if [ -n "$SKIP" ]; then printf '%s\n' "$SKIP"; fi
+  if [ -n "$BAD" ]; then printf '%s\n' "$BAD"; FAILED=1; fi
+else
+  echo "check-music: SKIP (uv is not installed)"
 fi
 [ "$FAILED" = 0 ] && echo "ALL CHECKS PASSED" || echo "CHECKS FAILED"
 exit "$FAILED"

@@ -3,7 +3,7 @@
 // that show up in drafts whatever deck you brought (that is how new cards are found).
 
 const FLOORS = [
-  { id: 'cellar', name: 'The Cellar', clock: 360, music: 'dungeon', boss: 'gatejaw', elite: 'kslime',
+  { id: 'cellar', name: 'The Cellar', clock: 360, music: 'cellar', boss: 'gatejaw', elite: 'kslime',
     tint: null, void: '#0d0a1a', grid: '#1a1532', mark: '#2a2350', flame: 'sflame', glow: 'warm',
     natives: ['powder', 'ballista', 'maproom', 'dice', 'spring'],
     mix(t) { const m = t / 60, l = [['slime', 3]]; if (m >= 0.75) l.push(['bat', 1.3]); if (m >= 1.75) l.push(['bones', 1.6]); if (m >= 2.75) l.push(['spore', 1.0]); if (m >= 4.25) l.push(['tin', 0.7]); return l; },
@@ -25,18 +25,35 @@ const FLOORS = [
 
 // Every difficulty knob. f = floor index (0..2), m = minutes spent on this floor.
 const CURVE = {
-  rate: (f, m) => [0.5, 1.0, 1.7][f] + [0.36, 0.46, 0.66][f] * m + 0.02 * m * m,          // monsters per second before door pressure
+  rate: (f, m) => [0.5, 1.0, 1.5][f] + [0.36, 0.46, 0.6][f] * m + 0.02 * m * m,           // monsters per second before door pressure
   cap: (f, m) => Math.min(260, 26 + 30 * m + f * 20),                                     // max alive
   hp: (f, m) => [1, 2.5, 7.0][f] * (1 + 0.09 * m + 0.015 * m * m),                        // monster hp multiplier
   group: (f, m) => 1 + Math.min(5, Math.floor(m / 1.4) + f),                              // monsters per knock
   keyCost: n => Math.round(6 + 5 * n + 0.45 * n * n),                                     // glints for the n-th key
-  room: (f, m) => [1, 1.8, 3.0][f] * (1 + 0.24 * m),                                      // room power (spikes, owls, embers...)
-  pressure: (doors, wedge) => 0.55 + 0.11 * Math.min(14, doors) * (1 - 0.12 * wedge),     // each sealed door adds to the knocking
+  room: (f, m) => [1, 2.0, 3.8][f] * (1 + 0.24 * m),                                      // room power (spikes, owls, embers...)
+  door: [0.11, 0.15, 0.17],                                                               // what one sealed door adds to the knocking, per floor
+  pressure: (doors, wedge, f) => 0.55 + CURVE.door[f || 0] * Math.min(14, doors) * (1 - 0.12 * wedge),   // the knocking: every sealed door is a place they come from
+  stars: [0.85, 1.6, 2.6],                                                                // room power by star level: one star alone is a help, three do the work
+  res: 0.4,                                                                               // +40% room power per resonating neighbour
   bossHp: (f, overstay) => (overstay ? 1.25 : 1),
+  dread: 0.6,                                                                             // past 60% of the dread clock the knocking grows, up to this much more when it runs out
+  fury: { after: 50, every: 20, step: 0.1, max: 8 },                                      // a warden's fight: seconds before its first step of fury, seconds per step, speed per step, most steps
   costKeep: 0.5,                                                                          // share of key-cost progress kept when you descend
 };
-const LV_MUL = [1, 1.5, 2.0];          // room power by star level
-const RES_STEP = 0.25;                 // +25% per resonating neighbour
+
+// Stakes: a ladder for players who get through. A win at a step unlocks the next one for that delver. Each step
+// adds one rule and keeps the ones before it. stake(n) asks whether step n's rule is in force in this run.
+const STAKES = [
+  'Wardens arrive enraged.',
+  'Pests come from the first floor on, and sooner.',
+  'Dice roll in with the waves.',
+  'Hearts drop half as often.',
+  'Monsters are a fifth tougher.',
+  'The dread clock runs a quarter faster.',
+];
+const stake = n => (G.stakes || 0) >= n;
+// the monsters a wave draws from right now: the floor's mix, plus dice from the third step of Stakes
+function floorMix() { const l = G.F.mix(G.t); if (stake(3) && G.t >= 120) l.push(['die', 0.45]); return l; }
 
 // Heroes: a starting weapon, a perk and a default deck (10 room cards). `sig` is unlocked with them.
 // Perk knobs: rooms = room power multiplier, hearts = heart drop rate multiplier (other perks are in 40-actors.js).
