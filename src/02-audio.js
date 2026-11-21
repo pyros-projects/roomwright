@@ -109,30 +109,12 @@ const Snd = (() => {
   // drums) or a written score (below)
   const MIN = [0, 3, 7], MAJ = [0, 4, 7];
   const TRACKS = {
-    title: { bpm: 80, chords: [[45, MIN], [41, MAJ], [48, MAJ], [43, MAJ]], arp: [0, -1, 1, -1, 2, -1, 3, -1, 2, -1, 1, -1, 2, -1, 1, -1], bass: { 0: 0, 8: 7 }, drums: 0, leadAlways: true, leadVol: 0.07,
+    title: { bpm: 80, chords: [[45, MIN], [41, MAJ], [48, MAJ], [43, MAJ]], arp: [0, -1, 1, -1, 2, -1, 3, -1, 2, -1, 1, -1, 2, -1, 1, -1], bass: { 0: 0, 8: 7 }, drums: 0, leadVol: 0.07,
       lead: [[[0, 76, 8], [8, 81, 8]], [[0, 77, 8], [8, 72, 8]], [[0, 79, 8], [8, 76, 8]], [[0, 74, 14]]] },
-    cellar: { bpm: 112, bars: 48, score: cellarScore },       // floor 1, written out: src/25-music.js
-    garden: { bpm: 100, chords: [[38, MIN], [46, MAJ], [41, MAJ], [48, MAJ], [38, MIN], [46, MAJ], [43, MIN], [45, MAJ]], arp: [0, 2, 1, 2, 3, 2, 1, 2, 0, 2, 1, 2, 3, 2, 1, 2], bass: { 0: 0, 6: 7, 8: 12, 14: 7 }, drums: 1, leadVol: 0.08,
-      lead: [
-        [[0, 74, 4], [4, 77, 4], [8, 81, 6], [14, 79, 2]],
-        [[0, 77, 6], [6, 74, 2], [8, 70, 4], [12, 74, 4]],
-        [[0, 72, 4], [4, 77, 4], [8, 81, 4], [12, 84, 4]],
-        [[0, 79, 6], [6, 76, 2], [8, 72, 8]],
-        [[0, 74, 2], [2, 77, 2], [4, 81, 4], [8, 86, 6], [14, 84, 2]],
-        [[0, 82, 4], [4, 77, 4], [8, 74, 4], [12, 77, 4]],
-        [[0, 79, 4], [4, 74, 4], [8, 70, 4], [12, 74, 4]],
-        [[0, 73, 4], [4, 76, 4], [8, 81, 8]]] },
-    kiln: { bpm: 128, chords: [[40, MIN], [48, MAJ], [43, MAJ], [47, MAJ], [40, MIN], [48, MAJ], [45, MIN], [47, MAJ]], arp: [0, 1, 2, 1, 3, 1, 2, 1, 0, 1, 2, 1, 3, 1, 2, 1], bass: { 0: 0, 3: 0, 6: 12, 8: 0, 11: 0, 14: 7 }, drums: 2, leadVol: 0.08,
-      lead: [
-        [[0, 76, 2], [2, 79, 2], [4, 83, 4], [8, 81, 2], [10, 79, 2], [12, 76, 4]],
-        [[0, 79, 4], [4, 76, 2], [6, 72, 2], [8, 76, 8]],
-        [[0, 74, 2], [2, 79, 2], [4, 83, 4], [8, 86, 4], [12, 83, 4]],
-        [[0, 78, 4], [4, 75, 4], [8, 71, 4], [12, 75, 4]],
-        [[0, 76, 2], [2, 79, 2], [4, 83, 4], [8, 88, 6], [14, 86, 2]],
-        [[0, 84, 4], [4, 79, 4], [8, 76, 4], [12, 79, 4]],
-        [[0, 81, 4], [4, 76, 4], [8, 72, 4], [12, 76, 4]],
-        [[0, 78, 4], [4, 83, 4], [8, 87, 8]]] },
-    boss: { bpm: 148, chords: [[45, MIN], [45, MIN], [41, MAJ], [40, MAJ]], arp: [0, 2, 1, 2, 0, 2, 1, 2, 0, 2, 1, 2, 3, 2, 1, 2], bass: { 0: 0, 2: 0, 4: 12, 6: 0, 8: 0, 10: 0, 12: 12, 14: 7 }, drums: 2, leadAlways: true, leadVol: 0.08,
+    cellar: { bpm: 112, bars: 48, score: cellarScore },       // the three floors are written out: src/25-music.js
+    garden: { bpm: 100, bars: 48, score: gardenScore },
+    kiln: { bpm: 128, bars: 56, score: kilnScore },
+    boss: { bpm: 148, chords: [[45, MIN], [45, MIN], [41, MAJ], [40, MAJ]], arp: [0, 2, 1, 2, 0, 2, 1, 2, 0, 2, 1, 2, 3, 2, 1, 2], bass: { 0: 0, 2: 0, 4: 12, 6: 0, 8: 0, 10: 0, 12: 12, 14: 7 }, drums: 2, leadVol: 0.08,
       lead: [
         [[0, 81, 2], [2, 84, 2], [4, 81, 2], [6, 88, 2], [8, 86, 2], [10, 84, 2], [12, 83, 2], [14, 84, 2]],
         [[0, 81, 2], [2, 84, 2], [4, 81, 2], [6, 88, 2], [8, 89, 4], [12, 88, 4]],
@@ -170,10 +152,10 @@ const Snd = (() => {
   let cur = null, curName = null, step = 0, nextT = 0;
   function sched(tr, s, t, spb) {
     if (tr.score) { for (const n of tr.steps[s % tr.steps.length]) note(n, t, spb); return; }
-    const len = tr.chords.length, bar = Math.floor(s / 16) % len, st = s % 16, ch = tr.chords[bar], loop = Math.floor(s / (16 * len));
+    const len = tr.chords.length, bar = Math.floor(s / 16) % len, st = s % 16, ch = tr.chords[bar];
     const b = tr.bass[st]; if (b !== undefined) tone(mtof(ch[0] + b), spb * 2.4, { at: t, v: 0.2, type: 'triangle', bus: musBus, a: 0.01 });
     const ai = tr.arp[st]; if (ai >= 0) tone(mtof(ch[0] + 24 + (ai === 3 ? 12 : ch[1][ai])), spb * 1.6, { at: t, v: 0.03, type: 'square', bus: musBus });
-    if (tr.lead && (tr.leadAlways || loop % 2 === 1)) for (const n of tr.lead[bar]) if (n[0] === st) tone(mtof(n[1]), spb * n[2] * 0.98, { at: t, v: tr.leadVol, type: 'triangle', bus: musBus, a: 0.02, vib: n[2] >= 4 });
+    if (tr.lead) for (const n of tr.lead[bar]) if (n[0] === st) tone(mtof(n[1]), spb * n[2] * 0.98, { at: t, v: tr.leadVol, type: 'triangle', bus: musBus, a: 0.02, vib: n[2] >= 4 });
     if (tr.drums) {
       if (st % 8 === 0 || (tr.drums > 1 && st % 8 === 6)) tone(140, 0.13, { at: t, v: 0.26, f2: 42, type: 'sine', bus: musBus });
       if (st % 8 === 4) noise(0.1, { at: t, v: 0.07, f: 1900, ft: 'bandpass', bus: musBus });

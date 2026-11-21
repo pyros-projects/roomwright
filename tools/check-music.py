@@ -7,8 +7,8 @@ Prints one PASS/FAIL/SKIP line per check and exits non-zero on a failure.
 
 How: before the game boots, the page gets an AudioContext that renders into memory and a sequencer clock
 that this check turns by hand. The game's code then schedules a track in a moment, and the samples are
-read back. A track shorter than half a minute is played twice, because a pattern track brings its lead in
-on the second pass; a longer one is played once and two bars into its repeat. This reads levels, finds gaps
+read back. A track shorter than half a minute is played twice, a longer one once and two bars into its
+repeat, so every track is heard across its loop point. This reads levels, finds gaps
 and finds single samples that jump out of the wave (a tick); it cannot tell whether a piece sounds good.
 
 The browser is found as in tools/check-intro.py. Without a Chromium for Playwright it is skipped.

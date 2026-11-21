@@ -18,7 +18,7 @@ tools/build.sh --check   # fail if index.html is stale
 | `20-weapons` | `WEAPONS` (levels, evolution and its room) and `CHARMS` |
 | `22-rooms` | `ELEMENTS`, `ROOM_TYPES` (17x11 ASCII layouts, element, stars text), themes |
 | `23-monsters` `24-floors` | `MON`; `FLOORS` (monster mix, timeline, pests, natives), `CURVE`, `HEROES`, unlocks |
-| `25-music` | music that is written out note by note: floor 1's 48 bars, built from its theme, voicings and rhythms |
+| `25-music` | music that is written out note by note: one piece per floor, each built from its theme, voicings and rhythms |
 | `30-dungeon` | the grid, doors, resonance links, latching and breaching, room painting, flow fields |
 | `40-actors` `41-weapons` | player, monsters, shots, pickups; one `WUPD` function per weapon |
 | `42-director` `43-draft` `44-coach` | spawning and pressure, events, wardens, room powers; dealing cards and placing rooms; the lessons shown on a draft card |
@@ -63,9 +63,9 @@ GAME_URL=https://pyros-projects.github.io/roomwright/ tools/check.sh
 ## Not done yet
 
 Balance is tuned against two bots, a newcomer and a practised player (`docs/checks.md`), and not
-yet against people. Floor 1's music has been listened to and approved, played by the game's
-synthesizer outside a run. Nobody has listened to the rest of the audio
-or held a real gamepad: the checks confirm that every sound produces a signal and that the pad
+yet against people. The music of the three floors has been listened to and approved, played by the
+game's synthesizer outside a run. Nobody has yet judged the title and warden music or the sound
+effects, or held a real gamepad: the checks confirm that every sound produces a signal and that the pad
 mapping works with a simulated pad, nothing more. The intro's soundtrack has been
 listened to and approved. Its levels are measured: -15.7 LUFS, peak -1.6 dBFS. There is no rebindable-controls screen, and room cards cannot yet be banned or weighted
 inside a deck.
