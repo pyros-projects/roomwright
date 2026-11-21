@@ -43,6 +43,7 @@
      43-draft ............ room cards: the level-up
      50/51/52-render ..... world, HUD, screens (draft, deck, menus, title)
      60-game ............. save data + meta-game, state machine, loop, boot
+     62-music-player ..... the title's music player: tracks, voice switches, sounds, dancers
      70-debug ............ window.RW hooks used by automated playtests
    ===================================================================== */
 (() => {
@@ -55,6 +56,7 @@ What changed for a player, newest first. The game shows the same text: CHANGELOG
 ## 0.4: The screen burns (in progress)
 
 - The music can follow the floor plan: Music grows in the pause menu. WITH THE PLAN brings a floor's piece in voice by voice as you build. BY ELEMENT adds a voice for each element among your rooms.
+- A music player on the title screen: every track, switches for its voices and for the element voices, every sound effect, and the game's creatures dancing to it.
 
 ## 0.3: The card decides the run (2026-11-21)
 
@@ -482,14 +484,13 @@ const Snd = (() => {
   function sched(tr, s, t, spb) {
     if (tr.score) { for (const n of tr.steps[s % tr.steps.length]) if (sounds(n[1])) { note(n, t, spb); heard(n[1], t); } return; }
     const len = tr.chords.length, bar = Math.floor(s / 16) % len, st = s % 16, ch = tr.chords[bar];
-    if (tr.bass[st] !== undefined) heard('bass', t); if (tr.arp[st] >= 0) heard('arp', t); if (tr.lead && tr.lead[bar].some(n => n[0] === st)) heard('lead', t);
-    if (tr.drums && (st % 8 === 0 || st % 8 === 4 || (tr.drums > 1 && st % 8 === 6))) heard('drum', t);
-    const b = tr.bass[st]; if (b !== undefined) tone(mtof(ch[0] + b), spb * 2.4, { at: t, v: 0.2, type: 'triangle', bus: musBus, a: 0.01 });
-    const ai = tr.arp[st]; if (ai >= 0) tone(mtof(ch[0] + 24 + (ai === 3 ? 12 : ch[1][ai])), spb * 1.6, { at: t, v: 0.03, type: 'square', bus: musBus });
-    if (tr.lead) for (const n of tr.lead[bar]) if (n[0] === st) tone(mtof(n[1]), spb * n[2] * 0.98, { at: t, v: tr.leadVol, type: 'triangle', bus: musBus, a: 0.02, vib: n[2] >= 4 });
-    if (tr.drums) {
-      if (st % 8 === 0 || (tr.drums > 1 && st % 8 === 6)) tone(140, 0.13, { at: t, v: 0.26, f2: 42, type: 'sine', bus: musBus });
-      if (st % 8 === 4) noise(0.1, { at: t, v: 0.07, f: 1900, ft: 'bandpass', bus: musBus });
+    const by = v => !mix.hand || !!mix.hand[v];            // a pattern takes no part in the plan: only the music player switches its voices
+    const b = tr.bass[st]; if (b !== undefined && by('bass')) { heard('bass', t); tone(mtof(ch[0] + b), spb * 2.4, { at: t, v: 0.2, type: 'triangle', bus: musBus, a: 0.01 }); }
+    const ai = tr.arp[st]; if (ai >= 0 && by('arp')) { heard('arp', t); tone(mtof(ch[0] + 24 + (ai === 3 ? 12 : ch[1][ai])), spb * 1.6, { at: t, v: 0.03, type: 'square', bus: musBus }); }
+    if (tr.lead && by('lead')) for (const n of tr.lead[bar]) if (n[0] === st) { heard('lead', t); tone(mtof(n[1]), spb * n[2] * 0.98, { at: t, v: tr.leadVol, type: 'triangle', bus: musBus, a: 0.02, vib: n[2] >= 4 }); }
+    if (tr.drums && by('drum')) {
+      if (st % 8 === 0 || (tr.drums > 1 && st % 8 === 6)) { heard('drum', t); tone(140, 0.13, { at: t, v: 0.26, f2: 42, type: 'sine', bus: musBus }); }
+      if (st % 8 === 4) { heard('drum', t); noise(0.1, { at: t, v: 0.07, f: 1900, ft: 'bandpass', bus: musBus }); }
       if (st % 2 === 0) noise(0.03, { at: t, v: 0.022, f: 7000, ft: 'highpass', bus: musBus });
     }
   }
@@ -5586,7 +5587,7 @@ const LOGO = 'ROOMWRIGHT';
 // The title's small entries along the bottom, left to right. The big one, START, is the rest of the screen.
 // App.titleSel holds the id of the chosen one, '' for START.
 function titleLayout() {
-  const items = []; if (Intro.ok) items.push(['intro', 'INTRO']); items.push(['changes', 'CHANGELOG']);
+  const items = []; if (Intro.ok) items.push(['intro', 'INTRO']); items.push(['music', 'MUSIC'], ['changes', 'CHANGELOG']);
   let x = 0; return items.map(([id, label]) => { const r = { id, label, x, y: VH - 18, w: textW(label) + 12, h: 18 }; x += r.w; return r; });
 }
 function renderTitle(g) {
@@ -5680,6 +5681,7 @@ function render() {
   else if (m === 'prep') renderPrep(g);
   else if (m === 'deck') renderDeck(g);
   else if (m === 'changes') renderChanges(g);
+  else if (m === 'music') renderMusic(g);
   else if (m === 'descend') renderDescend(g);
   else {
     renderWorld(g); renderHUD(g);
@@ -5690,7 +5692,7 @@ function render() {
 
 /* ============================= 15 GAME LOOP =========================== */
 // modes: (intro ->) title -> prep (<-> deck) -> play <-> draft / pause -> descend -> play ... -> over | win
-//        title <-> changes (the changelog)
+//        title <-> changes (the changelog), title <-> music (the music player, 62-music-player)
 const App = { mode: 'title', prevMode: '', modeT: 0, sel: 0, fade: null, record: false, big: {}, manual: false, coach: true, titleT: 0, titleRoom: 0, titleSel: '', titlePtr: false,
   changes: { y: 0 }, prep: { i: 0 }, deck: { cur: 0, msg: '', msgT: 0 }, descend: null };
 
@@ -5764,7 +5766,7 @@ function makeShowcase() {
   App.mode = 'title'; App.titleRoom = 0; App.titleT = 0; App.titleSel = '';
   G.cam.x = G.rooms[0].px + CWP / 2 - VW / 2; G.cam.y = G.rooms[0].py + CHP / 2 - VH / 2;
 }
-function toTitle() { Snd.music('title'); makeShowcase(); }
+function toTitle() { Snd.hand(null); Snd.music('title'); makeShowcase(); }
 function floorBanner() { banner('FLOOR ' + (G.floor + 1) + ': ' + G.F.name.toUpperCase(), G.floor === 0 ? 'Draft rooms. After ' + STAIRS_MIN + ', a draft offers the Stairwell down.' : 'New monsters. New rooms. Same idea.', '#ffd95e', 3.2); }
 function startRun(seed, opts = {}) {
   if (seed === undefined) { const q = new URLSearchParams(location.search).get('seed'); seed = q !== null && q !== '' && isFinite(+q) ? +q : (Math.random() * 2147483647) | 0; }   // ?seed=123 pins the run
@@ -5820,7 +5822,7 @@ function musicPlan() {
   return { step: mine.length >= 5 ? 3 : mine.length >= 3 ? 2 : mine.length >= 1 ? 1 : 0, els, res };
 }
 // a floor's piece starts, and with it what this floor's plan gives it, not the last floor's
-function floorMusic() { G.planT = 0.5; Snd.plan(musicPlan()); Snd.music(G.F.music); }
+function floorMusic() { G.planT = 0.5; Snd.hand(null); Snd.plan(musicPlan()); Snd.music(G.F.music); }
 function updatePlay(dt) {
   const P = G.P;
   if ((G.planT = (G.planT || 0) - dt) <= 0) { G.planT = 0.5; Snd.plan(musicPlan()); }
@@ -5875,6 +5877,7 @@ const MODES = {
     if (act && act !== 'start') { App.titleSel = ''; App.titlePtr = false; }
     if (act === 'intro') { Intro.begin(); return; }                      // watch the intro again
     if (act === 'changes') { Snd.ensure(); sfx('ok'); App.changes.y = 0; App.mode = 'changes'; return; }
+    if (act === 'music') { Snd.ensure(); sfx('ok'); openPlayer(); return; }
     if (act === 'start') {
       Snd.ensure(); sfx('ok');
       if (Save.data.runs === 0) startFade(() => startRun());             // very first run: straight in, with the tutorial
@@ -6110,6 +6113,151 @@ function renderIntro(g) {             // under the film: black, or the prompt fo
   if (Math.floor(frameT * 2.2) & 1) txo(g, touch ? 'TAP TO BEGIN' : 'PRESS ANY KEY', cx, cy + 6, '#fff8e8', '#1a1426', 0.5);
 }
 
+/* ============================ 15c MUSIC PLAYER ======================== */
+// A screen reached from the title. It plays every track in the game. Its switches turn the voices of the playing
+// piece on and off, and the element voices, so both ways of "Music grows" can be heard here without a run. A second
+// page plays every sound effect. Under it sprites from the game dance: one dancer per voice, which hops when its
+// voice starts a note and stands still otherwise, dimmed while its voice is switched off.
+const Player = { page: 0, sel: 'track:title', track: 'title', off: {}, els: {}, full: false };
+const VOICE_ORDER = ['bass', 'drum', 'arp', 'lead', 'answer', 'counter', 'pluck', 'bell'];
+const VOICE_NAMES = { bass: 'bass', drum: 'drums', arp: 'arpeggio', lead: 'lead', answer: 'answer', counter: 'counter', pluck: 'plucks', bell: 'bells' };
+// who dances to which voice of which track: a sprite's name without its frame number; '@' is the delver of the save.
+// `idle` has no voice: Moss looks on while the other three delvers dance to the title's tune.
+const DANCERS = {
+  title: { bass: 'brin', arp: 'wick', lead: 'pip', idle: 'moss' },
+  cellar: { bass: 'kslime', drum: 'tin', arp: 'slime', lead: '@', answer: 'bat', counter: 'bones', pluck: 'spore', bell: 'latch' },
+  garden: { bass: 'eshroom', drum: 'beetle', arp: 'bslime', lead: '@', answer: 'moth', counter: 'ghost', pluck: 'thorn', bell: 'flower' },
+  kiln: { bass: 'golem', drum: 'bomber', arp: 'cinder', lead: '@', answer: 'imp', counter: 'wraith', pluck: 'bones', bell: 'hexer' },
+  boss: { bass: 'boss', drum: 'morel', lead: 'unmaker', arp: 'sapper' },
+};
+const playerTracks = () => [['title', 'Title'], ...FLOORS.map(f => [f.music, f.name]), ['boss', 'The wardens']];
+// the voices the switches leave on, told to the sequencer
+function playerHand() {
+  const set = {}, info = Snd.info(Player.track);
+  for (const v of info.voices) if (!Player.off[v]) set[v] = 1;
+  for (const el of info.elements) if (Player.els[el]) { set[el] = 1; if (Player.full) set[el + '+'] = 1; }
+  Snd.hand(set);
+}
+// it opens on the playing track with every voice of the piece on and no element voice
+function openPlayer() { Player.page = 0; Player.track = Snd.track || 'title'; Player.sel = 'track:' + Player.track; Player.off = {}; Player.els = {}; Player.full = false; playerHand(); App.mode = 'music'; }
+function closePlayer() { Snd.hand(null); if (Snd.track !== 'title') Snd.music('title'); App.mode = 'title'; sfx('back'); }
+function playerPlay(id) { Player.track = id; Player.off = {}; Snd.music(null); Snd.music(id); playerHand(); }
+
+// Everything that can be chosen on the current page, each with its place on screen and in a grid the arrows walk:
+// { id, x, y, w, h, gx, gy, label, on, col }. The top row (BACK and the two tabs) is gy -1.
+function playerLayout() {
+  const W = Math.min(VW - 16, 464), x0 = Math.round(VW / 2 - W / 2), top = 22, row = 12, items = [];
+  const add = (id, gx, gy, x, y, w, h, label, more) => items.push(Object.assign({ id, gx, gy, x: Math.round(x), y, w: Math.floor(w), h, label }, more));
+  add('back', 0, -1, 0, 0, textW('BACK') + 12, 18, 'BACK');
+  let tx = x0 + W; for (const [i, name] of [[1, 'SOUNDS'], [0, 'MUSIC']]) { const w = textW(name) + 12; tx -= w; add('tab:' + i, 1 + i, -1, tx, 0, w, 18, name, { on: Player.page === i }); }
+  const L_ = { W, x0, top, row, items, floor: { x: x0, y: 126, w: W, h: Math.max(40, VH - 126 - 18) } };
+  if (Player.page === 1) {                                   // every sound effect, in columns
+    const names = Snd.names, cols = Math.max(2, Math.floor(W / 92)), cw = W / cols, rows = Math.ceil(names.length / cols);
+    names.forEach((n, i) => add('fx:' + n, Math.floor(i / rows), i % rows, x0 + Math.floor(i / rows) * cw, top + (i % rows) * 11, cw - 1, 11, n));
+    return L_;
+  }
+  const info = Snd.info(Player.track), cw = Math.round(W * 0.27), vw = Math.floor((W - cw - 12) / 2), vx = x0 + cw + 6, ex = vx + vw + 6, y1 = top + 14;
+  L_.cols = [[x0, cw, 'TRACKS'], [vx, vw, 'VOICES'], [ex, vw, 'ELEMENTS']]; L_.info = info; L_.panelH = 14 + 5 * row + 6;
+  playerTracks().forEach(([id, name], i) => add('track:' + id, 0, i, x0 + 2, y1 + i * row, cw - 4, row, name, { on: Player.track === id }));
+  VOICE_ORDER.filter(v => info.voices.includes(v)).forEach((v, i) => add('voice:' + v, 1 + (i >> 2), i & 3, vx + 2 + (i >> 2) * (vw / 2), y1 + (i & 3) * row, vw / 2 - 2, row, VOICE_NAMES[v], { on: !Player.off[v], box: 1 }));
+  info.elements.forEach((el, i) => add('el:' + el, 3 + (i >> 2), i & 3, ex + 2 + (i >> 2) * (vw / 2), y1 + (i & 3) * row, vw / 2 - 2, row, ELEMENTS[el].name, { on: !!Player.els[el], box: 1, col: ELEMENTS[el].col }));
+  if (info.elements.length) add('full', 3, 4, ex + 2, y1 + 4 * row, vw - 4, row, 'resonating', { on: Player.full, box: 1 });
+  return L_;
+}
+// Where an arrow leads from `cur`. Inside the page it moves by one place in the grid: a row up or down in the same
+// column, or to the next column that has anything, in the same row or that column's last. UP from a column's first
+// row goes to the top row and DOWN from the top row comes back. In the top row LEFT and RIGHT walk BACK, MUSIC, SOUNDS.
+function playerNext(items, cur, dx, dy) {
+  const at = (gx, gy) => items.find(it => it.gx === gx && it.gy === gy), page = items.filter(it => it.gy >= 0), last = Math.max(...page.map(it => it.gx));
+  if (cur.gy < 0) {
+    if (dx) return at(cur.gx + dx, -1) || null;
+    return dy > 0 ? (cur.gx === 0 ? at(0, 0) : cur.gx === 2 ? at(last, 0) : at(Math.min(1, last), 0)) || page[0] || null : null;
+  }
+  if (dy) {
+    if (cur.gy + dy < 0) return at(cur.gx === 0 ? 0 : cur.gx === last || cur.gx >= 3 ? 2 : 1, -1);
+    return at(cur.gx, cur.gy + dy) || (dy > 0 && cur.gx >= 3 ? at(3, 4) : null) || null;      // "resonating" lies under both element columns
+  }
+  for (let gx = cur.gx + dx; gx >= 0 && gx <= last; gx += dx) {
+    const col = page.filter(it => it.gx === gx); if (!col.length) continue;
+    return at(gx, cur.gy) || col.reduce((a, b) => Math.abs(b.gy - cur.gy) < Math.abs(a.gy - cur.gy) ? b : a);
+  }
+  return null;
+}
+function playerUse(it) {
+  const [kind, id] = it.id.split(':');
+  if (kind === 'tab') { Player.page = +id; Player.sel = it.id; sfx('tick'); }
+  else if (kind === 'track') { playerPlay(id); sfx('ok'); }
+  else if (kind === 'voice') { Player.off[id] = !Player.off[id]; playerHand(); sfx('tick'); }
+  else if (kind === 'el') { Player.els[id] = !Player.els[id]; playerHand(); sfx('tick'); }
+  else if (kind === 'full') { Player.full = !Player.full; playerHand(); sfx('tick'); }
+  else if (kind === 'fx') Snd.play(id, 3);
+}
+MODES.music = function (dt) {
+  G.t += dt; updateDoors(dt); updateRooms(dt); updateAllies(dt); updateSmall(dt);        // the title's rooms live on behind it
+  const items = playerLayout().items, m = Input.mouse, over = items.find(it => Input.inRect(it));
+  let cur = items.find(it => it.id === Player.sel) || items.find(it => it.id === 'track:' + Player.track) || items.find(it => it.gy >= 0), use = null;
+  const dx = (Input.hit('right') ? 1 : 0) - (Input.hit('left') ? 1 : 0), dy = dx ? 0 : (Input.hit('down') ? 1 : 0) - (Input.hit('up') ? 1 : 0);
+  if (dx || dy) { const to = playerNext(items, cur, dx, dy); if (to) { cur = to; sfx('tick'); } }
+  if (over && (m.moved || m.click)) cur = over;             // the choice follows the pointer and a tap
+  Player.sel = cur.id;
+  if (App.modeT > 0.3) { if (m.click) use = over; else if (Input.confirm()) use = cur; }
+  if (Input.hit('alt')) use = items.find(it => it.id === 'tab:' + (1 - Player.page));     // Q or Tab turns the page
+  if (Input.hit('back') || (use && use.id === 'back')) { closePlayer(); return; }
+  if (use) playerUse(use);
+};
+
+function renderMusic(g) {
+  renderWorld(g);
+  g.fillStyle = 'rgba(13,10,26,0.84)'; g.fillRect(0, 0, VW, VH);
+  const L_ = playerLayout(), { W, x0, top, items } = L_, sel = Player.sel;
+  txs(g, 'MUSIC PLAYER', VW / 2, 6, '#ffd95e', 0.5);
+  if (L_.cols) for (const [x, w, head] of L_.cols) { panel(g, x, top, w, L_.panelH); txt(g, head, x + 5, top + 4, '#9aa3b5'); }
+  if (L_.cols && !L_.info.elements.length) txt(g, 'none in this one', L_.cols[2][0] + 5, top + 18, '#5d667c');
+  for (const it of items) {
+    const on = it.id === sel, kind = it.id.split(':')[0], small = kind === 'back' || kind === 'tab';
+    if (on) { g.fillStyle = 'rgba(255,217,94,0.16)'; g.fillRect(it.x, it.y, it.w, it.h - 1); }
+    let x = it.x + (small ? 5 : 3); const y = it.y + (small ? 8 : 2);
+    if (it.box) { g.fillStyle = it.on ? (it.col || '#9cecf2') : '#3b2d4f'; g.fillRect(x, y + 1, 6, 6); if (!it.on) { g.fillStyle = '#1f1a36'; g.fillRect(x + 1, y + 2, 4, 4); } x += 9; }
+    const col = on ? '#ffd95e' : small ? (it.on ? '#fff8e8' : '#9aa3b5') : kind === 'track' && it.on ? '#fff8e8' : it.box && !it.on ? '#5d667c' : '#d8dbe6';
+    txt(g, it.label, x, y, col);
+    if (kind === 'track' && it.on) txt(g, '>', it.x + it.w - 8, y, '#9cecf2');
+    if (kind === 'tab' && it.on) { g.fillStyle = '#ffd95e'; g.fillRect(it.x + 5, it.y + 17, it.w - 12, 1); }
+  }
+  if (Player.page === 0) {
+    const info = L_.info, pos = Snd.track === Player.track ? Snd.pos() : null, bar = pos ? Math.floor(pos.step / 16) % info.bars + 1 : 0, y = top + L_.panelH + 5;
+    const name = info.title || playerTracks().find(t => t[0] === Player.track)[1], part = bar && info.parts.length ? info.parts[Math.floor((bar - 1) / 8)] : '';
+    const state = !Snd.on ? 'press a key or tap to start the sound' : Snd.vol.music <= 0 ? 'silent: the music volume is at 0' : bar ? 'bar ' + bar + ' of ' + info.bars + (part ? '  -  ' + part : '') : '';
+    txt(g, name, x0, y, '#fff8e8'); txt(g, state, x0 + W, y, '#9aa3b5', 1);
+    g.fillStyle = '#3b2d4f'; g.fillRect(x0, y + 11, W, 2); if (pos) { g.fillStyle = '#ffd95e'; g.fillRect(x0, y + 11, Math.round(W * (pos.step % pos.steps) / pos.steps), 2); }
+    drawDancers(g, L_.floor, info, pos);
+  }
+  txt(g, Input.touch ? 'tap a track, a switch or a sound' : 'ARROWS choose - ENTER plays or switches - Q turns the page - ESC goes back', VW / 2, VH - 10, '#5d667c', 0.5);
+}
+// The dance floor: the floor's colours, tiles that light on the beat, an icon for each element voice and a dancer for
+// each voice of the piece. A dancer hops when its voice starts a note and stands dimmed while its voice is off.
+function drawDancers(g, F, info, pos) {
+  const fl = FLOORS.find(f => f.music === Player.track), beat = pos ? Math.floor(pos.step / 4) : 0, n = Math.max(6, Math.floor(F.w / 24)), tw = F.w / n;
+  g.fillStyle = fl ? fl.void : '#0d0a1a'; g.fillRect(F.x, F.y, F.w, F.h);
+  for (let i = 0; i < n; i++) { g.fillStyle = (i + beat) & 1 ? (fl ? fl.mark : '#2a2350') : (fl ? fl.grid : '#1a1532'); g.fillRect(Math.round(F.x + i * tw), F.y + F.h - 14, Math.ceil(tw) - 1, 12); }
+  const map = DANCERS[Player.track] || {}, list = VOICE_ORDER.filter(v => map[v] && info.voices.includes(v)); if (map.idle) list.push('idle');
+  const spr = (v, fr) => { const who = map[v] === '@' ? Save.data.hero : map[v]; return SPR[HEROES[who] ? who + 'D' + fr : who + fr]; };
+  // twice their size where the floor has the room for the tallest of them and its hop under the icons, and for the widest
+  const gap = F.w / list.length, base = F.y + F.h - 8, k = list.every(v => spr(v, 0).h * 2 + 46 <= F.h && spr(v, 0).w * 2 <= gap) ? 2 : 1;
+  const draw = (s, x, y, flip) => g.drawImage(flip ? s.f : s.c, Math.round(x) - (flip ? s.w - 1 - s.ax : s.ax) * k, Math.round(y) - s.ay * k, s.w * k, s.h * k);
+  list.forEach((v, i) => {
+    const on = v !== 'idle' && Snd.sounds(v), since = on ? Snd.since(v) : Infinity;
+    const hop = since < 0.26 ? Math.sin(since / 0.26 * Math.PI) * (v === 'bass' ? 6 : v === 'drum' ? 5 : 4) : 0, s = spr(v, hop ? Math.floor(frameT * 8) & 1 : 0);
+    const x = F.x + gap * (i + 0.5) + (v === 'idle' ? Math.round(Math.sin(frameT * 2)) : 0);
+    g.globalAlpha = on || v === 'idle' ? 1 : 0.35;
+    draw(s.w > 34 ? SPR.sh_xl : s.w > 20 ? SPR.sh_l : SPR.sh_s, x, base + 2 * k, false); draw(s, x, base - Math.round(hop) * k, on && (((beat >> 1) + i) & 1) === 1);
+    g.globalAlpha = 1;
+  });
+  info.elements.forEach((el, i) => {
+    const on = Snd.sounds(el), since = on ? Snd.since(el) : Infinity, hop = since < 0.2 ? Math.sin(since / 0.2 * Math.PI) * 3 : 0;
+    g.globalAlpha = on ? 1 : 0.25; draw(SPR['e_' + el], F.x + F.w / info.elements.length * (i + 0.5), F.y + 10 * k + 2 - Math.round(hop) * k, false); g.globalAlpha = 1;
+  });
+}
+
 /* =============================== 16 DEBUG ============================= */
 // Test hooks for automated playtests (see README.md and tools/). Nothing here is needed to play.
 window.RW = {
@@ -6120,7 +6268,7 @@ window.RW = {
   coach(on) { App.coach = !!on; },                                     // false = no card lessons in drafts (the checks and the bot use this)
   coachPlan, cardPart, stairsLocked, knockBack, knockTier, KNOCK, draftLayout, pauseLayout, hintFor, view: () => ({ VW, VH, SCALE }),
   titleLayout, changesLayout, CHANGES, CHANGELOG_MD, FONT,             // the title's entries and the changelog
-  musicPlan, GROW_WAYS,                                                // what the plan gives the music
+  musicPlan, GROW_WAYS, Player, playerLayout, openPlayer, closePlayer, DANCERS, // what the plan gives the music, and the music player
   tallyList, tallyShare, record: runRecord, endLayout, siegeTarget, dreadMul, knocking, wardenShare, swiftLeft, doorPressure,
   STAKES, stake, stakesOpen, stakeOf, prepLayout, floorMix,           // the Stakes ladder                 // the damage tally, and the census record of the run as it stands
   census() { const c = Save.data.census; if (console.table) console.table(c.map(r => Object.assign({}, r, { by: r.by.join(' < ') }))); return c; },                                   // true = the page stops ticking itself; drive it with step()

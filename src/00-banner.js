@@ -27,5 +27,6 @@
      43-draft ............ room cards: the level-up
      50/51/52-render ..... world, HUD, screens (draft, deck, menus, title)
      60-game ............. save data + meta-game, state machine, loop, boot
+     62-music-player ..... the title's music player: tracks, voice switches, sounds, dancers
      70-debug ............ window.RW hooks used by automated playtests
    ===================================================================== */

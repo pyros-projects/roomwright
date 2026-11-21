@@ -1,5 +1,5 @@
-// Flow checks: first run, pause and options, drafting (step back, stairs), game over, the title's entries and
-// the changelog, the hero and deck screens, victory, endless, back to title. Driven purely by input actions.
+// Flow checks: first run, pause and options, drafting (step back, stairs), game over, the title's entries, the
+// changelog and the music player, the hero and deck screens, victory, endless, back to title. Driven purely by input actions.
 // Run with tools/check.sh; returns one PASS/FAIL line per check.
 (() => {
   const out = [], ok = (n, c, i) => out.push((c ? 'PASS ' : 'FAIL ') + n + (i !== undefined ? ' (' + i + ')' : ''));
@@ -63,6 +63,41 @@
       for (let i = 0; i < 20; i++) press('ok'); ok('changelog: it stops at its end', RW.App.changes.y === L.max && RW.App.mode === 'changes', Math.round(RW.App.changes.y));
       press('back'); ok('changelog: ESC goes back to the title, with the choice on START again', RW.App.mode === 'title' && RW.App.titleSel === '', RW.App.mode + ' ' + RW.App.titleSel);
       press('down'); press('back'); ok('title: ESC puts the choice back on START', RW.App.titleSel === '', RW.App.titleSel); }
+    /* ---- the music player ---- */
+    { RW.toTitle(); RW.step(40); const T = RW.titleLayout(), mi = T.findIndex(e => e.id === 'music'), S = RW.Snd;
+      ok('title: the music player is one of its entries', mi >= 0, T.map(e => e.id).join(' '));
+      press('down'); for (let i = 0; i < mi; i++) press('right'); press('ok'); RW.step(30);
+      ok('music player: ENTER on its entry opens it', RW.App.mode === 'music', RW.App.mode);
+      let L = RW.playerLayout(); const ids = k => L.items.filter(i => i.id.startsWith(k + ':')).map(i => i.id.split(':')[1]);
+      ok('music player: it lists every track of the game', ids('track').sort().join() === S.tracks.slice().sort().join(), ids('track').join(' '));
+      RW.Player.sel = 'track:cellar'; press('ok');
+      ok('music player: ENTER on a track plays it', S.track === 'cellar' && RW.Player.track === 'cellar', S.track);
+      L = RW.playerLayout(); ok('music player: a written piece shows its voices and the eight elements', ids('voice').length === S.info('cellar').voices.length && ids('el').length === 8, ids('voice').length + ' voices, ' + ids('el').length + ' elements');
+      RW.Player.sel = 'voice:lead'; press('ok'); const off = !S.sounds('lead') && S.sounds('bass'); press('ok');
+      ok('music player: a voice\'s switch turns it off, and on again', off && S.sounds('lead'), off + ' ' + S.sounds('lead'));
+      RW.Player.sel = 'el:fire'; press('ok'); ok('music player: an element\'s switch turns its voice on', S.sounds('fire') && !S.sounds('fire+') && !S.sounds('frost'));
+      RW.Player.sel = 'full'; press('ok'); ok('music player: "resonating" adds the second layer of the elements that are on', S.sounds('fire+') && !S.sounds('frost+'));
+      RW.Player.sel = 'track:cellar'; press('right'); const a = RW.Player.sel; press('right'); press('right'); const b = RW.Player.sel;
+      ok('music player: the arrows walk from the tracks to the voices and on to the elements', a.startsWith('voice:') && (b.startsWith('el:') || b === 'full'), a + ' ' + b);
+      RW.Player.sel = 'track:title'; press('down'); ok('music player: DOWN moves along the tracks', RW.Player.sel === 'track:cellar', RW.Player.sel);
+      { const walk = (from, keys) => { RW.Player.sel = from; for (const k of keys) press(k); return RW.Player.sel; };
+        ok('music player: RIGHT keeps to the row across the columns', walk('track:kiln', ['right']) === 'voice:lead' && walk('el:steel', ['right']) === 'el:frost' && walk('voice:lead', ['right', 'right']) === 'el:steel', walk('track:kiln', ['right']) + ' ' + walk('el:steel', ['right']));
+        ok('music player: the top row walks BACK, MUSIC, SOUNDS and steps down into the page', walk('back', ['right']) === 'tab:0' && walk('tab:0', ['left']) === 'back' && walk('tab:0', ['right']) === 'tab:1' && walk('back', ['down']) === 'track:title' && walk('track:title', ['up']) === 'back', walk('back', ['right']) + ' ' + walk('back', ['down']));
+        ok('music player: "resonating" lies under both element columns', walk('el:steel', ['down']) === 'full' && walk('el:frost', ['down']) === 'full' && walk('full', ['up']) === 'el:steel' && walk('full', ['left']) === 'voice:bell', walk('full', ['left']));
+        const reach = new Set(), todo = ['track:title']; while (todo.length) { const id = todo.pop(); if (reach.has(id)) continue; reach.add(id); for (const k of ['up', 'down', 'left', 'right']) todo.push(walk(id, [k])); }
+        const all = RW.playerLayout().items.map(i => i.id); ok('music player: the arrows reach every item of the page', all.every(id => reach.has(id)), all.filter(id => !reach.has(id)).join(' ') || all.length + ' items'); }
+      RW.Player.sel = 'track:boss'; press('ok'); L = RW.playerLayout(); ok('music player: a pattern track has its own voices and no element', S.track === 'boss' && ids('voice').join() === 'bass,drum,arp,lead' && ids('el').length === 0, ids('voice').join(' '));
+      RW.Player.sel = 'voice:lead'; press('ok'); ok('music player: a pattern\'s voices switch too', !S.sounds('lead') && S.sounds('bass'));
+      press('alt'); L = RW.playerLayout(); ok('music player: Q turns to the sounds, one entry for every effect', RW.Player.page === 1 && ids('fx').length === S.names.length, ids('fx').length + ' of ' + S.names.length);
+      RW.Player.sel = 'fx:boom'; press('ok'); press('right'); ok('music player: a sound can be played and the arrows move among them, the track plays on', S.track === 'boss' && RW.Player.sel.startsWith('fx:') && RW.Player.sel !== 'fx:boom', RW.Player.sel);
+      { const walk = (from, keys) => { RW.Player.sel = from; for (const k of keys) press(k); return RW.Player.sel; }, reach = new Set(), todo = ['fx:boom'];
+        while (todo.length) { const id = todo.pop(); if (reach.has(id)) continue; reach.add(id); for (const k of ['up', 'down', 'left', 'right']) todo.push(walk(id, [k])); }
+        const all = RW.playerLayout().items.map(i => i.id); ok('music player: the arrows reach every sound and stay in their row', all.every(id => reach.has(id)) && walk('fx:hit', ['right', 'left']) === 'fx:hit', all.filter(id => !reach.has(id)).join(' ') || all.length + ' items'); }
+      const lost = []; for (const t of S.tracks) for (const v of S.info(t).voices) { const who = (RW.DANCERS[t] || {})[v]; if (!who || !(who === '@' || RW.SPR[who + '0'] || RW.SPR[who + 'D0'])) lost.push(t + ':' + v); }
+      ok('music player: every voice of every track has a dancer', lost.length === 0, lost.join(' ') || 'ok');
+      RW.render(); press('alt'); RW.render();
+      press('back'); ok('music player: ESC goes back to the title, its tune and every voice', RW.App.mode === 'title' && S.track === 'title' && S.sounds('lead') && !S.sounds('fire'), RW.App.mode + ' ' + S.track);
+      RW.step(30); }
     RW.step(30); press('ok'); ok('later runs go through the hero screen', RW.App.mode === 'prep', RW.App.mode);
     press('right'); ok('RIGHT shows the next delver', RW.App.prep.i === 1); RW.step(30); press('ok'); RW.step(30); ok('a locked delver cannot start', RW.App.mode === 'prep' && !RW.App.fade);
     press('alt'); ok('...nor open a deck', RW.App.mode === 'prep'); press('left');
@@ -95,7 +130,11 @@
     { const ci = RW.titleLayout().findIndex(e => e.id === 'changes'); pad.axes[1] = 1; gstep(2); pad.axes[1] = 0; gstep(2); for (let i = 0; i < ci; i++) { pad.axes[0] = 1; gstep(2); pad.axes[0] = 0; gstep(2); }
       tap(0); gstep(20); ok('pad: the stick and A open the changelog', RW.App.mode === 'changes', RW.App.mode + ' sel ' + RW.App.titleSel);
       const L = RW.changesLayout(); pad.axes[1] = 1; gstep(30); pad.axes[1] = 0; gstep(2); ok('pad: the stick scrolls it', L.max === 0 || RW.App.changes.y > 0, Math.round(RW.App.changes.y));
-      tap(1); ok('pad: B closes it, and the choice is START', RW.App.mode === 'title' && RW.App.titleSel === '', RW.App.mode + ' ' + RW.App.titleSel); }
+      tap(1); ok('pad: B closes it, and the choice is START', RW.App.mode === 'title' && RW.App.titleSel === '', RW.App.mode + ' ' + RW.App.titleSel);
+      gstep(30); const mi = RW.titleLayout().findIndex(e => e.id === 'music'); pad.axes[1] = 1; gstep(2); pad.axes[1] = 0; gstep(2); for (let i = 0; i < mi; i++) { pad.axes[0] = 1; gstep(2); pad.axes[0] = 0; gstep(2); }
+      tap(0); gstep(30); ok('pad: the stick and A open the music player', RW.App.mode === 'music', RW.App.mode);
+      pad.axes[1] = 1; gstep(2); pad.axes[1] = 0; gstep(2); tap(0); ok('pad: the stick chooses a track and A plays it', RW.Snd.track === 'cellar', RW.Snd.track + ' ' + RW.Player.sel);
+      tap(3); ok('pad: Y turns the page', RW.Player.page === 1, RW.Player.page); tap(1); ok('pad: B leaves the music player', RW.App.mode === 'title' && RW.Snd.track === 'title', RW.App.mode); }
     gstep(30); tap(0); gstep(40); ok('pad: A leaves the title', RW.App.mode === 'prep', RW.App.mode);
     gstep(30); tap(3); ok('pad: Y opens the deck builder', RW.App.mode === 'deck', RW.App.mode); tap(1); ok('pad: B closes it', RW.App.mode === 'prep', RW.App.mode);
     delete navigator.getGamepads;
@@ -223,7 +262,14 @@
       mouse('mousedown', e.x + e.w / 2, e.y + 9); RW.step(3); mouse('mouseup', 0, 0, 0, 0); RW.step(20); ok('mouse: a click on it opens the changelog', RW.App.mode === 'changes', RW.App.mode);
       const L = RW.changesLayout(); cvs.dispatchEvent(new WheelEvent('wheel', { deltaY: 120, bubbles: true, cancelable: true })); RW.step(2);
       ok('mouse: the wheel scrolls it', L.max === 0 || RW.App.changes.y > 0, Math.round(RW.App.changes.y) + ' of ' + L.max);
-      mouse('mousedown', L.back.x + 8, L.back.y + 9); RW.step(3); mouse('mouseup', 0, 0, 0, 0); ok('mouse: BACK closes it, and the choice is START', RW.App.mode === 'title' && RW.App.titleSel === '', RW.App.mode + ' ' + RW.App.titleSel); mouse('mousemove', V.VW / 2, V.VH / 2, 0, 0); RW.step(2); }
+      mouse('mousedown', L.back.x + 8, L.back.y + 9); RW.step(3); mouse('mouseup', 0, 0, 0, 0); ok('mouse: BACK closes it, and the choice is START', RW.App.mode === 'title' && RW.App.titleSel === '', RW.App.mode + ' ' + RW.App.titleSel); mouse('mousemove', V.VW / 2, V.VH / 2, 0, 0); RW.step(2);
+      const click = r => { mouse('mousemove', r.x + r.w / 2, r.y + r.h / 2, 0, 0); RW.step(2); mouse('mousedown', r.x + r.w / 2, r.y + r.h / 2); RW.step(3); mouse('mouseup', 0, 0, 0, 0); RW.step(2); };
+      const item = id => RW.playerLayout().items.find(i => i.id === id);
+      RW.step(30); click(RW.titleLayout().find(t => t.id === 'music')); RW.step(30); ok('mouse: a click on the title entry opens the music player', RW.App.mode === 'music', RW.App.mode);
+      click(item('track:garden')); ok('mouse: a click on a track plays it and the choice follows', RW.Snd.track === 'garden' && RW.Player.sel === 'track:garden', RW.Snd.track + ' ' + RW.Player.sel);
+      click(item('voice:bass')); click(item('el:water')); ok('mouse: clicks on the switches set the voices', !RW.Snd.sounds('bass') && RW.Snd.sounds('water') && RW.Snd.sounds('lead'));
+      click(item('tab:1')); ok('mouse: a click on SOUNDS turns the page', RW.Player.page === 1, RW.Player.page);
+      click(item('back')); ok('mouse: BACK leaves the music player', RW.App.mode === 'title' && RW.Snd.track === 'title', RW.App.mode); mouse('mousemove', V.VW / 2, V.VH / 2, 0, 0); RW.step(2); }
     if (typeof Touch === 'function' && typeof TouchEvent === 'function') {
       const touch = (type, pts) => { const ts = pts.map(([id, vx, vy]) => new Touch({ identifier: id, target: cvs, ...at(vx, vy) })); cvs.dispatchEvent(new TouchEvent(type, { changedTouches: ts, touches: type === 'touchstart' || type === 'touchmove' ? ts : [], bubbles: true, cancelable: true })); };
       const lx = V.VW * 0.25, ly = V.VH * 0.7, rx = V.VW * 0.8, ry = V.VH * 0.6;
@@ -245,7 +291,11 @@
         ok('touch: a tap on the title entry opens the changelog', RW.App.mode === 'changes', RW.App.mode);
         const L = RW.changesLayout(); touch('touchstart', [[11, L.lower.x + L.lower.w / 2, L.lower.y + L.lower.h / 2]]); RW.step(3); touch('touchend', [[11, 0, 0]]);
         ok('touch: a tap on the lower half of the text reads on', L.max === 0 || RW.App.changes.y > 0, Math.round(RW.App.changes.y) + ' of ' + L.max);
-        touch('touchstart', [[12, L.back.x + 8, L.back.y + 9]]); RW.step(3); touch('touchend', [[12, 0, 0]]); ok('touch: BACK closes it', RW.App.mode === 'title', RW.App.mode); }
+        touch('touchstart', [[12, L.back.x + 8, L.back.y + 9]]); RW.step(3); touch('touchend', [[12, 0, 0]]); ok('touch: BACK closes it', RW.App.mode === 'title', RW.App.mode);
+        const tapOn = r => { touch('touchstart', [[13, r.x + r.w / 2, r.y + r.h / 2]]); RW.step(3); touch('touchend', [[13, 0, 0]]); RW.step(2); }, item = id => RW.playerLayout().items.find(i => i.id === id);
+        RW.step(30); tapOn(RW.titleLayout().find(t => t.id === 'music')); RW.step(30); ok('touch: a tap on the title entry opens the music player', RW.App.mode === 'music', RW.App.mode);
+        tapOn(item('track:kiln')); const chose = RW.Player.sel; tapOn(item('voice:drum')); ok('touch: taps play a track and set a switch, and the choice follows the tap', RW.Snd.track === 'kiln' && chose === 'track:kiln' && !RW.Snd.sounds('drum') && RW.Snd.sounds('bass'), RW.Snd.track + ' ' + chose);
+        tapOn(item('back')); ok('touch: BACK leaves the music player', RW.App.mode === 'title' && RW.Snd.track === 'title', RW.App.mode); }
       RW.toTitle(); RW.step(40); touch('touchstart', [[8, V.VW / 2, V.VH / 2]]); RW.step(3); touch('touchend', [[8, 0, 0]]); RW.step(40);
       { const L = RW.prepLayout('pip'), cx = V.VW / 2, cy = L.sy + 9, seq = []; for (let i = 0; i < 3; i++) { touch('touchstart', [[9, cx, cy]]); RW.step(3); touch('touchend', [[9, 0, 0]]); seq.push(RW.stakeOf('pip')); }
         ok('stakes, touch: a tap on the Stakes lines does the same', RW.App.mode === 'prep' && seq.join() === '1,2,0', RW.App.mode + ' ' + seq.join()); }

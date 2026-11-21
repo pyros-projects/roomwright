@@ -5,6 +5,7 @@ What changed for a player, newest first. The game shows the same text: CHANGELOG
 ## 0.4: The screen burns (in progress)
 
 - The music can follow the floor plan: Music grows in the pause menu. WITH THE PLAN brings a floor's piece in voice by voice as you build. BY ELEMENT adds a voice for each element among your rooms.
+- A music player on the title screen: every track, switches for its voices and for the element voices, every sound effect, and the game's creatures dancing to it.
 
 ## 0.3: The card decides the run (2026-11-21)
 

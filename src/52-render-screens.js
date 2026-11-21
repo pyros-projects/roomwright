@@ -310,7 +310,7 @@ const LOGO = 'ROOMWRIGHT';
 // The title's small entries along the bottom, left to right. The big one, START, is the rest of the screen.
 // App.titleSel holds the id of the chosen one, '' for START.
 function titleLayout() {
-  const items = []; if (Intro.ok) items.push(['intro', 'INTRO']); items.push(['changes', 'CHANGELOG']);
+  const items = []; if (Intro.ok) items.push(['intro', 'INTRO']); items.push(['music', 'MUSIC'], ['changes', 'CHANGELOG']);
   let x = 0; return items.map(([id, label]) => { const r = { id, label, x, y: VH - 18, w: textW(label) + 12, h: 18 }; x += r.w; return r; });
 }
 function renderTitle(g) {
@@ -404,6 +404,7 @@ function render() {
   else if (m === 'prep') renderPrep(g);
   else if (m === 'deck') renderDeck(g);
   else if (m === 'changes') renderChanges(g);
+  else if (m === 'music') renderMusic(g);
   else if (m === 'descend') renderDescend(g);
   else {
     renderWorld(g); renderHUD(g);

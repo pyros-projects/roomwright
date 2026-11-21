@@ -108,6 +108,19 @@ neither setting. An element resonates, for the music, when one of its rooms link
 you built. The eight element voices are written once, as figures over a piece's chords, so the
 same eight fit all three floors. A new floor starts its piece with that floor's plan: bare again.
 
+### The music player
+
+MUSIC on the title screen opens a player. It lists every track: the title's, the three floors' and
+the wardens'. All are there from the first start. Choosing one plays it from its start and shows
+where it is: the bar and, for a written piece, the part. Its switches turn the voices of the piece
+on and off, and the element voices and their resonating layer, so both ways of `Music grows` can be
+heard there without a run. A second page, SOUNDS, plays every sound effect.
+
+Under it sprites from the game dance. Each voice has a dancer: the floor's monsters for a floor's
+piece with your delver on the lead, the delvers for the title's tune, the three wardens and a pest
+for the wardens' tune, and an icon for each element voice. A dancer hops when its voice starts a
+note, stands still otherwise, and is dimmed while its voice is switched off.
+
 ## What did the work
 
 The end screen and the pause menu show a row of icons with shares: the weapons, room types and

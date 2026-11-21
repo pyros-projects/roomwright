@@ -1,6 +1,6 @@
 /* ============================= 15 GAME LOOP =========================== */
 // modes: (intro ->) title -> prep (<-> deck) -> play <-> draft / pause -> descend -> play ... -> over | win
-//        title <-> changes (the changelog)
+//        title <-> changes (the changelog), title <-> music (the music player, 62-music-player)
 const App = { mode: 'title', prevMode: '', modeT: 0, sel: 0, fade: null, record: false, big: {}, manual: false, coach: true, titleT: 0, titleRoom: 0, titleSel: '', titlePtr: false,
   changes: { y: 0 }, prep: { i: 0 }, deck: { cur: 0, msg: '', msgT: 0 }, descend: null };
 
@@ -74,7 +74,7 @@ function makeShowcase() {
   App.mode = 'title'; App.titleRoom = 0; App.titleT = 0; App.titleSel = '';
   G.cam.x = G.rooms[0].px + CWP / 2 - VW / 2; G.cam.y = G.rooms[0].py + CHP / 2 - VH / 2;
 }
-function toTitle() { Snd.music('title'); makeShowcase(); }
+function toTitle() { Snd.hand(null); Snd.music('title'); makeShowcase(); }
 function floorBanner() { banner('FLOOR ' + (G.floor + 1) + ': ' + G.F.name.toUpperCase(), G.floor === 0 ? 'Draft rooms. After ' + STAIRS_MIN + ', a draft offers the Stairwell down.' : 'New monsters. New rooms. Same idea.', '#ffd95e', 3.2); }
 function startRun(seed, opts = {}) {
   if (seed === undefined) { const q = new URLSearchParams(location.search).get('seed'); seed = q !== null && q !== '' && isFinite(+q) ? +q : (Math.random() * 2147483647) | 0; }   // ?seed=123 pins the run
@@ -130,7 +130,7 @@ function musicPlan() {
   return { step: mine.length >= 5 ? 3 : mine.length >= 3 ? 2 : mine.length >= 1 ? 1 : 0, els, res };
 }
 // a floor's piece starts, and with it what this floor's plan gives it, not the last floor's
-function floorMusic() { G.planT = 0.5; Snd.plan(musicPlan()); Snd.music(G.F.music); }
+function floorMusic() { G.planT = 0.5; Snd.hand(null); Snd.plan(musicPlan()); Snd.music(G.F.music); }
 function updatePlay(dt) {
   const P = G.P;
   if ((G.planT = (G.planT || 0) - dt) <= 0) { G.planT = 0.5; Snd.plan(musicPlan()); }
@@ -185,6 +185,7 @@ const MODES = {
     if (act && act !== 'start') { App.titleSel = ''; App.titlePtr = false; }
     if (act === 'intro') { Intro.begin(); return; }                      // watch the intro again
     if (act === 'changes') { Snd.ensure(); sfx('ok'); App.changes.y = 0; App.mode = 'changes'; return; }
+    if (act === 'music') { Snd.ensure(); sfx('ok'); openPlayer(); return; }
     if (act === 'start') {
       Snd.ensure(); sfx('ok');
       if (Save.data.runs === 0) startFade(() => startRun());             // very first run: straight in, with the tutorial

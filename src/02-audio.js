@@ -185,14 +185,13 @@ const Snd = (() => {
   function sched(tr, s, t, spb) {
     if (tr.score) { for (const n of tr.steps[s % tr.steps.length]) if (sounds(n[1])) { note(n, t, spb); heard(n[1], t); } return; }
     const len = tr.chords.length, bar = Math.floor(s / 16) % len, st = s % 16, ch = tr.chords[bar];
-    if (tr.bass[st] !== undefined) heard('bass', t); if (tr.arp[st] >= 0) heard('arp', t); if (tr.lead && tr.lead[bar].some(n => n[0] === st)) heard('lead', t);
-    if (tr.drums && (st % 8 === 0 || st % 8 === 4 || (tr.drums > 1 && st % 8 === 6))) heard('drum', t);
-    const b = tr.bass[st]; if (b !== undefined) tone(mtof(ch[0] + b), spb * 2.4, { at: t, v: 0.2, type: 'triangle', bus: musBus, a: 0.01 });
-    const ai = tr.arp[st]; if (ai >= 0) tone(mtof(ch[0] + 24 + (ai === 3 ? 12 : ch[1][ai])), spb * 1.6, { at: t, v: 0.03, type: 'square', bus: musBus });
-    if (tr.lead) for (const n of tr.lead[bar]) if (n[0] === st) tone(mtof(n[1]), spb * n[2] * 0.98, { at: t, v: tr.leadVol, type: 'triangle', bus: musBus, a: 0.02, vib: n[2] >= 4 });
-    if (tr.drums) {
-      if (st % 8 === 0 || (tr.drums > 1 && st % 8 === 6)) tone(140, 0.13, { at: t, v: 0.26, f2: 42, type: 'sine', bus: musBus });
-      if (st % 8 === 4) noise(0.1, { at: t, v: 0.07, f: 1900, ft: 'bandpass', bus: musBus });
+    const by = v => !mix.hand || !!mix.hand[v];            // a pattern takes no part in the plan: only the music player switches its voices
+    const b = tr.bass[st]; if (b !== undefined && by('bass')) { heard('bass', t); tone(mtof(ch[0] + b), spb * 2.4, { at: t, v: 0.2, type: 'triangle', bus: musBus, a: 0.01 }); }
+    const ai = tr.arp[st]; if (ai >= 0 && by('arp')) { heard('arp', t); tone(mtof(ch[0] + 24 + (ai === 3 ? 12 : ch[1][ai])), spb * 1.6, { at: t, v: 0.03, type: 'square', bus: musBus }); }
+    if (tr.lead && by('lead')) for (const n of tr.lead[bar]) if (n[0] === st) { heard('lead', t); tone(mtof(n[1]), spb * n[2] * 0.98, { at: t, v: tr.leadVol, type: 'triangle', bus: musBus, a: 0.02, vib: n[2] >= 4 }); }
+    if (tr.drums && by('drum')) {
+      if (st % 8 === 0 || (tr.drums > 1 && st % 8 === 6)) { heard('drum', t); tone(140, 0.13, { at: t, v: 0.26, f2: 42, type: 'sine', bus: musBus }); }
+      if (st % 8 === 4) { heard('drum', t); noise(0.1, { at: t, v: 0.07, f: 1900, ft: 'bandpass', bus: musBus }); }
       if (st % 2 === 0) noise(0.03, { at: t, v: 0.022, f: 7000, ft: 'highpass', bus: musBus });
     }
   }

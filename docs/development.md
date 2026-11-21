@@ -34,7 +34,7 @@ tools/build.sh --check   # fail if index.html is stale
 | `40-actors` `41-weapons` | player, monsters, shots, pickups; one `WUPD` function per weapon |
 | `42-director` `43-draft` `44-coach` | spawning and pressure, events, wardens, room powers; dealing cards and placing rooms; the lessons shown on a draft card |
 | `50-` `51-` `52-render-*` | world, HUD, and the menu, draft, hero and deck screens |
-| `60-game` `61-intro` `70-debug` | save data, modes and the main loop; the intro film player; the `window.RW` test hooks |
+| `60-game` `61-intro` `62-music-player` `70-debug` | save data, modes and the main loop; the intro film player; the title's music player; the `window.RW` test hooks |
 
 The parts you are most likely to touch:
 
