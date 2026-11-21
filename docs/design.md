@@ -86,6 +86,28 @@ under its health bar count the steps. A build that kills slowly meets a quicker 
 Once the warden is dead the floor is quiet: no monsters, and a Greenhouse grows no more glints.
 Weapons, charms, hearts and room stars carry down; the floor plan starts again from one room.
 
+## The music, and how it can follow the plan
+
+Each floor has a piece of its own, written out note by note on the tune the floor had from the first
+version: "What the Cellar Keeps" (48 bars, A minor), "What Grows Without Light" (48 bars, D minor)
+and "What the Fire Leaves" (56 bars, E minor), darker the deeper you go. The game's synthesizer plays
+them live, from the same plain waves as the sound effects. A piece has up to eight voices: bass,
+arpeggio, drums, a lead, a voice that answers it, a counter voice, plucked chords and bells.
+
+`Music grows` in the pause menu sets whether the music follows the floor plan. Nothing in play
+depends on hearing it.
+
+| Setting | What plays |
+|---|---|
+| NO (the default) | The whole piece, whatever you build. |
+| WITH THE PLAN | Bass, arpeggio and drums from the start. The lead and its answer enter with the first room you build on the floor, the counter voice and the plucked chords with the third, the bells with the fifth, which is when the Stairwell is first offered. From then on the whole piece plays. |
+| BY ELEMENT | The whole piece, and on top of it one voice for each element among the rooms you built: Stone a low footing, Shadow a low third, Water a ripple up the chord, Steel ticks off the beat, Lore two long notes a bar, Wild hops between the beats, Fire a high flicker, Frost single high notes that ring. A voice enters with the first room of its element and gets a second, softer layer an octave away while one of those rooms resonates. |
+
+The floor's first room and the Stairwell are not rooms you chose for what they are, and count for
+neither setting. An element resonates, for the music, when one of its rooms links to another room
+you built. The eight element voices are written once, as figures over a piece's chords, so the
+same eight fit all three floors. A new floor starts its piece with that floor's plan: bare again.
+
 ## What did the work
 
 The end screen and the pause menu show a row of icons with shares: the weapons, room types and

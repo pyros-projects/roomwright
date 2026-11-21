@@ -359,6 +359,30 @@
       for (let i = 0; i < 25; i++) RW.Save.data.census.push(rec); RW.Save.store(); RW.Save.load();
       ok('census: the save keeps the last 20 runs', RW.Save.data.census.length === 20, RW.Save.data.census.length);
     }
+    /* ---- the music follows the floor plan (#17): what the plan tells it, and which voices then sound ---- */
+    { fresh(121); const S = RW.Snd, was = RW.Save.data.opts.grow; let p = RW.musicPlan(); const first = G.rooms[0].el;
+      ok('music: with only the floor\'s first room the plan is at step 0 and names no element', p.step === 0 && Object.keys(p.els).length === 0, JSON.stringify(p));
+      const steps = []; for (const type of ['spikes', 'guardian', 'spikes', 'guardian', 'spikes']) { build(type); steps.push(RW.musicPlan().step); }
+      ok('music: the first, third and fifth room built are its steps 1, 2 and 3', steps.join() === '1,1,2,2,3', steps.join());
+      p = RW.musicPlan(); const built = [...new Set(G.rooms.slice(1).map(r => r.el))].sort().join(), named = Object.keys(p.els).sort().join();
+      ok('music: the plan names the elements of the rooms built', named === built && named.length > 0, named + ' (the first room is ' + first + ')');
+      const linked = e => G.rooms.some(r => r.el === e && r.type !== 'hearth' && r.type !== 'stairs' && [0, 1, 2, 3].some(d => { const nb = RW.nbOf(r, d); return r.resDir[d] && nb && nb.type !== 'hearth' && nb.type !== 'stairs'; }));
+      ok('music: an element resonates when one of its rooms links to another room you built', Object.keys(p.els).every(e => !!p.res[e] === linked(e)), 'resonating: ' + (Object.keys(p.res).join(' ') || 'none'));
+      S.grow('element'); S.plan(p); const mine = Object.keys(p.els)[0]; RW.App.mode = 'play'; RW.beginDescent(); RW.App.fade = null; RW.App.descend = { next: 1, time: 0, rooms: 0, swift: 0 }; RW.arriveNextFloor(); G = RW.G; P = G.P;
+      ok('music: a new floor starts with its own plan, not the last floor\'s', G.floor === 1 && !S.sounds(mine) && RW.musicPlan().step === 0, 'floor ' + (G.floor + 1) + ', ' + mine + ' sounds: ' + S.sounds(mine));
+      fresh(122); build('spikes'); G.rooms.push({ type: 'stairs', el: 'stone', res: 1, resDir: [0, 0, 0, 0] }); p = RW.musicPlan(); G.rooms.pop();
+      ok('music: the Stairwell is no room of the plan', p.step === 1 && !p.els.stone, JSON.stringify(p));
+      const piece = S.info('cellar').voices, on = () => piece.filter(v => S.sounds(v)).join(' ');
+      S.grow('full'); S.plan({ step: 0 }); ok('music, FULL: every voice of the piece sounds and no element\'s', on() === piece.join(' ') && !S.sounds('fire'), on());
+      S.grow('plan'); const grown = [0, 1, 2, 3].map(st => { S.plan({ step: st }); return on(); });
+      ok('music, WITH THE PLAN: bass, arpeggio and drums first, then lead and answer, counter and pluck, bell', grown[0].split(' ').sort().join(' ') === 'arp bass drum' && /lead/.test(grown[1]) && !/counter|bell/.test(grown[1]) && /counter/.test(grown[2]) && !/bell/.test(grown[2]) && grown[3].split(' ').length === piece.length, grown.join(' | '));
+      S.grow('element'); S.plan({ step: 0, els: { fire: 1, frost: 1 }, res: { frost: 1 } });
+      ok('music, BY ELEMENT: the whole piece, and the voices of the elements built', on() === piece.join(' ') && S.sounds('fire') && S.sounds('frost') && !S.sounds('water'), on());
+      ok('music, BY ELEMENT: an element\'s second layer sounds only while it resonates', S.sounds('frost+') && !S.sounds('fire+'));
+      S.hand({ bass: 1, water: 1 }); ok('music: voices set by hand overrule the plan', S.sounds('bass') && S.sounds('water') && !S.sounds('lead') && !S.sounds('fire')); S.hand(null);
+      const infos = S.tracks.map(t => S.info(t)), written = infos.filter(i => i.written);
+      ok('music: three pieces are written out, each with a name, parts of eight bars and eight element voices', written.length === 3 && written.every(i => i.title && i.parts.length * 8 === i.bars && i.elements.length === 8), written.map(i => i.title + ' ' + i.parts.length + 'x8').join('; '));
+      S.grow(was); S.plan(RW.musicPlan()); }
     /* ---- the changelog: CHANGELOG.md, as the game reads it ---- */
     { const C = RW.CHANGES, text = C.map(c => c.v + c.name + c.date + c.items.join('')).join(''), odd = [...new Set(text)].filter(ch => !RW.FONT[ch] || '@{}`'.includes(ch));   // those four draw as icons
       const md = RW.CHANGELOG_MD.split('\n'), heads = md.filter(l => l.startsWith('## ')).length, bullets = md.filter(l => /^\s*[-*+] /.test(l)).length, loose = md.filter(l => /^(\t| \S)/.test(l));

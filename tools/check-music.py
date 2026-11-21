@@ -10,6 +10,7 @@ that this check turns by hand. The game's code then schedules a track in a momen
 read back. A track shorter than half a minute is played twice, a longer one once and two bars into its
 repeat, so every track is heard across its loop point. This reads levels, finds gaps
 and finds single samples that jump out of the wave (a tick); it cannot tell whether a piece sounds good.
+A written piece is also rendered in its thinnest and its thickest form (the Music grows option).
 
 The browser is found as in tools/check-intro.py. Without a Chromium for Playwright it is skipped.
 """
@@ -43,13 +44,18 @@ BEFORE = """(() => {
 
 # Renders a track and measures it bar by bar. A live start puts the first step 50 ms after a block boundary
 # of the audio clock, which is a whole sample; the clock here starts the same way.
-RENDER = """async ([track, limit]) => {
+RENDER = """async ([track, limit, way]) => {
   const M = window.__music, S = RW.Snd, pass = S.secs(track), bar = S.secs(track, 1), bars = Math.round(pass / bar);
   const played = pass < 30 ? 2 * bars : bars + 2;         // in bars
   M.seconds = played * bar + 2; M.now = 0.05;
   let threw = '';
   try {
-    RW.manual(true); S.vol.sfx = 0; S.vol.music = 0.6; S.ensure(); S.applyVol(); S.music(null); S.music(track);
+    RW.manual(true); S.vol.sfx = 0; S.vol.music = 0.6; S.ensure(); S.applyVol(); S.music(null);
+    const every = Object.fromEntries(S.info(track).elements.map(e => [e, 1]));
+    if (way === 'thin') { S.grow('plan'); S.plan({ step: 0 }); }                              // only what always plays
+    else if (way === 'thick') { S.grow('element'); S.plan({ step: 3, els: every, res: every }); }   // the piece and every element's voice, all of them resonating
+    else S.grow('full');
+    S.music(track);
     for (; M.now < played * bar; M.now += 0.05) for (const tick of M.ticks) tick();
   } catch (e) { threw = String(e && e.stack || e).slice(0, 300); }
   const x = (await M.ctx.startRendering()).getChannelData(0), rate = 48000, t0 = 0.1;
@@ -95,7 +101,7 @@ def main():
         tracks = page.evaluate("RW.Snd.tracks")
         for track in tracks:
             page.goto(args.url + f"?intro=0&track={track}", wait_until="domcontentloaded")      # a new page: one render per context
-            r = page.evaluate(RENDER, [track, TICK])
+            r = page.evaluate(RENDER, [track, TICK, ""])
             what = f"{r['bars']} bars, {r['seconds']} s, {r['played']} bars played"
             check(f"{track}: plays through without an error", not r["threw"], r["threw"] or what)
             # A bar with notes reads -45 dBFS or more. An empty one reads -59 or less even right after a loud bar,
@@ -107,6 +113,19 @@ def main():
             check(f"{track}: the level is in the music's range ({low} to {high} dBFS)", low < r["level"] < high, f"{r['level']} dBFS, peak {r['peak']}")
             # A step that starts exactly on a sample once let one sample of a hat's noise through at full level.
             check(f"{track}: no single sample jumps out", not r["spikes"], f"{r['spikes']} of them, up to {r['spike']} dBFS" if r["spikes"] else f"the wave's own largest: {r['jut']} of {TICK}")
+            if not page.evaluate("t => RW.Snd.info(t).written", track):
+                continue
+            # A written piece can follow the floor plan (the Music grows option). Its thinnest form is what always plays;
+            # its thickest is the whole piece with the voice of every element, all resonating.
+            page.goto(args.url + f"?intro=0&track={track}&way=thin", wait_until="domcontentloaded")
+            r = page.evaluate(RENDER, [track, TICK, "thin"])
+            quiet = [i + 1 for i, level in enumerate(r["levels"]) if level < QUIET]
+            check(f"{track}, growing with the plan, before anything is built: plays through and every bar sounds", not r["threw"] and not quiet,
+                  r["threw"] or (f"under {QUIET} dBFS: bars {quiet}" if quiet else f"{r['level']} dBFS, quietest bar {min(r['levels'])}"))
+            page.goto(args.url + f"?intro=0&track={track}&way=thick", wait_until="domcontentloaded")
+            r = page.evaluate(RENDER, [track, TICK, "thick"])
+            check(f"{track}, with every element's voice: plays through, in the music's range, no tick", not r["threw"] and low < r["level"] < high and not r["spikes"],
+                  r["threw"] or f"{r['level']} dBFS, peak {r['peak']}, {r['spikes']} ticks, the wave's own largest {r['jut']}")
         check("no page errors", not errors, "; ".join(errors)[:200])
         browser.close()
     print("\n".join(out))

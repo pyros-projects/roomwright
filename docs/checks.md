@@ -25,7 +25,8 @@ console error, then runs five scripts:
   charm, warden and unlock does what its card says. Also: every point of damage has an owner and
   the shares add up, the census names what hit the delver, an elite besieges the room built up
   most, door pressure per floor, the knocking late in the clock, a warden's fury, each rule of
-  Stakes in force from its step on, and the changelog: the game's version has the first entry
+  Stakes in force from its step on, what the floor plan tells the music and which voices then
+  sound in each `Music grows` setting, and the changelog: the game's version has the first entry
   and the font has every character in it.
 - `tools/check-flows.js`: first run, pause and options, drafting, the Stairwell, game over, the
   title's entries and the changelog (keys, pad, mouse, touch), hero and deck screens, victory,
@@ -50,7 +51,9 @@ console error, then runs five scripts:
   check turns by hand. It fails on an error anywhere in a piece, on a bar under -50 dBFS (an empty
   bar reads -59 or less, a bar with notes -45 or more) and on a mean level outside -48 to -35 dBFS,
   the range in which the music sits under the sound effects, and on a single sample that jumps out
-  of the wave (a tick). Run it alone with
+  of the wave (a tick). A written piece is rendered three times: as written, in its thinnest form
+  (growing with the plan, before anything is built: every bar must still sound) and in its thickest
+  (with every element's voice, all resonating: still inside the range, and no tick). Run it alone with
   `uv run --with playwright tools/check-music.py`. Like the audio check it reads levels, not
   whether a piece sounds good.
 

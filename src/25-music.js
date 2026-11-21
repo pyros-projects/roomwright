@@ -3,6 +3,9 @@
 // 02-audio). Everything counts in steps: a step is a sixteenth, 16 to the bar, from 0.
 // A note is [step in the piece, voice, pitch, steps long, loudness]: the pitch is a MIDI number (for the drum
 // voice the name of a sound), the loudness a MIDI velocity.
+// A score gives its name, the names of its parts (eight bars each), one chord a bar and its notes. The chords are
+// what the element voices are written over (02-audio): a root, a third and a fifth. After a slash stands the bass
+// note where the low element voice should take it and not the root; a 5 after the root says the bar has no third.
 
 // "What the Cellar Keeps", floor 1: 48 bars in A minor at 112, on the tune the floor has had from the first
 // version (bars 1, 2, 7 and 8 of the theme are that tune, bars 3 to 6 answer it). Six sections of eight bars:
@@ -112,7 +115,8 @@ function cellarScore() {
   bars(27, 40, (bar, i) => { for (const st of [4, 12]) for (const p of PAIR[CH[bar]]) put('pluck', bar, st, p, 2, bar < 33 ? 56 + 3 * i : 74); });
   [96, 91, 93, 89, 88, 84, 86, 83].forEach((p, i) => put('bell', 17 + i, 12, p, 4, 58 - i));       // one a bar, falling from C7 to B5
   for (const [bar, st, p, vel] of [[33, 0, 93, 62], [35, 8, 96, 66], [37, 0, 93, 64], [39, 8, 98, 68], [40, 8, 100, 72], [43, 8, 96, 50], [47, 8, 93, 48]]) put('bell', bar, st, p, 4, vel);
-  return notes;
+  return { name: 'What the Cellar Keeps', parts: ['The theme', 'To and fro', 'The summer', 'The climb', 'Everyone', 'The way down'],
+    chords: CH.slice(1).map((ch, i) => i === 47 ? 'E5' : ch), notes };      // the last bar holds the fourth before its third
 }
 
 // "What Grows Without Light", floor 2 (The Undergarden): 48 bars in D minor at 100, on the tune the floor has had
@@ -220,7 +224,7 @@ function gardenScore() {
   for (const [bar, st, p, vel] of [[2, 12, 93, 46], [6, 12, 89, 44],                          // dust
     [25, 0, 93, 60], [27, 0, 93, 58], [29, 0, 93, 56], [31, 0, 93, 54],                       // the same A while the floor sinks
     [33, 0, 98, 62], [35, 8, 96, 64], [37, 8, 98, 66], [40, 8, 93, 72], [44, 12, 93, 46]]) put('bell', bar, st, p, 4, vel);
-  return notes;
+  return { name: 'What Grows Without Light', parts: ['The pods', 'The tune', 'The vine', 'The floor gives', 'Everything grows', 'Under the roots'], chords: CH.slice(1), notes };
 }
 
 // "What the Fire Leaves", floor 3 (The Kiln): 56 bars in E minor at 128, on the tune the floor has had from the
@@ -351,5 +355,6 @@ function kilnScore() {
   for (const [bar, i] of [[2, 0], [4, 1], [6, 4], [8, 7]]) for (const [st, p, len] of THEME[i]) put('bell', bar, st, p + 12, len, 50);     // an octave up, soft
   for (const [bar, st, p, vel] of [[25, 8, 95, 56], [27, 8, 96, 58], [29, 8, 98, 60], [30, 12, 94, 54], [31, 8, 99, 62],         // B C D . D#: the glass heats
     [41, 0, 100, 66], [43, 8, 98, 66], [45, 0, 100, 68], [48, 8, 99, 72], [52, 12, 95, 46], [54, 12, 88, 44]]) put('bell', bar, st, p, 4, vel);
-  return notes;
+  return { name: 'What the Fire Leaves', parts: ['The works start', 'The tune', 'The chase', 'The bowl', 'The roller', 'Everyone', 'Curling up'],
+    chords: CH.slice(1).map((ch, i) => ch === 'F' && i < 32 ? 'F/E' : ch), notes };      // under those F chords the bass stays on E
 }

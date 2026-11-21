@@ -6,6 +6,7 @@ What changed for a player, newest first. The game shows the same text: CHANGELOG
 
 - Every version keeps its own address, so an older one can be played next to the new one.
 - A changelog: this file, and a screen in the game.
+- The music can follow the floor plan: Music grows in the pause menu. WITH THE PLAN brings a floor's piece in voice by voice as you build. BY ELEMENT adds a voice for each element among your rooms.
 
 ## 0.3: The card decides the run (2026-11-21)
 

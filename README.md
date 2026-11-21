@@ -88,6 +88,7 @@ it and is optional. Without it the game starts on the title screen.
 | Edit the deck (hero screen) | Q or Tab | | tap the deck |
 | Stakes (hero screen, after a win) | Up / Down, or click the Stakes lines | up / down | tap the Stakes lines |
 | Pause / options | P or Esc | Start | pause button |
+| Let the music follow the floor plan | `Music grows` in the pause menu | | |
 | Mute | M | | |
 | Skip the intro | Enter, Space or Esc, or click | A or B | tap |
 | The title's entries (INTRO, CHANGELOG) | Down, then Left / Right and Enter; or click one | down, left / right, A | tap one |

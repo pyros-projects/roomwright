@@ -21,7 +21,7 @@
     press('down'); press('down'); const sh0 = RW.Save.data.opts.shake; RW.step(30); press('ok'); ok('screen shake toggles', RW.Save.data.opts.shake !== sh0); press('ok');
     press('back'); ok('Esc resumes', RW.App.mode === 'play');
     press('mute'); ok('M mutes', RW.Save.data.opts.mute === 1 && RW.Snd.vol.sfx === 0); press('mute'); ok('M unmutes', RW.Save.data.opts.mute === 0 && RW.Snd.vol.sfx > 0);
-    const old = RW.G; RW.step(120); press('pause'); for (let i = 0; i < 5; i++) press('down'); RW.step(30); press('ok'); RW.step(60);
+    const old = RW.G; RW.step(120); press('pause'); for (let i = 0; i < 6; i++) press('down'); RW.step(30); press('ok'); RW.step(60);
     ok('restart run from pause', RW.App.mode === 'play' && RW.G !== old && RW.G.t < 1.5, 't=' + RW.G.t.toFixed(2));
     /* ---- drafting ---- */
     let G = RW.G, P = G.P; G.dir.calm = 1e9; G.dir.ti = 99; P.inv = 1e9; P.keys = 20;
@@ -38,9 +38,17 @@
     P.inv = 0; P.shield = 0; RW.hurtPlayer(99); RW.step(130); ok('death leads to game over', RW.App.mode === 'over');
     RW.step(40); press('ok'); RW.step(60); ok('try again starts a fresh run', RW.App.mode === 'play' && RW.G.rooms.length === 1 && RW.G.P.hp === 8 && RW.G.floor === 0);
     /* ---- quit to title, then the hero and deck screens ---- */
-    press('pause'); for (let i = 0; i < 6; i++) press('down'); RW.step(30); press('ok'); RW.step(60);
+    press('pause'); for (let i = 0; i < 7; i++) press('down'); RW.step(30); press('ok'); RW.step(60);
     ok('quit to title', RW.App.mode === 'title' && RW.G.rooms.length > 3, RW.G.rooms.length + ' showcase rooms');
     ok('the showcase never touches the save', Object.keys(RW.Save.data.rooms).length <= RW.STARTER_ROOMS.length + 1, Object.keys(RW.Save.data.rooms).length + ' cards');
+    /* ---- the pause menu's Music grows row (#17) ---- */
+    { RW.start(77, { hero: 'pip' }); RW.step(30); press('pause'); for (let i = 0; i < 5; i++) press('down'); RW.step(30);
+      const row = () => RW.pauseLayout().items[5], seq = [row().value];
+      for (let i = 0; i < 3; i++) { press('ok'); seq.push(row().value + '=' + RW.Save.data.opts.grow); }
+      ok('options: Music grows goes from NO to WITH THE PLAN to BY ELEMENT and round again', row().label === 'Music grows' && seq.join(' ') === 'NO WITH THE PLAN=plan BY ELEMENT=element NO=full', seq.join(' '));
+      press('ok'); ok('options: the choice is saved', JSON.parse(localStorage.getItem(RW.Save.KEY)).opts.grow === 'plan', RW.Save.data.opts.grow);
+      press('left'); ok('options: LEFT goes back a step', RW.Save.data.opts.grow === 'full', RW.Save.data.opts.grow);
+      press('back'); RW.toTitle(); RW.step(30); }
     /* ---- the title's small entries, and the changelog ---- */
     { RW.step(30); const T = RW.titleLayout(), ci = T.findIndex(e => e.id === 'changes');
       ok('title: the changelog is one of its entries', ci >= 0, T.map(e => e.id).join(' '));
@@ -158,7 +166,8 @@
     ok('stakes: the choice is saved', JSON.parse(localStorage.getItem(RW.Save.KEY)).stake.pip === 1);
     press('right'); press('up'); ok('stakes: a delver who has not won has none', RW.prepLayout('wick').sk === 0 && RW.stakeOf('wick') === 0); press('left');
     press('ok'); RW.step(60); ok('stakes: the run plays at the chosen step', RW.App.mode === 'play' && RW.G.stakes === 1 && RW.stake(1) && !RW.stake(2), RW.App.mode + ' ' + RW.G.stakes);
-    press('pause'); ok('stakes: the pause menu has a line for the step', RW.App.mode === 'pause' && RW.pauseLayout().h === RW.pauseLayout().items.length * 14 + 122 && RW.pauseLayout().h <= RW.view().VH, RW.pauseLayout().h); press('back');
+    press('pause'); ok('stakes: the pause menu has a line for the step', RW.App.mode === 'pause' && RW.pauseLayout().h === RW.pauseLayout().items.length * RW.pauseLayout().lh + 122 && RW.pauseLayout().h <= RW.view().VH, RW.pauseLayout().h);
+    ok('stakes: with that line the pause menu still fits the smallest view', RW.pauseLayout(225).h <= 225 && RW.pauseLayout(225).rects.every(r => r.y >= 0 && r.y + r.h <= 225), RW.pauseLayout(225).h + ' of 225'); press('back');
     winNow(); ok('stakes: a win at step 1 opens step 2', RW.Save.data.stakes.pip === 1 && RW.stakesOpen('pip') === 2 && RW.stakeOf('pip') === 2 && RW.App.stakesNew === 2 && RW.record(true).stakes === 1, JSON.stringify(RW.Save.data.stakes));
     RW.Save.data.stake.pip = 0; RW.Save.store(); toHeroes(); press('ok'); RW.step(60); winNow();
     ok('stakes: a win below the highest step opens nothing new', RW.stakesOpen('pip') === 2 && RW.App.stakesNew === 0 && RW.stakeOf('pip') === 0);

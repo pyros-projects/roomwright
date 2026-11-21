@@ -10,7 +10,7 @@ const Save = {
   data: null,
   fresh() {
     const rooms = {}; for (const id of STARTER_ROOMS) rooms[id] = 1;
-    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0, mouse: 'point' }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {}, census: [],
+    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0, mouse: 'point', grow: 'full' }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {}, census: [],
       stakes: {}, stake: {} };          // Stakes per delver: the highest step won (0 = the plain game), and the step chosen for the next run
   },
   load() {
@@ -18,7 +18,7 @@ const Save = {
     try {
       const s = JSON.parse(localStorage.getItem(this.KEY));
       if (s && s.v === 2) {
-        const d = this.data; d.runs = s.runs | 0; d.wins = s.wins | 0; Object.assign(d.best, s.best); Object.assign(d.opts, s.opts);
+        const d = this.data; d.runs = s.runs | 0; d.wins = s.wins | 0; Object.assign(d.best, s.best); Object.assign(d.opts, s.opts); if (!Object.keys(GROW_WAYS).includes(d.opts.grow)) d.opts.grow = 'full';
         for (const id in s.rooms || {}) if (ROOM_TYPES[id] && ROOM_TYPES[id].tier !== 'x') d.rooms[id] = 1;
         for (const id in s.heroes || {}) if (HEROES[id]) d.heroes[id] = 1;
         if (HEROES[s.hero] && d.heroes[s.hero]) d.hero = s.hero;
@@ -33,7 +33,7 @@ const Save = {
     this.apply();
   },
   store() { try { localStorage.setItem(this.KEY, JSON.stringify(this.data)); } catch (e) { /* ignore */ } },
-  apply() { const o = this.data.opts; Snd.vol.music = o.mute ? 0 : o.music; Snd.vol.sfx = o.mute ? 0 : o.sfx; Snd.applyVol(); Intro.vol(); },
+  apply() { const o = this.data.opts; Snd.vol.music = o.mute ? 0 : o.music; Snd.vol.sfx = o.mute ? 0 : o.sfx; Snd.applyVol(); Snd.grow(o.grow); Intro.vol(); },
 };
 // Stakes: the highest step this delver may play (one above the highest won; 0 until a first win), and the step chosen
 const stakesOpen = id => { const won = Save.data.stakes[id]; return won === undefined ? 0 : Math.min(STAKES.length, won + 1); };
@@ -81,7 +81,7 @@ function startRun(seed, opts = {}) {
   const hero = opts.hero && HEROES[opts.hero] ? opts.hero : Save.data.hero;
   newRun(seed, { hero, deck: opts.deck || fullDeck(hero), tutorial: Save.data.runs < 2, stakes: opts.stakes === undefined ? stakeOf(hero) : opts.stakes });
   Save.data.runs++; Save.store();
-  App.mode = 'play'; App.sel = 0; App.record = false; Snd.music(G.F.music);
+  App.mode = 'play'; App.sel = 0; App.record = false; floorMusic();
   floorBanner();
 }
 // The census: what a run looked like when it ended. The save keeps the last CENSUS_MAX runs (RW.census() prints them),
@@ -117,11 +117,23 @@ function arriveNextFloor() {
   const P = G.P;
   enterFloor(App.descend.next);
   P.costN = Math.floor(P.costN * CURVE.costKeep); P.keyCost = keyCostNow(); P.glints = 0; P.hp = Math.min(P.maxHp, P.hp + 2);
-  App.mode = 'play'; Snd.music(G.F.music); floorBanner();
+  App.mode = 'play'; floorMusic(); floorBanner();
 }
 
+// What the floor plan gives the music (#17). Its step counts the rooms built on this floor: 1 with the first, 2 with
+// the third, 3 with the fifth, which is when the Stairwell is first offered. And the elements of those rooms, and
+// which of them resonate: an element does when one of its rooms links to another room you built. The floor's first
+// room and the Stairwell were not chosen for what they are, and count for none of it.
+function musicPlan() {
+  const els = {}, res = {}, mine = G.rooms.filter(r => r.type !== 'hearth' && r.type !== 'stairs');
+  for (const r of mine) { els[r.el] = 1; for (let d = 0; d < 4; d++) if (r.resDir[d] && mine.includes(nbOf(r, d))) res[r.el] = 1; }
+  return { step: mine.length >= 5 ? 3 : mine.length >= 3 ? 2 : mine.length >= 1 ? 1 : 0, els, res };
+}
+// a floor's piece starts, and with it what this floor's plan gives it, not the last floor's
+function floorMusic() { G.planT = 0.5; Snd.plan(musicPlan()); Snd.music(G.F.music); }
 function updatePlay(dt) {
   const P = G.P;
+  if ((G.planT = (G.planT || 0) - dt) <= 0) { G.planT = 0.5; Snd.plan(musicPlan()); }
   if (G.banner) { G.banner.t += dt; if (G.banner.t > G.banner.d) G.banner = null; }
   if (G.roomLabel) { G.roomLabel.t += dt; if (G.roomLabel.t > 2.4) G.roomLabel = null; }
   if (G.flashT > 0) G.flashT -= dt;
@@ -249,15 +261,16 @@ const MODES = {
     if (Input.hit('back') || Input.hit('pause')) { App.mode = 'play'; sfx('back'); return; }
     const adj = (i, dir, wrap) => {
       const stepv = v => { let n = Math.round(v * 5) + dir; if (wrap && n > 5) n = 0; return clamp(n, 0, 5) / 5; };
-      if (i === 1) o.music = stepv(o.music); else if (i === 2) o.sfx = stepv(o.sfx); else if (i === 3) o.shake = o.shake ? 0 : 1; else if (i === 4) o.mouse = o.mouse === 'drag' ? 'point' : 'drag'; else return;
-      if (i !== 4) o.mute = 0; Save.apply(); Save.store(); sfx('tick');
+      if (i === 1) o.music = stepv(o.music); else if (i === 2) o.sfx = stepv(o.sfx); else if (i === 3) o.shake = o.shake ? 0 : 1; else if (i === 4) o.mouse = o.mouse === 'drag' ? 'point' : 'drag';
+      else if (i === 5) { const ways = Object.keys(GROW_WAYS); o.grow = ways[(ways.indexOf(o.grow) + (dir < 0 ? ways.length - 1 : 1)) % ways.length]; } else return;
+      if (i < 4) o.mute = 0; Save.apply(); Save.store(); sfx('tick');
     };
     if (Input.hit('left')) adj(App.sel, -1); if (Input.hit('right')) adj(App.sel, 1);
     const a = menuNav(L_.items.length, L_.rects);
     if (a === 0) { App.mode = 'play'; sfx('ok'); }
-    else if (a >= 1 && a <= 4) adj(a, 1, true);
-    else if (a === 5) { sfx('ok'); startFade(() => startRun()); }
-    else if (a === 6) { sfx('back'); startFade(toTitle); }
+    else if (a >= 1 && a <= 5) adj(a, 1, true);
+    else if (a === 6) { sfx('ok'); startFade(() => startRun()); }
+    else if (a === 7) { sfx('back'); startFade(toTitle); }
   },
   descend() {
     if (App.modeT > 0.5 && (Input.confirm() || Input.mouse.click)) { sfx('ok'); startFade(arriveNextFloor); }
@@ -268,7 +281,7 @@ const MODES = {
   },
   win(dt) {
     updateSmall(dt); const L_ = endLayout(), a = menuNav(L_.items.length, L_.rects);
-    if (a === 0) { sfx('ok'); G.won = false; G.endless = true; G.endT = 0; App.mode = 'play'; Snd.music(G.F.music); banner('ENDLESS DELVE', 'The doors start knocking again...', '#9cecf2', 3); }
+    if (a === 0) { sfx('ok'); G.won = false; G.endless = true; G.endT = 0; App.mode = 'play'; floorMusic(); banner('ENDLESS DELVE', 'The doors start knocking again...', '#9cecf2', 3); }
     else if (a === 1) { sfx('ok'); startFade(() => startRun()); }
     else if (a === 2 || Input.hit('back')) { sfx('back'); startFade(toTitle); }
   },

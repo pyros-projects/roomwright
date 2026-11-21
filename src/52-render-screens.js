@@ -151,8 +151,15 @@ function drawTally(g, x, y, w) {
   });
   if (rest >= 0.005) txt(g, '+' + Math.round(rest * 100) + '%', lx, y + 4, '#5d667c');
 }
-function pauseItems() { const o = Save.data.opts; return [{ label: 'Resume' }, { label: 'Music', value: o.music }, { label: 'Sound', value: o.sfx }, { label: 'Screen shake', value: o.shake ? 'ON' : 'OFF' }, { label: 'Mouse walk', value: o.mouse === 'drag' ? 'DRAG' : 'TO POINTER' }, { label: 'Restart run' }, { label: 'Quit to title' }]; }
-function pauseLayout() { const items = pauseItems(), h = items.length * 14 + 102 + (G.stakes ? 20 : 0), y = Math.round(VH / 2 - h / 2); return { items, h, y, rects: menuRects(items.length, y + 36, 170) }; }
+// how the music follows the floor plan (#17): not at all, its own voices entering as the plan grows, or a voice for each element built
+const GROW_WAYS = { full: 'NO', plan: 'WITH THE PLAN', element: 'BY ELEMENT' };
+function pauseItems() { const o = Save.data.opts; return [{ label: 'Resume' }, { label: 'Music', value: o.music }, { label: 'Sound', value: o.sfx }, { label: 'Screen shake', value: o.shake ? 'ON' : 'OFF' }, { label: 'Mouse walk', value: o.mouse === 'drag' ? 'DRAG' : 'TO POINTER' },
+  { label: 'Music grows', value: GROW_WAYS[o.grow] }, { label: 'Restart run' }, { label: 'Quit to title' }]; }
+// the rows stand closer where the panel would not fit the view (the smallest view with the Stakes lines); vh is for the checks
+function pauseLayout(vh = VH) {
+  const items = pauseItems(), sk = G.stakes ? 20 : 0, lh = items.length * 14 + 102 + sk > vh ? 12 : 14, h = items.length * lh + 102 + sk, y = Math.round(vh / 2 - h / 2);
+  return { items, h, y, lh, rects: menuRects(items.length, y + 36, 170, lh) };
+}
 // one line for the Stakes in force: the step, its own rule, and how many came before it
 const stakesLine = n => 'STAKES ' + n + ': ' + STAKES[n - 1] + (n > 1 ? '  (and the ' + (n - 1) + ' before it)' : '');
 function renderPause(g) {
