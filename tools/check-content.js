@@ -359,6 +359,59 @@
       for (let i = 0; i < 25; i++) RW.Save.data.census.push(rec); RW.Save.store(); RW.Save.load();
       ok('census: the save keeps the last 20 runs', RW.Save.data.census.length === 20, RW.Save.data.census.length);
     }
+    /* ---- the screen's rules (#14): a top layer that nothing covers, flashes kept apart, a beat for the big moments ---- */
+    { fresh(131); RW.step(20); const cvs = document.getElementById('game'), c2 = cvs.getContext('2d'), V = RW.view();
+      const shot = () => { G.shake = 0; RW.render(); return c2.getImageData(0, 0, V.VW, V.VH).data; };
+      const opaque = s => { const d = s.c.getContext('2d').getImageData(0, 0, s.w, s.h).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i] > 200) n++; return n; };
+      G.ebullets.length = 0; G.picks.length = 0; G.fxs.length = 0; G.parts.length = 0; G.texts.length = 0; G.flashT = 0;
+      for (let i = 0; i < 6; i++) G.ebullets.push({ x: P.x - 60 + i * 24, y: P.y - 44, vx: 0, vy: 0, t: 0, spr: 's_ebullet', life: 99, by: 'tin' });
+      for (const [i, k] of ['key', 'heart', 'glint'].entries()) G.picks.push({ k, x: P.x - 30 + i * 30, y: P.y + 34, v: 1, vx: 0, vy: 0, t: 0, mag: false, ms: 70, gone: false });
+      P.inv = 0;                           // an unhurt delver is drawn on every frame
+      const room0 = G.rooms[0], props0 = room0.props; room0.props = [];        // nothing in front of the delver for now
+      const plain = shot(), cam = G.view;
+      // the heaviest things the game draws, right on top of each of them: a blast, a block of particles, a number, and the screen's flash
+      for (const o of [...G.ebullets, ...G.picks, { x: P.x, y: P.y - 8 }]) {
+        G.fxs.push({ k: 'boom', x: o.x, y: o.y, R: 40, t: 0.03, d: 0.3 });
+        for (let i = 0; i < 49; i++) G.parts.push({ x: o.x - 10 + (i % 7) * 3, y: o.y - 12 + Math.floor(i / 7) * 3, vx: 0, vy: 0, life: 1, max: 1, col: '#fff8e8', size: 3, grav: 0 });
+        G.texts.push({ x: o.x, y: o.y, n: 888, col: 'y', t: 0.2, d: 1 });
+      }
+      G.flashT = 0.3; const heavy = shot();
+      // a pixel of the top layer is the same in both pictures; everything else in the box has the flash over it
+      const same = (x, y, w, h) => { let n = 0; for (let j = Math.round(y); j < Math.round(y) + h; j++) for (let i = Math.round(x); i < Math.round(x) + w; i++) { const k = (j * V.VW + i) * 4; if (plain[k] === heavy[k] && plain[k + 1] === heavy[k + 1] && plain[k + 2] === heavy[k + 2]) n++; } return n; };
+      const bs = RW.SPR.s_ebullet, hidden = G.ebullets.filter(b => same(b.x - cam.cx - bs.ax, b.y - cam.cy + 3 - bs.ay, bs.w, bs.h) < opaque(bs)).length;
+      ok('top layer: every enemy bullet shows whole through a blast, particles, numbers and the flash', hidden === 0, hidden + ' of ' + G.ebullets.length + ' covered; a bullet is ' + opaque(bs) + ' pixels');
+      const dv = RW.SPR[G.hero + 'D0'], seen = same(P.x - cam.cx - 10, P.y - cam.cy - 20, 20, 24);
+      ok('top layer: so does the delver', seen >= opaque(dv) * 0.8, seen + ' pixels unchanged, the sprite has ' + opaque(dv));
+      const ps = G.picks.map(q => same(q.x - cam.cx - 9, q.y - cam.cy - 18, 18, 26)), need = [opaque(RW.SPR.key), opaque(RW.SPR.heart), opaque(RW.SPR.glint0)];
+      ok('top layer: and the pickups', ps.every((n, i) => n >= need[i]), ps.join(' ') + ' unchanged of ' + need.join(' '));
+      // a pillar in front of the delver: there the second drawing is cut out, and the delver stays behind it
+      G.picks.length = 0; G.ebullets.length = 0; room0.props = [{ kind: 'pillar', spr: 'pillar', x: P.x + 4, y: P.y + 9, room: room0 }];
+      G.fxs.length = 0; G.parts.length = 0; G.texts.length = 0; G.flashT = 0; const plain2 = shot(); G.flashT = 0.3; const flash2 = shot();
+      let whole = 0, behind = 0; { const pl = RW.SPR.pillar, px0 = Math.round(P.x + 4 - cam.cx) - pl.ax, py0 = Math.round(P.y + 9 - cam.cy) - pl.ay;
+        for (let j = Math.round(P.y - cam.cy) - 20; j < Math.round(P.y - cam.cy) + 4; j++) for (let i = Math.round(P.x - cam.cx) - 10; i < Math.round(P.x - cam.cx) + 10; i++) {
+          const k = (j * V.VW + i) * 4, eq = plain2[k] === flash2[k] && plain2[k + 1] === flash2[k + 1] && plain2[k + 2] === flash2[k + 2], inPillar = i >= px0 && i < px0 + pl.w && j >= py0 && j < py0 + pl.h;
+          if (eq && !inPillar) whole++; if (eq && inPillar) behind++; } }
+      ok('top layer: a prop in front of the delver still hides it, and the rest of the delver stays on top', whole > 20 && behind === 0, whole + ' pixels on top beside the pillar, ' + behind + ' over it');
+      // the flash is a tint: how much of the way to its red a plain floor pixel moves
+      { let n = 0, sum = 0, most = 0; for (let k = 0; k < plain2.length; k += 4 * 97) { const p0 = plain2[k], f0 = flash2[k]; if (p0 > 160 || f0 === p0) continue; const a = (f0 - p0) / (232 - p0); sum += a; n++; most = Math.max(most, a); }
+        ok('flashes: the flash is a tint that covers at most 0.27 of the picture', n > 50 && most <= 0.3 && sum / n > 0.2 && sum / n <= 0.275, 'mean ' + (sum / n).toFixed(3) + ', most ' + most.toFixed(3) + ' over ' + n + ' pixels'); }
+      room0.props = props0; G.flashT = 0; P.inv = 1e9;
+      // flashes: hurt on every frame for three seconds, and count how often the screen's flash starts
+      let starts = 0, was = 0, worst = 0; const at = [];
+      for (let f = 0; f < 180; f++) { if (f % 5 === 0) { P.inv = 0; P.shield = 0; P.hp = P.maxHp; RW.hurtPlayer(1); } RW.step(1); if (G.flashT > was) { starts++; at.push(f); } was = G.flashT; }
+      for (const f of at) worst = Math.max(worst, at.filter(x => x >= f && x < f + 60).length);
+      ok('flashes: hurt twelve times a second, the screen still flashes at most three times in any second', starts > 3 && worst <= 3, starts + ' flashes in 3 s, at most ' + worst + ' in one second');
+      // the beats: an elite's death against a small monster's
+      fresh(132); const heard = [], play = RW.Snd.play; RW.Snd.play = (n, a) => { heard.push(n); return play(n, a); };
+      try {
+        let m = RW.spawnMon('slime', P.x + 30, P.y); heard.length = 0; G.shake = 0; G.freeze = 0; RW.killMon(m); const small = { boom: heard.includes('boom'), shake: G.shake, freeze: G.freeze, rings: G.fxs.length };
+        m = RW.spawnMon('kslime', P.x + 30, P.y); heard.length = 0; G.shake = 0; G.freeze = 0; G.fxs.length = 0; RW.killMon(m); const big = { boom: heard.includes('boom'), shake: G.shake, freeze: G.freeze, rings: G.fxs.length };
+        ok('beats: an elite\'s death has a boom, a ring and a shake; a small monster\'s has none', big.boom && big.rings > 0 && big.shake >= 6 && !small.boom && small.rings === 0 && small.shake < big.shake, JSON.stringify({ small, big }));
+        ok('beats: neither holds the game, so no key press is lost to a kill', big.freeze === 0 && small.freeze === 0, big.freeze);
+        fresh(133); const wid = P.weapons[0].id, er = Object.keys(RW.EVO_ROOM).find(r => RW.EVO_ROOM[r] === wid); P.weapons[0].lv = RW.WEAPONS[wid].max;
+        const room = build(er); heard.length = 0; G.fxs.length = 0; tp(...mid(room)); let n = 0; while (!P.weapons[0].evo && n++ < 240) RW.step(1);
+        ok('beats: an evolution holds the game for a moment, bursts a ring and has a sound of its own', P.weapons[0].evo && G.freeze > 0.5 && G.fxs.some(f => f.k === 'tide') && heard.includes('evolve'), wid + ' in ' + er + ': freeze ' + G.freeze.toFixed(2) + ', ' + heard.join(' '));
+      } finally { RW.Snd.play = play; } }
     /* ---- the music follows the floor plan (#17): what the plan tells it, and which voices then sound ---- */
     { fresh(121); const S = RW.Snd, was = RW.Save.data.opts.grow; let p = RW.musicPlan(); const first = G.rooms[0].el;
       ok('music: with only the floor\'s first room the plan is at step 0 and names no element', p.step === 0 && Object.keys(p.els).length === 0, JSON.stringify(p));

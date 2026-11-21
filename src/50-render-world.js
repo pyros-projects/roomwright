@@ -54,6 +54,8 @@ function drawDoor(g, d, cx, cy) {
     for (const [u, v] of spots) { let p = dblk(d.dir, u, v); g.fillRect(x + p[0], y + p[1], 2, 2); p = dblk(d.dir, u + 4, v); g.fillRect(x + p[0], y + p[1], 2, 2); }
   }
 }
+// the sprite that gives a prop its size (a flame on top of it is not counted)
+const propSprite = p => SPR[{ fountain: 'fountain0', brazier: 'brazier', campfire: 'logs', candle: 'candle', statue: 'statue', saw: 'saw0' }[p.kind] || p.spr];
 function drawProp(g, p, x, y) {
   const t = frameT;
   switch (p.kind) {
@@ -171,14 +173,8 @@ function renderWorld(g) {
       if (boss.st === 3 && r && boss.wall >= 0 && (Math.floor(t * 12) & 1)) { const p = doorPos(r, boss.wall), hz = !(boss.wall & 1); g.fillStyle = 'rgba(255,106,106,0.55)'; g.fillRect(Math.round(p.x - (hz ? 24 : 16) - cx), Math.round(p.y - (hz ? 16 : 24) - cy), hz ? 48 : 32, hz ? 32 : 48); }
     }
   }
-  // pickups
-  for (const p of G.picks) {
-    if (!vis(p.x, p.y, 12)) continue;
-    const x = p.x - cx, y = p.y - cy;
-    if (p.k === 'glint') ds(g, SPR[p.v >= 20 ? 'glint2' : p.v >= 5 ? 'glint1' : 'glint0'], x, y + Math.round(Math.sin(t * 6 + p.x) * 1));
-    else { ds(g, SPR.sh_s, x, y + 2); ds(g, SPR[p.k === 'heart' ? 'heart' : 'key'], x, y - 3 + Math.round(Math.sin(t * 5 + p.x) * 2)); }
-  }
-  // shadows, then depth-sorted actors
+  // shadows (also those of the hearts and keys, which are drawn on the top layer), then depth-sorted actors
+  for (const p of G.picks) if (p.k !== 'glint' && vis(p.x, p.y, 12)) ds(g, SPR.sh_s, p.x - cx, p.y - cy + 2);
   drawList.length = 0;
   for (const r of rooms) if (r.reveal >= 1) for (const p of r.props) drawList.push({ y: p.y, k: 0, o: p });
   for (const e of G.mons) if (!e.dead && vis(e.x, e.y, 50)) { if (e.emerge <= 0.2) ds(g, SPR[e.def.sh], e.x - cx, e.y - cy + 2); drawList.push({ y: e.y, k: 1, o: e }); }
@@ -218,7 +214,6 @@ function renderWorld(g) {
     else if (s.k === 'bolt') { const hz = !(s.dir & 1); g.fillStyle = '#1a1426'; g.fillRect(Math.round(x) - (hz ? 2 : 7), Math.round(y) - (hz ? 7 : 2), hz ? 4 : 14, hz ? 14 : 4); g.fillStyle = '#fff8e8'; g.fillRect(Math.round(x) - (hz ? 1 : 6), Math.round(y) - (hz ? 6 : 1), hz ? 2 : 12, hz ? 12 : 2); }
     else if (s.k === 'wave') { const ca = Math.cos(s.a), sa = Math.sin(s.a); for (let i = -4; i <= 4; i++) { g.fillStyle = Math.abs(i) < 3 ? '#fff8e8' : '#ffd95e'; g.fillRect(Math.round(x - sa * i * 2 - ca * Math.abs(i) * 1.4) - 1, Math.round(y + ca * i * 2 - sa * Math.abs(i) * 1.4) - 1, 2, 2); } }
   }
-  for (const b of G.ebullets) if (vis(b.x, b.y, 8)) ds(g, SPR[b.spr], b.x - cx, b.y - cy + 3);
   // timed fx
   for (const f of G.fxs) {
     const k = f.t / f.d;
@@ -281,6 +276,35 @@ function renderWorld(g) {
     if (f.s) { g.globalAlpha = clamp((f.d - f.t) * 3, 0, 1); txo(g, f.s, x, y, f.col, '#1a1426', 0.5); g.globalAlpha = 1; }
     else miniNum(g, f.n, x, y - (f.t < 0.08 ? 2 : 0), f.col);
   }
+  // vignette + hurt flash
+  if (!vignette || vignette.width !== VW || vignette.height !== VH) {
+    vignette = mkCanvas(VW, VH); const vg = vignette.getContext('2d'), gr = vg.createRadialGradient(VW / 2, VH / 2, VH * 0.42, VW / 2, VH / 2, VW * 0.72);
+    gr.addColorStop(0, 'rgba(8,5,20,0)'); gr.addColorStop(1, 'rgba(8,5,20,0.5)'); vg.fillStyle = gr; vg.fillRect(0, 0, VW, VH);
+  }
+  g.drawImage(vignette, 0, 0);
+  // a flash is a tint: it covers at most 0.27 of what is under it, and flashScreen() keeps flashes apart; at two hearts
+  // or fewer a slow pulse of up to 0.12 lies over the picture as well
+  if (G.flashT > 0) { g.fillStyle = 'rgba(232,71,76,' + (G.flashT * 0.9).toFixed(3) + ')'; g.fillRect(0, 0, VW, VH); }
+  if (!P.hidden && P.hp <= 2 && !G.over && !G.won) { g.fillStyle = 'rgba(232,71,76,' + (0.07 + Math.sin(t * 6) * 0.05).toFixed(3) + ')'; g.fillRect(0, 0, VW, VH); }
+  // ---- the top layer (#14): the delver, pickups and enemy bullets, drawn once more over everything above: every blast,
+  // glow, particle and number, the vignette and the flash. So nothing that happens on screen hides what the next
+  // decision needs. The delver comes first, so the glow of its pose lies under the pickups and the bullets.
+  if (!P.hidden) {
+    // A prop that stands in front of the delver keeps hiding it: its box is cut out of this second drawing, and what
+    // shows there is the delver of the depth-sorted pass, behind the prop. A monster in front does not hide it.
+    g.save();
+    for (const r of rooms) if (r.reveal >= 1) for (const q of r.props) if (q.y > P.y && q.y < P.y + 64 && Math.abs(q.x - P.x) < 44) {
+      const sp = propSprite(q); g.beginPath(); g.rect(0, 0, VW, VH); g.rect(Math.round(q.x - cx) - sp.ax, Math.round(q.y - cy) - sp.ay, sp.w, sp.h); g.clip('evenodd');
+    }
+    drawPlayer(g, P.x - cx, P.y - cy); g.restore();
+  }
+  for (const p of G.picks) {
+    if (!vis(p.x, p.y, 12)) continue;
+    const x = p.x - cx, y = p.y - cy;
+    if (p.k === 'glint') ds(g, SPR[p.v >= 20 ? 'glint2' : p.v >= 5 ? 'glint1' : 'glint0'], x, y + Math.round(Math.sin(t * 6 + p.x) * 1));
+    else ds(g, SPR[p.k === 'heart' ? 'heart' : 'key'], x, y - 3 + Math.round(Math.sin(t * 5 + p.x) * 2));
+  }
+  for (const b of G.ebullets) if (vis(b.x, b.y, 8)) ds(g, SPR[b.spr], b.x - cx, b.y - cy + 3);
   // world-space prompts
   if (!P.hidden && !G.over) {
     const x = Math.round(P.x - cx), y = Math.round(P.y - cy);
@@ -296,13 +320,5 @@ function renderWorld(g) {
     const cur = G.curRoom, al = cur && cur.altar;
     if (al && al.hold > 0) { g.fillStyle = '#1a1426'; g.fillRect(al.x - cx - 11, al.y - cy - 26, 22, 4); g.fillStyle = '#ff9ec4'; g.fillRect(al.x - cx - 10, al.y - cy - 25, Math.round(20 * al.hold / 1.1), 2); }
   }
-  // vignette + hurt flash
-  if (!vignette || vignette.width !== VW || vignette.height !== VH) {
-    vignette = mkCanvas(VW, VH); const vg = vignette.getContext('2d'), gr = vg.createRadialGradient(VW / 2, VH / 2, VH * 0.42, VW / 2, VH / 2, VW * 0.72);
-    gr.addColorStop(0, 'rgba(8,5,20,0)'); gr.addColorStop(1, 'rgba(8,5,20,0.5)'); vg.fillStyle = gr; vg.fillRect(0, 0, VW, VH);
-  }
-  g.drawImage(vignette, 0, 0);
-  if (G.flashT > 0) { g.fillStyle = 'rgba(232,71,76,' + (G.flashT * 0.9).toFixed(3) + ')'; g.fillRect(0, 0, VW, VH); }
-  if (!P.hidden && P.hp <= 2 && !G.over && !G.won) { g.fillStyle = 'rgba(232,71,76,' + (0.07 + Math.sin(t * 6) * 0.05).toFixed(3) + ')'; g.fillRect(0, 0, VW, VH); }
   G.view = { cx, cy };
 }

@@ -86,6 +86,26 @@ under its health bar count the steps. A build that kills slowly meets a quicker 
 Once the warden is dead the floor is quiet: no monsters, and a Greenhouse grows no more glints.
 Weapons, charms, hearts and room stars carry down; the floor plan starts again from one room.
 
+## What the screen may do
+
+The screen should burn, inside rules that keep the next decision readable.
+
+- **A top layer.** The delver, pickups and enemy bullets are drawn once more, last, over every glow,
+  blast, particle and damage number and over the screen's flash. Whatever happens, you see where
+  you are, what is coming at you and what there is to pick up. The delver also shows over a monster
+  that stands in front of it. A prop in front of the delver still hides it, as before. Only the
+  small marks that belong to the delver come after that layer: the dash bar, a key over a door you
+  can open, the bar of a hold.
+- **Flashes are kept apart.** A flash of the whole screen cannot start within a third of a second
+  of the last one, so the screen flashes at most three times a second. The flash is a tint: it
+  covers at most 0.27 of the picture, in a red that is not saturated. At two hearts or fewer a slow
+  pulse of up to 0.12 lies over the picture as well.
+- **The big moments are the loud ones.** A small monster dies with a puff. An elite dies with a
+  ring, a low boom and a shake, a warden with a larger ring. (A mimic has its own moment: the loot
+  it spills.) None of this holds the game, so no key press is lost to a kill. An evolution does
+  hold it, for a little over a second, with a ring, sparks, its own sound and a banner.
+- **Screen shake** has its switch in the pause menu.
+
 ## The music, and how it can follow the plan
 
 Each floor has a piece of its own, written out note by note on the tune the floor had from the first

@@ -76,7 +76,7 @@ function summonBoss(fromRoom) {
 }
 function bossDied(e) {
   const D = G.dir, P = G.P, last = G.floor === FLOORS.length - 1;
-  D.bossDead = true; G.bossDown = true; G.stats.floors = Math.max(G.stats.floors, G.floor + 1); Snd.music(null); sfx('win'); sfx('boom'); G.shake = 10;
+  D.bossDead = true; G.bossDown = true; G.stats.floors = Math.max(G.stats.floors, G.floor + 1); Snd.music(null); sfx('win'); bigKill(e.x, e.y - 14, 90); G.shake = 10;
   for (const m of G.mons) if (!m.dead && m !== e) { m.dead = true; burst(m.x, m.y - 4, 5, m.def.col); if (m.def.glint) dropGlint(m.x, m.y, m.def.glint); }
   G.ebullets.length = 0; for (const d of G.sealed) d.queue.length = 0; G.zones = G.zones.filter(z => z.kind === 'flame' || z.kind === 'cloud');
   for (const j of G.jams.slice()) unjam(j);

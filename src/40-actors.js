@@ -97,6 +97,12 @@ function floatText(x, y, s, col) { G.texts.push({ x, y, s, col: col || '#fff8e8'
 // one-time coaching tips (remembered in the save, shown in the hint bar)
 function tip(id, text) { const seen = Save.data.tips; if (G.demo || seen[id]) return; seen[id] = 1; Save.store(); G.tipQ.push(text); }
 function part(x, y, vx, vy, life, col, size, grav) { if (G.parts.length < 560) G.parts.push({ x, y, vx, vy, life, max: life, col, size: size || 1, grav: grav || 0 }); }
+// A flash of the whole screen. No two start within a third of a second of each other, so the screen cannot flash more
+// than three times a second, whatever happens in it (#14).
+function flashScreen(d) { if (G.tRun - (G.flashAt === undefined ? -9 : G.flashAt) < 0.34) return; G.flashAt = G.tRun; G.flashT = d; }
+// The beat of a big kill: a ring, a low boom and a shake. Small kills get none of it, so the big ones stand out (#14).
+// It does not hold the game: a held frame would swallow a dash pressed in it.
+function bigKill(x, y, R) { G.fxs.push({ k: 'tide', x, y, R, t: 0, d: 0.3 + R / 180, hot: 1 }); sfx('boom'); G.shake = Math.max(G.shake, 6); }
 function burst(x, y, n, col, sp = 60) { for (let i = 0; i < n; i++) { const a = fxr() * TAU, s = sp * (0.3 + fxr() * 0.7); part(x, y, Math.cos(a) * s, Math.sin(a) * s - 20, 0.25 + fxr() * 0.3, col, fxr() < 0.4 ? 2 : 1, 160); } }
 function sparkle(x, y, n, col) { for (let i = 0; i < n; i++) { const a = fxr() * TAU, s = 10 + fxr() * 30; part(x + Math.cos(a) * 6, y + Math.sin(a) * 6, Math.cos(a) * s, Math.sin(a) * s - 12, 0.4 + fxr() * 0.5, col, 1, -10); } }
 
@@ -168,7 +174,7 @@ function hurtPlayer(dmg, src, cause) {
   if (P.dodge > 0 && rand() < P.dodge) { P.inv = 0.5; floatText(P.x, P.y - 24, 'Lucky!', '#b5e85a'); sfx('shield'); return false; }
   if (src && charm('vest')) { const was = BY; BY = 'c:vest'; hurtMon(src, 12 * charm('vest') * P.mightEff, 0, 0, 0, 'room'); BY = was; }
   G.hits.push({ by: cause || (src && src.type) || 'unknown', floor: G.floor, t: Math.round(G.t) }); if (G.hits.length > 3) G.hits.shift();
-  P.inv = 1.0 + P.invBonus; P.hurtT = 0.35; G.shake = Math.max(G.shake, 5); G.flashT = 0.3; sfx('hurt');
+  P.inv = 1.0 + P.invBonus; P.hurtT = 0.35; G.shake = Math.max(G.shake, 5); flashScreen(0.3); sfx('hurt');
   if (P.shield > 0) { P.shield--; burst(P.x, P.y - 6, 8, PAL.b); return true; }
   P.hp -= dmg; G.stats.hurt += dmg; burst(P.x, P.y - 6, 8, PAL.r);
   if (P.hp <= 0) {
@@ -347,6 +353,7 @@ function addZone(x, y, r, d, kind, dmg, extra) { if (G.zones.length < 70) G.zone
 function killMon(e) {
   if (e.dead) return; e.dead = true; const def = e.def, P = G.P, room = roomAt(e.x, e.y); G.stats.kills++;
   burst(e.x, e.y - 4, def.elite ? 18 : 6, def.col, def.elite ? 90 : 60); sfx('kill');
+  if (def.elite && !def.mimic) bigKill(e.x, e.y - 6, 44);        // a mimic has its own moment: the loot it spills
   let gl = e.noLoot ? 0 : def.glint;      // a pack called by a knock back carries nothing
   if (room && roomLive(room)) {
     if (room.type === 'grave') gl *= 1 + roomLevel('grave');

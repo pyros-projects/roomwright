@@ -315,7 +315,7 @@ function evolveCheck() {
   const e = WEAPONS[id].evo;
   w.evo = true; w.cd = 0.3; G.stats.evos++;
   P.pose = 1.35; P.poseBoon = { kind: 'w', id }; P.poseEvo = true; P.face = 2; G.freeze = 1.25; sfx('evolve'); G.shake = Math.max(G.shake, 4);
-  sparkle(P.x, P.y - 20, 40, PAL.y); sparkle(P.x, P.y - 20, 20, PAL.w);
+  sparkle(P.x, P.y - 20, 40, PAL.y); sparkle(P.x, P.y - 20, 20, PAL.w); G.fxs.push({ k: 'tide', x: P.x, y: P.y - 10, R: 64, t: 0, d: 0.6, hot: 1 });   // the burst of its beat
   banner(e.name.toUpperCase(), WEAPONS[id].name + ' evolved! ' + e.desc, '#ffd95e', 3.6);
 }
 function updateWeapons(dt) {

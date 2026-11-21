@@ -25,7 +25,11 @@ console error, then runs five scripts:
   charm, warden and unlock does what its card says. Also: every point of damage has an owner and
   the shares add up, the census names what hit the delver, an elite besieges the room built up
   most, door pressure per floor, the knocking late in the clock, a warden's fury, each rule of
-  Stakes in force from its step on, what the floor plan tells the music and which voices then
+  Stakes in force from its step on, the screen's rules (every enemy bullet, the delver and the
+  pickups show whole through the heaviest effects and the flash; hurt on every frame, the screen
+  flashes at most three times a second; an elite's death and an evolution have their beat, and a kill
+  never holds the game), what the
+  floor plan tells the music and which voices then
   sound in each `Music grows` setting, and the changelog: the game's version has the first entry
   and the font has every character in it.
 - `tools/check-flows.js`: first run, pause and options, drafting, the Stairwell, game over, the

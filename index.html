@@ -55,6 +55,8 @@ What changed for a player, newest first. The game shows the same text: CHANGELOG
 
 ## 0.4: The screen burns (in progress)
 
+- You, enemy bullets and pickups are now drawn above every blast, glow, spark and number, and above the screen's flash.
+- An elite's death has a ring, a boom and a shake; a warden's a bigger ring. The screen never flashes more than three times a second.
 - The music can follow the floor plan: Music grows in the pause menu. WITH THE PLAN brings a floor's piece in voice by voice as you build. BY ELEMENT adds a voice for each element among your rooms.
 - A music player on the title screen: every track, switches for its voices and for the element voices, every sound effect, and the game's creatures dancing to it.
 
@@ -3279,6 +3281,12 @@ function floatText(x, y, s, col) { G.texts.push({ x, y, s, col: col || '#fff8e8'
 // one-time coaching tips (remembered in the save, shown in the hint bar)
 function tip(id, text) { const seen = Save.data.tips; if (G.demo || seen[id]) return; seen[id] = 1; Save.store(); G.tipQ.push(text); }
 function part(x, y, vx, vy, life, col, size, grav) { if (G.parts.length < 560) G.parts.push({ x, y, vx, vy, life, max: life, col, size: size || 1, grav: grav || 0 }); }
+// A flash of the whole screen. No two start within a third of a second of each other, so the screen cannot flash more
+// than three times a second, whatever happens in it (#14).
+function flashScreen(d) { if (G.tRun - (G.flashAt === undefined ? -9 : G.flashAt) < 0.34) return; G.flashAt = G.tRun; G.flashT = d; }
+// The beat of a big kill: a ring, a low boom and a shake. Small kills get none of it, so the big ones stand out (#14).
+// It does not hold the game: a held frame would swallow a dash pressed in it.
+function bigKill(x, y, R) { G.fxs.push({ k: 'tide', x, y, R, t: 0, d: 0.3 + R / 180, hot: 1 }); sfx('boom'); G.shake = Math.max(G.shake, 6); }
 function burst(x, y, n, col, sp = 60) { for (let i = 0; i < n; i++) { const a = fxr() * TAU, s = sp * (0.3 + fxr() * 0.7); part(x, y, Math.cos(a) * s, Math.sin(a) * s - 20, 0.25 + fxr() * 0.3, col, fxr() < 0.4 ? 2 : 1, 160); } }
 function sparkle(x, y, n, col) { for (let i = 0; i < n; i++) { const a = fxr() * TAU, s = 10 + fxr() * 30; part(x + Math.cos(a) * 6, y + Math.sin(a) * 6, Math.cos(a) * s, Math.sin(a) * s - 12, 0.4 + fxr() * 0.5, col, 1, -10); } }
 
@@ -3350,7 +3358,7 @@ function hurtPlayer(dmg, src, cause) {
   if (P.dodge > 0 && rand() < P.dodge) { P.inv = 0.5; floatText(P.x, P.y - 24, 'Lucky!', '#b5e85a'); sfx('shield'); return false; }
   if (src && charm('vest')) { const was = BY; BY = 'c:vest'; hurtMon(src, 12 * charm('vest') * P.mightEff, 0, 0, 0, 'room'); BY = was; }
   G.hits.push({ by: cause || (src && src.type) || 'unknown', floor: G.floor, t: Math.round(G.t) }); if (G.hits.length > 3) G.hits.shift();
-  P.inv = 1.0 + P.invBonus; P.hurtT = 0.35; G.shake = Math.max(G.shake, 5); G.flashT = 0.3; sfx('hurt');
+  P.inv = 1.0 + P.invBonus; P.hurtT = 0.35; G.shake = Math.max(G.shake, 5); flashScreen(0.3); sfx('hurt');
   if (P.shield > 0) { P.shield--; burst(P.x, P.y - 6, 8, PAL.b); return true; }
   P.hp -= dmg; G.stats.hurt += dmg; burst(P.x, P.y - 6, 8, PAL.r);
   if (P.hp <= 0) {
@@ -3529,6 +3537,7 @@ function addZone(x, y, r, d, kind, dmg, extra) { if (G.zones.length < 70) G.zone
 function killMon(e) {
   if (e.dead) return; e.dead = true; const def = e.def, P = G.P, room = roomAt(e.x, e.y); G.stats.kills++;
   burst(e.x, e.y - 4, def.elite ? 18 : 6, def.col, def.elite ? 90 : 60); sfx('kill');
+  if (def.elite && !def.mimic) bigKill(e.x, e.y - 6, 44);        // a mimic has its own moment: the loot it spills
   let gl = e.noLoot ? 0 : def.glint;      // a pack called by a knock back carries nothing
   if (room && roomLive(room)) {
     if (room.type === 'grave') gl *= 1 + roomLevel('grave');
@@ -4192,7 +4201,7 @@ function evolveCheck() {
   const e = WEAPONS[id].evo;
   w.evo = true; w.cd = 0.3; G.stats.evos++;
   P.pose = 1.35; P.poseBoon = { kind: 'w', id }; P.poseEvo = true; P.face = 2; G.freeze = 1.25; sfx('evolve'); G.shake = Math.max(G.shake, 4);
-  sparkle(P.x, P.y - 20, 40, PAL.y); sparkle(P.x, P.y - 20, 20, PAL.w);
+  sparkle(P.x, P.y - 20, 40, PAL.y); sparkle(P.x, P.y - 20, 20, PAL.w); G.fxs.push({ k: 'tide', x: P.x, y: P.y - 10, R: 64, t: 0, d: 0.6, hot: 1 });   // the burst of its beat
   banner(e.name.toUpperCase(), WEAPONS[id].name + ' evolved! ' + e.desc, '#ffd95e', 3.6);
 }
 function updateWeapons(dt) {
@@ -4280,7 +4289,7 @@ function summonBoss(fromRoom) {
 }
 function bossDied(e) {
   const D = G.dir, P = G.P, last = G.floor === FLOORS.length - 1;
-  D.bossDead = true; G.bossDown = true; G.stats.floors = Math.max(G.stats.floors, G.floor + 1); Snd.music(null); sfx('win'); sfx('boom'); G.shake = 10;
+  D.bossDead = true; G.bossDown = true; G.stats.floors = Math.max(G.stats.floors, G.floor + 1); Snd.music(null); sfx('win'); bigKill(e.x, e.y - 14, 90); G.shake = 10;
   for (const m of G.mons) if (!m.dead && m !== e) { m.dead = true; burst(m.x, m.y - 4, 5, m.def.col); if (m.def.glint) dropGlint(m.x, m.y, m.def.glint); }
   G.ebullets.length = 0; for (const d of G.sealed) d.queue.length = 0; G.zones = G.zones.filter(z => z.kind === 'flame' || z.kind === 'cloud');
   for (const j of G.jams.slice()) unjam(j);
@@ -4900,6 +4909,8 @@ function drawDoor(g, d, cx, cy) {
     for (const [u, v] of spots) { let p = dblk(d.dir, u, v); g.fillRect(x + p[0], y + p[1], 2, 2); p = dblk(d.dir, u + 4, v); g.fillRect(x + p[0], y + p[1], 2, 2); }
   }
 }
+// the sprite that gives a prop its size (a flame on top of it is not counted)
+const propSprite = p => SPR[{ fountain: 'fountain0', brazier: 'brazier', campfire: 'logs', candle: 'candle', statue: 'statue', saw: 'saw0' }[p.kind] || p.spr];
 function drawProp(g, p, x, y) {
   const t = frameT;
   switch (p.kind) {
@@ -5017,14 +5028,8 @@ function renderWorld(g) {
       if (boss.st === 3 && r && boss.wall >= 0 && (Math.floor(t * 12) & 1)) { const p = doorPos(r, boss.wall), hz = !(boss.wall & 1); g.fillStyle = 'rgba(255,106,106,0.55)'; g.fillRect(Math.round(p.x - (hz ? 24 : 16) - cx), Math.round(p.y - (hz ? 16 : 24) - cy), hz ? 48 : 32, hz ? 32 : 48); }
     }
   }
-  // pickups
-  for (const p of G.picks) {
-    if (!vis(p.x, p.y, 12)) continue;
-    const x = p.x - cx, y = p.y - cy;
-    if (p.k === 'glint') ds(g, SPR[p.v >= 20 ? 'glint2' : p.v >= 5 ? 'glint1' : 'glint0'], x, y + Math.round(Math.sin(t * 6 + p.x) * 1));
-    else { ds(g, SPR.sh_s, x, y + 2); ds(g, SPR[p.k === 'heart' ? 'heart' : 'key'], x, y - 3 + Math.round(Math.sin(t * 5 + p.x) * 2)); }
-  }
-  // shadows, then depth-sorted actors
+  // shadows (also those of the hearts and keys, which are drawn on the top layer), then depth-sorted actors
+  for (const p of G.picks) if (p.k !== 'glint' && vis(p.x, p.y, 12)) ds(g, SPR.sh_s, p.x - cx, p.y - cy + 2);
   drawList.length = 0;
   for (const r of rooms) if (r.reveal >= 1) for (const p of r.props) drawList.push({ y: p.y, k: 0, o: p });
   for (const e of G.mons) if (!e.dead && vis(e.x, e.y, 50)) { if (e.emerge <= 0.2) ds(g, SPR[e.def.sh], e.x - cx, e.y - cy + 2); drawList.push({ y: e.y, k: 1, o: e }); }
@@ -5064,7 +5069,6 @@ function renderWorld(g) {
     else if (s.k === 'bolt') { const hz = !(s.dir & 1); g.fillStyle = '#1a1426'; g.fillRect(Math.round(x) - (hz ? 2 : 7), Math.round(y) - (hz ? 7 : 2), hz ? 4 : 14, hz ? 14 : 4); g.fillStyle = '#fff8e8'; g.fillRect(Math.round(x) - (hz ? 1 : 6), Math.round(y) - (hz ? 6 : 1), hz ? 2 : 12, hz ? 12 : 2); }
     else if (s.k === 'wave') { const ca = Math.cos(s.a), sa = Math.sin(s.a); for (let i = -4; i <= 4; i++) { g.fillStyle = Math.abs(i) < 3 ? '#fff8e8' : '#ffd95e'; g.fillRect(Math.round(x - sa * i * 2 - ca * Math.abs(i) * 1.4) - 1, Math.round(y + ca * i * 2 - sa * Math.abs(i) * 1.4) - 1, 2, 2); } }
   }
-  for (const b of G.ebullets) if (vis(b.x, b.y, 8)) ds(g, SPR[b.spr], b.x - cx, b.y - cy + 3);
   // timed fx
   for (const f of G.fxs) {
     const k = f.t / f.d;
@@ -5127,6 +5131,35 @@ function renderWorld(g) {
     if (f.s) { g.globalAlpha = clamp((f.d - f.t) * 3, 0, 1); txo(g, f.s, x, y, f.col, '#1a1426', 0.5); g.globalAlpha = 1; }
     else miniNum(g, f.n, x, y - (f.t < 0.08 ? 2 : 0), f.col);
   }
+  // vignette + hurt flash
+  if (!vignette || vignette.width !== VW || vignette.height !== VH) {
+    vignette = mkCanvas(VW, VH); const vg = vignette.getContext('2d'), gr = vg.createRadialGradient(VW / 2, VH / 2, VH * 0.42, VW / 2, VH / 2, VW * 0.72);
+    gr.addColorStop(0, 'rgba(8,5,20,0)'); gr.addColorStop(1, 'rgba(8,5,20,0.5)'); vg.fillStyle = gr; vg.fillRect(0, 0, VW, VH);
+  }
+  g.drawImage(vignette, 0, 0);
+  // a flash is a tint: it covers at most 0.27 of what is under it, and flashScreen() keeps flashes apart; at two hearts
+  // or fewer a slow pulse of up to 0.12 lies over the picture as well
+  if (G.flashT > 0) { g.fillStyle = 'rgba(232,71,76,' + (G.flashT * 0.9).toFixed(3) + ')'; g.fillRect(0, 0, VW, VH); }
+  if (!P.hidden && P.hp <= 2 && !G.over && !G.won) { g.fillStyle = 'rgba(232,71,76,' + (0.07 + Math.sin(t * 6) * 0.05).toFixed(3) + ')'; g.fillRect(0, 0, VW, VH); }
+  // ---- the top layer (#14): the delver, pickups and enemy bullets, drawn once more over everything above: every blast,
+  // glow, particle and number, the vignette and the flash. So nothing that happens on screen hides what the next
+  // decision needs. The delver comes first, so the glow of its pose lies under the pickups and the bullets.
+  if (!P.hidden) {
+    // A prop that stands in front of the delver keeps hiding it: its box is cut out of this second drawing, and what
+    // shows there is the delver of the depth-sorted pass, behind the prop. A monster in front does not hide it.
+    g.save();
+    for (const r of rooms) if (r.reveal >= 1) for (const q of r.props) if (q.y > P.y && q.y < P.y + 64 && Math.abs(q.x - P.x) < 44) {
+      const sp = propSprite(q); g.beginPath(); g.rect(0, 0, VW, VH); g.rect(Math.round(q.x - cx) - sp.ax, Math.round(q.y - cy) - sp.ay, sp.w, sp.h); g.clip('evenodd');
+    }
+    drawPlayer(g, P.x - cx, P.y - cy); g.restore();
+  }
+  for (const p of G.picks) {
+    if (!vis(p.x, p.y, 12)) continue;
+    const x = p.x - cx, y = p.y - cy;
+    if (p.k === 'glint') ds(g, SPR[p.v >= 20 ? 'glint2' : p.v >= 5 ? 'glint1' : 'glint0'], x, y + Math.round(Math.sin(t * 6 + p.x) * 1));
+    else ds(g, SPR[p.k === 'heart' ? 'heart' : 'key'], x, y - 3 + Math.round(Math.sin(t * 5 + p.x) * 2));
+  }
+  for (const b of G.ebullets) if (vis(b.x, b.y, 8)) ds(g, SPR[b.spr], b.x - cx, b.y - cy + 3);
   // world-space prompts
   if (!P.hidden && !G.over) {
     const x = Math.round(P.x - cx), y = Math.round(P.y - cy);
@@ -5142,14 +5175,6 @@ function renderWorld(g) {
     const cur = G.curRoom, al = cur && cur.altar;
     if (al && al.hold > 0) { g.fillStyle = '#1a1426'; g.fillRect(al.x - cx - 11, al.y - cy - 26, 22, 4); g.fillStyle = '#ff9ec4'; g.fillRect(al.x - cx - 10, al.y - cy - 25, Math.round(20 * al.hold / 1.1), 2); }
   }
-  // vignette + hurt flash
-  if (!vignette || vignette.width !== VW || vignette.height !== VH) {
-    vignette = mkCanvas(VW, VH); const vg = vignette.getContext('2d'), gr = vg.createRadialGradient(VW / 2, VH / 2, VH * 0.42, VW / 2, VH / 2, VW * 0.72);
-    gr.addColorStop(0, 'rgba(8,5,20,0)'); gr.addColorStop(1, 'rgba(8,5,20,0.5)'); vg.fillStyle = gr; vg.fillRect(0, 0, VW, VH);
-  }
-  g.drawImage(vignette, 0, 0);
-  if (G.flashT > 0) { g.fillStyle = 'rgba(232,71,76,' + (G.flashT * 0.9).toFixed(3) + ')'; g.fillRect(0, 0, VW, VH); }
-  if (!P.hidden && P.hp <= 2 && !G.over && !G.won) { g.fillStyle = 'rgba(232,71,76,' + (0.07 + Math.sin(t * 6) * 0.05).toFixed(3) + ')'; g.fillRect(0, 0, VW, VH); }
   G.view = { cx, cy };
 }
 

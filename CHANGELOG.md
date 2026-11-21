@@ -4,6 +4,8 @@ What changed for a player, newest first. The game shows the same text: CHANGELOG
 
 ## 0.4: The screen burns (in progress)
 
+- You, enemy bullets and pickups are now drawn above every blast, glow, spark and number, and above the screen's flash.
+- An elite's death has a ring, a boom and a shake; a warden's a bigger ring. The screen never flashes more than three times a second.
 - The music can follow the floor plan: Music grows in the pause menu. WITH THE PLAN brings a floor's piece in voice by voice as you build. BY ELEMENT adds a voice for each element among your rooms.
 - A music player on the title screen: every track, switches for its voices and for the element voices, every sound effect, and the game's creatures dancing to it.
 
