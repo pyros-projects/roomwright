@@ -359,6 +359,15 @@
       for (let i = 0; i < 25; i++) RW.Save.data.census.push(rec); RW.Save.store(); RW.Save.load();
       ok('census: the save keeps the last 20 runs', RW.Save.data.census.length === 20, RW.Save.data.census.length);
     }
+    /* ---- the changelog: CHANGELOG.md, as the game reads it ---- */
+    { const C = RW.CHANGES, text = C.map(c => c.v + c.name + c.date + c.items.join('')).join(''), odd = [...new Set(text)].filter(ch => !RW.FONT[ch] || '@{}`'.includes(ch));   // those four draw as icons
+      const md = RW.CHANGELOG_MD.split('\n'), heads = md.filter(l => l.startsWith('## ')).length, bullets = md.filter(l => /^\s*[-*+] /.test(l)).length, loose = md.filter(l => /^(\t| \S)/.test(l));
+      ok('changelog: every heading in the file is a version the game can read', C.length === heads && C.every(c => c.v), C.filter(c => !c.v).map(c => c.name).join('; ') || heads + ' versions');
+      ok('changelog: every bullet in the file is an entry in the game', bullets === C.reduce((n, c) => n + c.items.length, 0) && loose.length === 0, bullets + ' bullets, ' + loose.length + ' lines the game would drop');
+      ok('changelog: the game\'s version has an entry, and it is the first', C.length > 0 && C[0].v === RW.K.VERSION, C.map(c => c.v).join(' ') + ' for ' + RW.K.VERSION);
+      ok('changelog: every version has a name and at least one entry', C.every(c => c.name && c.items.length > 0), C.map(c => c.v + ':' + c.items.length).join(' '));
+      ok('changelog: every released version has its date', C.slice(1).every(c => /^\d{4}-\d\d-\d\d$/.test(c.date)), C.map(c => c.date).join(' '));
+      ok('changelog: the game\'s font has every character in it, and none that draws as an icon', odd.length === 0, odd.join(' ') || text.length + ' characters'); }
     ok('no NaN anywhere', isFinite(P.x) && isFinite(P.y) && isFinite(P.glints) && G.mons.every(e => isFinite(e.x)));
   } catch (e) { res.push('EXCEPTION ' + String(e && e.stack || e).slice(0, 600)); }
   try { localStorage.setItem(RW.Save.KEY, saved); RW.Save.load(); } catch (e) { /* ignore */ }

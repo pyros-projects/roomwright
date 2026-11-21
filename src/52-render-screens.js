@@ -300,6 +300,12 @@ function renderDeck(g) {
 
 // ---- title ----
 const LOGO = 'ROOMWRIGHT';
+// The title's small entries along the bottom, left to right. The big one, START, is the rest of the screen.
+// App.titleSel holds the id of the chosen one, '' for START.
+function titleLayout() {
+  const items = []; if (Intro.ok) items.push(['intro', 'INTRO']); items.push(['changes', 'CHANGELOG']);
+  let x = 0; return items.map(([id, label]) => { const r = { id, label, x, y: VH - 18, w: textW(label) + 12, h: 18 }; x += r.w; return r; });
+}
 function renderTitle(g) {
   const t = frameT, hid = Save.data.hero;
   renderWorld(g);
@@ -325,14 +331,58 @@ function renderTitle(g) {
   g.drawImage(App.big.key, VW / 2 - 24, my - 8 + Math.round(Math.sin(t * 2.5) * 2));
   g.drawImage(SPR.sh_xl.c, VW / 2 + 27, my + 17); g.drawImage(App.big['slime' + (bob > 1 ? 0 : 1)], VW / 2 + 26, my - 12 - bob);
   // prompt + how-to
-  if ((Math.floor(t * 2.2) & 1) || App.fade) txo(g, Input.touch ? 'TAP TO START' : 'PRESS ENTER TO START', VW / 2, Math.round(VH * 0.76), '#fff8e8', '#1a1426', 0.5);
-  const hy = VH - 30, cols = [['@', 'Glints forge keys'], ['}', 'Keys open doors'], ['?', 'Doors hide rooms... and monsters']];
+  const T = titleLayout(), sel = T.findIndex(e => e.id === App.titleSel);          // -1: START
+  if (sel >= 0) txo(g, Input.touch ? 'TAP TO START' : 'PRESS ENTER TO START', VW / 2, Math.round(VH * 0.76), '#5d667c', '#1a1426', 0.5);
+  else if ((Math.floor(t * 2.2) & 1) || App.fade) txo(g, Input.touch ? 'TAP TO START' : 'PRESS ENTER TO START', VW / 2, Math.round(VH * 0.76), '#fff8e8', '#1a1426', 0.5);
+  const hy = VH - 42, cols = [['@', 'Glints forge keys'], ['}', 'Keys open doors'], ['?', 'Doors hide rooms... and monsters']];
   let tw = 0; for (const c of cols) tw += textW(c[0] + '  ' + c[1]) + 18; let hx = Math.round(VW / 2 - (tw - 18) / 2);
   for (const c of cols) { txo(g, c[0], hx, hy, '#ffd95e'); txo(g, c[1], hx + textW(c[0]) + 5, hy, '#d8dbe6'); hx += textW(c[0] + '  ' + c[1]) + 18; }
   const b = Save.data.best, nc = Object.keys(Save.data.rooms).length;
-  txt(g, Save.data.runs > 0 ? 'Deepest: floor ' + Math.max(1, b.floor) + '   Cards: ' + nc + '/' + DRAFTABLE.length + (Save.data.wins ? '   Wins: ' + Save.data.wins : '') : 'WASD move - SPACE dash - P pause - M mute', VW / 2, VH - 14, '#5d667c', 0.5);
+  txt(g, Save.data.runs > 0 ? 'Deepest: floor ' + Math.max(1, b.floor) + '   Cards: ' + nc + '/' + DRAFTABLE.length + (Save.data.wins ? '   Wins: ' + Save.data.wins : '') : 'WASD move - SPACE dash - P pause - M mute', VW / 2, VH - 28, '#5d667c', 0.5);
   txt(g, 'v' + VERSION, VW - 5, VH - 10, '#3b2d4f', 1);
-  if (Intro.ok) txt(g, (Input.touch ? '' : 'I  ') + 'INTRO', 5, VH - 10, Input.inRect(introRect()) ? '#9aa3b5' : '#5d667c');
+  T.forEach((r, i) => {
+    const on = i === sel;
+    if (on) { g.fillStyle = '#ffd95e'; g.fillRect(r.x + 5, r.y + 17, r.w - 12, 1); }
+    txt(g, r.label, r.x + 5, r.y + 8, on ? '#fff8e8' : Input.inRect(r) ? '#9aa3b5' : '#5d667c');
+  });
+}
+// ---- the changelog: CHANGELOG.md's entries (src/26-changelog.js), newest first, in a panel that scrolls
+let _changes = null;
+function changesLayout() {
+  const w = Math.min(VW - 64, 420), x = Math.round(VW / 2 - w / 2), top = 26, h = VH - top - 26;
+  if (!_changes || _changes.w !== w) {              // the text as lines for this width: [text, kind, date]; kind v: a version, i: an entry, c: its next lines
+    const lines = [];
+    for (const c of CHANGES) {
+      if (lines.length) lines.push(['', '']);
+      lines.push([c.v + '  ' + c.name, 'v', c.date]);
+      for (const it of c.items) wrapText(it, w - 10).forEach((l, i) => lines.push([l, i ? 'c' : 'i']));
+    }
+    _changes = { w, lines };
+  }
+  const lines = _changes.lines, total = lines.length * 10 + 6;
+  return { view: { x, y: top, w, h }, lines, total, max: Math.max(0, total - h), page: h - 20,
+    up: { x: x + w + 8, y: top - 4, w: 22, h: 22 }, down: { x: x + w + 8, y: top + h - 18, w: 22, h: 22 },
+    upper: { x, y: top, w, h: h / 2 }, lower: { x, y: top + h / 2, w, h: h / 2 },      // a click or tap in the text pages too: its upper half back, its lower half on
+    back: { x: 0, y: 0, w: textW('BACK') + 12, h: 18 } };                               // top left, away from where the title has its entries
+}
+function renderChanges(g) {
+  renderWorld(g);
+  g.fillStyle = 'rgba(13,10,26,0.8)'; g.fillRect(0, 0, VW, VH);
+  const L_ = changesLayout(), v = L_.view, y0 = v.y + 4 - Math.round(App.changes.y);
+  txs(g, 'CHANGELOG', VW / 2, 8, '#ffd95e', 0.5);
+  panel(g, v.x - 6, v.y - 4, v.w + 12, v.h + 8);
+  g.save(); g.beginPath(); g.rect(v.x - 2, v.y, v.w + 4, v.h); g.clip();
+  L_.lines.forEach(([s, kind, date], i) => {
+    const y = y0 + i * 10; if (y < v.y - 10 || y > v.y + v.h) return;
+    if (kind === 'v') { txt(g, s, v.x, y, '#ffd95e'); if (date) txt(g, date, v.x + v.w, y, '#9aa3b5', 1); }
+    else if (kind) { if (kind === 'i') txt(g, '-', v.x + 1, y, '#9cecf2'); txt(g, s, v.x + 10, y, '#d8dbe6'); }
+  });
+  g.restore();
+  for (const [r, ch, on] of [[L_.up, '^', App.changes.y > 0], [L_.down, 'v', App.changes.y < L_.max]]) {
+    panel(g, r.x, r.y, r.w, r.h, on ? '#8e9cc0' : '#3b2d4f'); txt(g, ch, r.x + r.w / 2, r.y + 7, on ? '#fff8e8' : '#5d667c', 0.5);
+  }
+  txt(g, 'BACK', 5, 8, Input.inRect(L_.back) ? '#fff8e8' : '#9aa3b5');
+  txt(g, Input.touch ? 'tap the lower half to read on, the upper half to go back up' : 'UP and DOWN scroll - ESC goes back', VW / 2, VH - 10, '#5d667c', 0.5);
 }
 function renderIris(g) {
   const f = App.fade, k = clamp(f.t / f.d, 0, 1), maxR = Math.hypot(VW, VH) * 0.6, r = maxR * (f.phase ? easeOut(k) : 1 - easeOut(k));
@@ -346,6 +396,7 @@ function render() {
   else if (m === 'title') renderTitle(g);
   else if (m === 'prep') renderPrep(g);
   else if (m === 'deck') renderDeck(g);
+  else if (m === 'changes') renderChanges(g);
   else if (m === 'descend') renderDescend(g);
   else {
     renderWorld(g); renderHUD(g);

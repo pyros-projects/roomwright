@@ -21,6 +21,7 @@ on:
       - index.html
       - intro.mp4
       - src/**
+      - CHANGELOG.md
       - tools/build.sh
       - .github/workflows/pages.yml
   workflow_dispatch:

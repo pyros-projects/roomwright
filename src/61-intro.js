@@ -86,7 +86,6 @@ const Intro = (() => {
     get ok() { return !!el && !failed && el.readyState >= 1; } };
 })();
 const introWanted = () => new URLSearchParams(location.search).get('intro') !== '0';
-const introRect = () => ({ x: 0, y: VH - 18, w: textW('I  INTRO') + 12, h: 18 });
 function renderIntro(g) {             // under the film: black, or the prompt for the key that lets it start
   g.fillStyle = '#0d0a1a'; g.fillRect(0, 0, VW, VH);
   if (!Intro.gate) return;

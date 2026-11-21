@@ -1,5 +1,5 @@
-// Flow checks: first run, pause and options, drafting (step back, stairs), game over, the hero and deck
-// screens, victory, endless, back to title. Driven purely by input actions.
+// Flow checks: first run, pause and options, drafting (step back, stairs), game over, the title's entries and
+// the changelog, the hero and deck screens, victory, endless, back to title. Driven purely by input actions.
 // Run with tools/check.sh; returns one PASS/FAIL line per check.
 (() => {
   const out = [], ok = (n, c, i) => out.push((c ? 'PASS ' : 'FAIL ') + n + (i !== undefined ? ' (' + i + ')' : ''));
@@ -41,6 +41,20 @@
     press('pause'); for (let i = 0; i < 6; i++) press('down'); RW.step(30); press('ok'); RW.step(60);
     ok('quit to title', RW.App.mode === 'title' && RW.G.rooms.length > 3, RW.G.rooms.length + ' showcase rooms');
     ok('the showcase never touches the save', Object.keys(RW.Save.data.rooms).length <= RW.STARTER_ROOMS.length + 1, Object.keys(RW.Save.data.rooms).length + ' cards');
+    /* ---- the title's small entries, and the changelog ---- */
+    { RW.step(30); const T = RW.titleLayout(), ci = T.findIndex(e => e.id === 'changes');
+      ok('title: the changelog is one of its entries', ci >= 0, T.map(e => e.id).join(' '));
+      press('right'); ok('title: RIGHT alone leaves the choice on START', RW.App.titleSel === '', RW.App.titleSel);
+      press('down'); for (let i = 0; i < ci; i++) press('right');
+      ok('title: DOWN steps into the entries and RIGHT moves along them', RW.App.titleSel === 'changes' && RW.App.mode === 'title', RW.App.titleSel);
+      press('up'); ok('title: UP steps back out to START', RW.App.titleSel === '', RW.App.titleSel); press('down'); for (let i = 0; i < ci; i++) press('right');
+      press('ok'); RW.step(30); ok('changelog: ENTER on its entry opens it', RW.App.mode === 'changes', RW.App.mode);
+      ok('changelog: it begins with the version of this game', RW.CHANGES.length > 1 && RW.CHANGES[0].v === RW.K.VERSION, RW.CHANGES.map(c => c.v).join(' ') + ' for ' + RW.K.VERSION);
+      const L = RW.changesLayout(); RW.hold('down', true); RW.step(30); RW.hold('down', false);
+      ok('changelog: DOWN scrolls', L.max === 0 || RW.App.changes.y > 0, Math.round(RW.App.changes.y) + ' of ' + L.max);
+      for (let i = 0; i < 20; i++) press('ok'); ok('changelog: it stops at its end', RW.App.changes.y === L.max && RW.App.mode === 'changes', Math.round(RW.App.changes.y));
+      press('back'); ok('changelog: ESC goes back to the title, with the choice on START again', RW.App.mode === 'title' && RW.App.titleSel === '', RW.App.mode + ' ' + RW.App.titleSel);
+      press('down'); press('back'); ok('title: ESC puts the choice back on START', RW.App.titleSel === '', RW.App.titleSel); }
     RW.step(30); press('ok'); ok('later runs go through the hero screen', RW.App.mode === 'prep', RW.App.mode);
     press('right'); ok('RIGHT shows the next delver', RW.App.prep.i === 1); RW.step(30); press('ok'); RW.step(30); ok('a locked delver cannot start', RW.App.mode === 'prep' && !RW.App.fade);
     press('alt'); ok('...nor open a deck', RW.App.mode === 'prep'); press('left');
@@ -69,7 +83,12 @@
     tap(9); ok('pad: Start pauses', RW.App.mode === 'pause', RW.App.mode); tap(1); ok('pad: B resumes', RW.App.mode === 'play', RW.App.mode);
     RW.openDraft(G.sealed[0]); gstep(30); const s0 = G.draft.sel; pad.axes[0] = 1; gstep(2); pad.axes[0] = 0; gstep(2); ok('pad: the stick moves between cards', G.draft.sel !== s0, s0 + '->' + G.draft.sel);
     tap(0); ok('pad: A builds the card', RW.App.mode === 'play' && G.rooms.length === 2, RW.App.mode + ', ' + G.rooms.length + ' rooms');
-    RW.toTitle(); gstep(40); tap(0); gstep(40); ok('pad: A leaves the title', RW.App.mode === 'prep', RW.App.mode);
+    RW.toTitle(); gstep(40);
+    { const ci = RW.titleLayout().findIndex(e => e.id === 'changes'); pad.axes[1] = 1; gstep(2); pad.axes[1] = 0; gstep(2); for (let i = 0; i < ci; i++) { pad.axes[0] = 1; gstep(2); pad.axes[0] = 0; gstep(2); }
+      tap(0); gstep(20); ok('pad: the stick and A open the changelog', RW.App.mode === 'changes', RW.App.mode + ' sel ' + RW.App.titleSel);
+      const L = RW.changesLayout(); pad.axes[1] = 1; gstep(30); pad.axes[1] = 0; gstep(2); ok('pad: the stick scrolls it', L.max === 0 || RW.App.changes.y > 0, Math.round(RW.App.changes.y));
+      tap(1); ok('pad: B closes it, and the choice is START', RW.App.mode === 'title' && RW.App.titleSel === '', RW.App.mode + ' ' + RW.App.titleSel); }
+    gstep(30); tap(0); gstep(40); ok('pad: A leaves the title', RW.App.mode === 'prep', RW.App.mode);
     gstep(30); tap(3); ok('pad: Y opens the deck builder', RW.App.mode === 'deck', RW.App.mode); tap(1); ok('pad: B closes it', RW.App.mode === 'prep', RW.App.mode);
     delete navigator.getGamepads;
     /* ---- the card coach: lessons on the draft card itself ---- */
@@ -188,6 +207,14 @@
     RW.toTitle(); RW.step(40); press('ok'); RW.step(40); { const L = RW.prepLayout('pip'), cx = V.VW / 2, cy = L.sy + 9; const seq = [];
       for (let i = 0; i < 3; i++) { mouse('mousedown', cx, cy); RW.step(3); mouse('mouseup', cx, cy, 0, 0); seq.push(RW.stakeOf('pip')); }
       ok('stakes, mouse: a click on the Stakes lines goes up a step, and from the top back to none', RW.App.mode === 'prep' && seq.join() === '1,2,0', seq.join()); }
+    { RW.toTitle(); RW.step(40); const e = RW.titleLayout().find(t => t.id === 'changes');
+      mouse('mousemove', e.x + e.w / 2, e.y + 9, 0, 0); RW.step(2); ok('mouse: pointing at a title entry chooses it', RW.App.titleSel === 'changes', RW.App.titleSel);
+      mouse('mousemove', V.VW / 2, V.VH / 2, 0, 0); RW.step(2); ok('mouse: moving off it gives the choice back to START', RW.App.titleSel === '', RW.App.titleSel);
+      mouse('mousemove', e.x + e.w / 2, e.y + 9, 0, 0); RW.step(2);
+      mouse('mousedown', e.x + e.w / 2, e.y + 9); RW.step(3); mouse('mouseup', 0, 0, 0, 0); RW.step(20); ok('mouse: a click on it opens the changelog', RW.App.mode === 'changes', RW.App.mode);
+      const L = RW.changesLayout(); cvs.dispatchEvent(new WheelEvent('wheel', { deltaY: 120, bubbles: true, cancelable: true })); RW.step(2);
+      ok('mouse: the wheel scrolls it', L.max === 0 || RW.App.changes.y > 0, Math.round(RW.App.changes.y) + ' of ' + L.max);
+      mouse('mousedown', L.back.x + 8, L.back.y + 9); RW.step(3); mouse('mouseup', 0, 0, 0, 0); ok('mouse: BACK closes it, and the choice is START', RW.App.mode === 'title' && RW.App.titleSel === '', RW.App.mode + ' ' + RW.App.titleSel); mouse('mousemove', V.VW / 2, V.VH / 2, 0, 0); RW.step(2); }
     if (typeof Touch === 'function' && typeof TouchEvent === 'function') {
       const touch = (type, pts) => { const ts = pts.map(([id, vx, vy]) => new Touch({ identifier: id, target: cvs, ...at(vx, vy) })); cvs.dispatchEvent(new TouchEvent(type, { changedTouches: ts, touches: type === 'touchstart' || type === 'touchmove' ? ts : [], bubbles: true, cancelable: true })); };
       const lx = V.VW * 0.25, ly = V.VH * 0.7, rx = V.VW * 0.8, ry = V.VH * 0.6;
@@ -205,6 +232,11 @@
       ok('touch: a tap beside the cards steps back', RW.App.mode === 'play' && G.rooms.length === rooms0, RW.App.mode);
       RW.step(70); RW.openDraft(G.sealed[0]); RW.step(40); cr = RW.draftLayout().rects[0]; touch('touchstart', [[7, cr.x + cr.w / 2, cr.y + cr.h / 2]]); RW.step(3); touch('touchend', [[7, 0, 0]]);
       ok('touch: a tap on a card builds it, and starts no stick', RW.App.mode === 'play' && G.rooms.length === rooms0 + 1 && !RW.Input.stick.on, RW.App.mode + ', ' + G.rooms.length + ' rooms');
+      { RW.toTitle(); RW.step(40); const e = RW.titleLayout().find(t => t.id === 'changes'); touch('touchstart', [[10, e.x + e.w / 2, e.y + 9]]); RW.step(3); touch('touchend', [[10, 0, 0]]); RW.step(20);
+        ok('touch: a tap on the title entry opens the changelog', RW.App.mode === 'changes', RW.App.mode);
+        const L = RW.changesLayout(); touch('touchstart', [[11, L.lower.x + L.lower.w / 2, L.lower.y + L.lower.h / 2]]); RW.step(3); touch('touchend', [[11, 0, 0]]);
+        ok('touch: a tap on the lower half of the text reads on', L.max === 0 || RW.App.changes.y > 0, Math.round(RW.App.changes.y) + ' of ' + L.max);
+        touch('touchstart', [[12, L.back.x + 8, L.back.y + 9]]); RW.step(3); touch('touchend', [[12, 0, 0]]); ok('touch: BACK closes it', RW.App.mode === 'title', RW.App.mode); }
       RW.toTitle(); RW.step(40); touch('touchstart', [[8, V.VW / 2, V.VH / 2]]); RW.step(3); touch('touchend', [[8, 0, 0]]); RW.step(40);
       { const L = RW.prepLayout('pip'), cx = V.VW / 2, cy = L.sy + 9, seq = []; for (let i = 0; i < 3; i++) { touch('touchstart', [[9, cx, cy]]); RW.step(3); touch('touchend', [[9, 0, 0]]); seq.push(RW.stakeOf('pip')); }
         ok('stakes, touch: a tap on the Stakes lines does the same', RW.App.mode === 'prep' && seq.join() === '1,2,0', RW.App.mode + ' ' + seq.join()); }

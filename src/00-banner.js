@@ -19,6 +19,7 @@
      23-monsters ......... DATA: monsters, pests, elites, wardens
      24-floors ........... DATA: floors, difficulty curves, heroes, unlocks
      25-music ............ DATA: music written out note by note (the three floors)
+     26-changelog ........ DATA: the changelog, read from CHANGELOG.md's text
      30-dungeon .......... grid, rooms, doors, gates, breaches, painting, flow
      40-actors ........... run + floor state, player, monster AI, pickups
      41-weapons .......... auto-attack behaviours and evolutions

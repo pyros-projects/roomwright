@@ -1,7 +1,8 @@
 /* ============================= 15 GAME LOOP =========================== */
 // modes: (intro ->) title -> prep (<-> deck) -> play <-> draft / pause -> descend -> play ... -> over | win
-const App = { mode: 'title', prevMode: '', modeT: 0, sel: 0, fade: null, record: false, big: {}, manual: false, coach: true, titleT: 0, titleRoom: 0,
-  prep: { i: 0 }, deck: { cur: 0, msg: '', msgT: 0 }, descend: null };
+//        title <-> changes (the changelog)
+const App = { mode: 'title', prevMode: '', modeT: 0, sel: 0, fade: null, record: false, big: {}, manual: false, coach: true, titleT: 0, titleRoom: 0, titleSel: '', titlePtr: false,
+  changes: { y: 0 }, prep: { i: 0 }, deck: { cur: 0, msg: '', msgT: 0 }, descend: null };
 
 // ---- save data: options, records, and the meta-game (cards collected, heroes, one deck per hero) ----
 const Save = {
@@ -70,7 +71,7 @@ function makeShowcase() {
   G.P.hidden = true; G.P.keys = 99; G.dir.calm = 1e9;
   for (let i = 0; i < 9 && G.sealed.length; i++) { openDraft(pick(G.sealed)); const room = chooseCard(ri(0, G.draft.cards.length - 1)); room.reveal = 1; room.seen = true; onRoomReady(room); }
   G.parts.length = 0; G.shake = 0; G.banner = null; G.draft = null; G.tipQ.length = 0;
-  App.mode = 'title'; App.titleRoom = 0; App.titleT = 0;
+  App.mode = 'title'; App.titleRoom = 0; App.titleT = 0; App.titleSel = '';
   G.cam.x = G.rooms[0].px + CWP / 2 - VW / 2; G.cam.y = G.rooms[0].py + CHP / 2 - VH / 2;
 }
 function toTitle() { Snd.music('title'); makeShowcase(); }
@@ -152,12 +153,41 @@ const MODES = {
     const r = G.rooms[App.titleRoom], k = 1 - Math.exp(-dt * 0.8);
     G.cam.x += (r.px + CWP / 2 - VW / 2 - G.cam.x) * k; G.cam.y += (r.py + CHP / 2 - VH / 2 - G.cam.y) * k;
     G.t += dt; updateDoors(dt); updateRooms(dt); updateAllies(dt); updateSmall(dt);
-    if (Intro.ok && App.modeT > 0.3 && (Input.hit('intro') || (Input.mouse.click && Input.inRect(introRect())))) { Intro.begin(); return; }   // watch the intro again
-    if ((Input.confirm() || Input.mouse.click) && App.modeT > 0.3) {
+    // START is the whole screen and what ENTER does. The small entries sit in a row along the bottom: DOWN steps
+    // into the row, LEFT and RIGHT move along it, UP or ESC step out again; the pointer chooses what it is on, and
+    // nothing once it leaves. The choice is an entry's id, '' for START, and it goes back to START when an entry is used.
+    const T = titleLayout(), m = Input.mouse, over = T.find(e => Input.inRect(e)); let at = T.findIndex(e => e.id === App.titleSel), act = '';
+    if (at < 0) App.titleSel = '';
+    const choose = i => { App.titleSel = i < 0 ? '' : T[i].id; at = i; sfx('tick'); };
+    if (at < 0) { if (Input.hit('down') && T.length) choose(0); }
+    else if (Input.hit('up') || Input.hit('back')) choose(-1);
+    else if (Input.hit('right') && at < T.length - 1) choose(at + 1);
+    else if (Input.hit('left') && at > 0) choose(at - 1);
+    if (m.moved && (over ? over.id : '') !== App.titleSel && (over || T.some(e => e.id === App.titleSel && App.titlePtr))) choose(over ? T.indexOf(over) : -1);
+    if (m.moved) App.titlePtr = !!over;                                  // the pointer put the choice there: it takes it away again
+    if (App.modeT > 0.3) {
+      if (Intro.ok && Input.hit('intro')) act = 'intro';
+      else if (m.click) act = over ? over.id : 'start';
+      else if (Input.confirm()) act = App.titleSel || 'start';
+    }
+    if (act && act !== 'start') { App.titleSel = ''; App.titlePtr = false; }
+    if (act === 'intro') { Intro.begin(); return; }                      // watch the intro again
+    if (act === 'changes') { Snd.ensure(); sfx('ok'); App.changes.y = 0; App.mode = 'changes'; return; }
+    if (act === 'start') {
       Snd.ensure(); sfx('ok');
       if (Save.data.runs === 0) startFade(() => startRun());             // very first run: straight in, with the tutorial
       else { App.prep.i = Math.max(0, HERO_ORDER.indexOf(Save.data.hero)); App.mode = 'prep'; }
     }
+  },
+  changes(dt) {
+    G.t += dt; updateDoors(dt); updateRooms(dt); updateAllies(dt); updateSmall(dt);      // the title's rooms live on behind it
+    const C = App.changes, L_ = changesLayout(), m = Input.mouse;
+    let dy = Input.axis().y * 150 * dt + m.wheel * 0.5;                                  // keys, a stick or the wheel scroll
+    if (Input.confirm() || Input.hit('right')) dy += L_.page; if (Input.hit('left')) dy -= L_.page;
+    const click = m.click && App.modeT > 0.3;                                             // not the click that opened it
+    if (click && (Input.inRect(L_.down) || Input.inRect(L_.lower))) dy += L_.page; else if (click && (Input.inRect(L_.up) || Input.inRect(L_.upper))) dy -= L_.page;
+    C.y = clamp(C.y + dy, 0, L_.max);
+    if (Input.hit('back') || Input.hit('alt') || (click && Input.inRect(L_.back))) { App.mode = 'title'; sfx('back'); }
   },
   prep(dt) {
     G.t += dt; updateDoors(dt); updateSmall(dt);
