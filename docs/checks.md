@@ -53,9 +53,35 @@ console error, then runs five scripts:
   the range in which the music sits under the sound effects, and on a single sample that jumps out
   of the wave (a tick). A written piece is rendered three times: as written, in its thinnest form
   (growing with the plan, before anything is built: every bar must still sound) and in its thickest
-  (with every element's voice, all resonating: still inside the range, and no tick). Run it alone with
+  (with every element's voice, all resonating: still inside the range, and no tick). Every sound
+  effect is rendered too: each must be heard (a peak over -45 dBFS) and stay clear of full scale
+  (under -6 dBFS). `--wav DIR` saves what was rendered as WAV files. Run it alone with
   `uv run --with playwright tools/check-music.py`. Like the audio check it reads levels, not
   whether a piece sounds good.
+
+### How loud things are
+
+Measured on 2026-11-21 with `tools/check-music.py --wav`, which renders every track and every sound
+effect through the game's own audio code at the default volumes (music 60%, sound 80%), and then
+with one loudness meter (ffmpeg's `ebur128`) over those files and over the intro film.
+
+| What | Loudness | Peak |
+|---|---|---|
+| Intro film (the game plays it at 85%) | -15.7 LUFS | -1.6 dBFS |
+| Music: the title's tune | -45.3 LUFS | -23.8 dBFS |
+| Music: floor 1 | -41.4 LUFS | -17.8 dBFS |
+| Music: floor 2 | -41.9 LUFS | -16.2 dBFS |
+| Music: floor 3 | -39.5 LUFS | -14.6 dBFS |
+| Music: the wardens | -38.7 LUFS | -19.8 dBFS |
+| Sound effects, each alone | | from -42.2 dBFS (burn) to -17.1 dBFS (roar), half of them over -25.9 |
+
+The music sits under the effects, as it should: the loudest music is around 15 dB under the peak of
+a typical effect. The film is another matter: it is about 24 dB louder than the floors' music, so
+the game is very quiet after its own intro. Nothing clips and there is room to raise the game by
+12 dB or so. Whether to do that, and by how much, is a question for an ear and is open.
+
+Not judged by anyone yet: the title's and the wardens' tunes and the sound effects. The music
+player on the title screen plays all of them.
 
 `tools/selfplay-bot.js` is a bot that plays whole runs through the hooks using only what a player
 has. `tools/selfplay.sh` runs it:
