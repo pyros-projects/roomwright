@@ -64,8 +64,9 @@ Every version branch (`v0.3`, `v0.4`, ...) is published next to it under its own
 the branch being playtested and for the ones already merged: version branches are not deleted after
 a merge, so any version can be opened and compared with the ones before it. A copy served from a
 version folder keeps its own save, so playing it never touches progress in the released game. A push
-to a version branch from `v0.4` on publishes all of them again. A run uses the workflow of the branch
-that was pushed: until 0.4 is merged, a deploy started from `main` or `v0.3` publishes only those two.
+to `main` or to a version branch from `v0.4` on publishes all of them again. A run uses the workflow
+of the branch that was pushed, and `v0.3` is from before this: a push to it would publish only `main`
+and `v0.3`.
 
 So run `tools/build.sh` before you commit a change in `src/`: a stale `index.html` stops the deploy.
 After a deploy, run the full checks against the live copy:
