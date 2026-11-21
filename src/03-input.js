@@ -10,7 +10,7 @@ const Input = (() => {
   const KEY = { arrowleft: 'left', a: 'left', arrowright: 'right', d: 'right', arrowup: 'up', w: 'up', arrowdown: 'down', s: 'down', ' ': 'dash', shift: 'dash',
     enter: 'ok', z: 'ok', e: 'ok', escape: 'back', backspace: 'back', p: 'pause', m: 'mute', '1': 'c1', '2': 'c2', '3': 'c3', '4': 'c4', q: 'alt', tab: 'alt', r: 'reroll', i: 'intro', h: 'help', '?': 'help' };
   const act = e => CODE[e.code] || KEY[(e.key || '').toLowerCase()];
-  const mouse = { x: -99, y: -99, click: false, moved: false };
+  const mouse = { x: -99, y: -99, click: false, moved: false, wheel: 0 };   // wheel: pixels turned since the last frame
   const stick = { on: false, id: -1, ox: 0, oy: 0, x: 0, y: 0 };
   const lead = { on: false, x: 0, y: 0 };   // the pointer the delver walks toward while the left button is held, in view pixels
   let padX = 0, padY = 0, touch = false; const padPrev = {};
@@ -44,6 +44,8 @@ const Input = (() => {
   });
   addEventListener('mouseup', e => { if (e.button !== 0) return; lead.on = false; if (stick.on && stick.id === 'mouse') drop(); });
   cv.addEventListener('contextmenu', e => e.preventDefault());
+  // only where a screen scrolls, and never with Ctrl held: that is the browser's zoom
+  cv.addEventListener('wheel', e => { if (e.ctrlKey || App.mode !== 'changes') return; mouse.wheel += e.deltaMode ? e.deltaY * 16 : e.deltaY; e.preventDefault(); }, { passive: false });
   cv.addEventListener('touchstart', e => {
     e.preventDefault(); Snd.ensure(); touch = true;
     for (const t of e.changedTouches) {
@@ -87,7 +89,7 @@ const Input = (() => {
       if (lead.on && ox !== undefined) { const dx = lead.x - ox, dy = lead.y - oy, d = Math.hypot(dx, dy), k = clamp((d - 4) / 8, 0, 1); if (k > 0) { x += dx / d * k; y += dy / d * k; } }
       const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; } return { x, y };
     },
-    endFrame() { pressed.clear(); mouse.click = false; mouse.moved = false; },
+    endFrame() { pressed.clear(); mouse.click = false; mouse.moved = false; mouse.wheel = 0; },
     inRect: (r) => mouse.x >= r.x && mouse.x < r.x + r.w && mouse.y >= r.y && mouse.y < r.y + r.h,
   };
 })();

@@ -17,22 +17,26 @@ The scripts below run headless with [agent-browser](https://github.com/vercel-la
 Both take `AGENT_BROWSER=/path/to/agent-browser` and `AB_FLAGS='...'` for extra global flags (for
 example `--args --no-sandbox,--disable-gpu` inside a sandbox or CI container).
 
-`tools/check.sh` is the regression pass (about two minutes). It boots the page and fails on any
+`tools/check.sh` is the regression pass (about two minutes). Against the local file it first makes
+sure `index.html` is what `src/` and `CHANGELOG.md` build. It boots the page and fails on any
 console error, then runs five scripts:
 
 - `tools/check-content.js`: every room power, star level, resonance, pest, weapon, evolution,
   charm, warden and unlock does what its card says. Also: every point of damage has an owner and
   the shares add up, the census names what hit the delver, an elite besieges the room built up
-  most, door pressure per floor, the knocking late in the clock, a warden's fury, and each rule of
-  Stakes in force from its step on.
-- `tools/check-flows.js`: first run, pause and options, drafting, the Stairwell, game over, hero
-  and deck screens, victory, endless, the gamepad mapping driven by a simulated pad, and the card
-  coach (the first-draft walkthrough, one lesson per new thing, H to explain a card again), the
-  knock back (what each knock calls, the dice, no loot, the shorter clock), Stakes (a win opens a
-  step, the hero screen sets it with keys, mouse and touch, the run plays at it), and the mouse and touch
-  mapping driven by simulated events: walking toward the pointer, the `Mouse walk` option and its
-  drag, the dash, the pause mark, taps on cards and beside them. Simulated events are not a hand on a phone: they show that the mapping works, not
-  how it feels. `RW.coach(false)` switches the coach off; the other checks and the bot run without it.
+  most, door pressure per floor, the knocking late in the clock, a warden's fury, each rule of
+  Stakes in force from its step on, and the changelog: the game's version has the first entry
+  and the font has every character in it.
+- `tools/check-flows.js`: first run, pause and options, drafting, the Stairwell, game over, the
+  title's entries and the changelog (keys, pad, mouse, touch), hero and deck screens, victory,
+  endless, the gamepad mapping driven by a simulated pad, and the card coach (the first-draft
+  walkthrough, one lesson per new thing, H to explain a card again), the knock back (what each
+  knock calls, the dice, no loot, the shorter clock), Stakes (a win opens a step, the hero screen
+  sets it with keys, mouse and touch, the run plays at it), and the mouse and touch mapping driven
+  by simulated events: walking toward the pointer, the `Mouse walk` option and its drag, the dash,
+  the pause mark, taps on cards and beside them. Simulated events are not a hand on a phone: they
+  show that the mapping works, not how it feels. `RW.coach(false)` switches the coach off; the
+  other checks and the bot run without it.
 - `tools/check-audio.js`: every sound effect and music track puts a signal on the master bus. It
   measures level, not whether it sounds good, and is skipped where the browser has no audio.
 - `tools/check-intro.py`: the intro at boot (held for the first key, then playing with sound),

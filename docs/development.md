@@ -6,6 +6,16 @@ The game is written as small modules in `src/` and **built into the single `inde
 `tools/build.sh` (bash and `cat`, nothing else). All modules share one strict-mode function scope,
 in file-name order. Edit `src/`, run the build, reload.
 
+`CHANGELOG.md` is built in too. It is the one source of the changelog: the build puts its text
+into the game, where the title screen's CHANGELOG entry shows it. To add an entry, write a line
+that starts with `- ` under the version it belongs to and run the build. A version starts with
+`## 0.4: Its name (date)`; a line that starts with two spaces continues the entry above it. Write
+what changed for a player, in plain sentences, with characters the game's font has: letters,
+digits and common punctuation. No backtick, backslash, at sign or curly brace: the build refuses
+the first two, and the last three draw as icons in the game. The version at the top is the game's
+`VERSION`.
+Each change that a player can notice adds its line when it lands.
+
 ```
 tools/build.sh           # write index.html
 tools/build.sh --check   # fail if index.html is stale
@@ -19,6 +29,7 @@ tools/build.sh --check   # fail if index.html is stale
 | `22-rooms` | `ELEMENTS`, `ROOM_TYPES` (17x11 ASCII layouts, element, stars text), themes |
 | `23-monsters` `24-floors` | `MON`; `FLOORS` (monster mix, timeline, pests, natives), `CURVE`, `HEROES`, unlocks |
 | `25-music` | music that is written out note by note: one piece per floor, each built from its theme, voicings and rhythms |
+| `26-changelog` | the changelog's versions and entries, read from the text of `CHANGELOG.md` |
 | `30-dungeon` | the grid, doors, resonance links, latching and breaching, room painting, flow fields |
 | `40-actors` `41-weapons` | player, monsters, shots, pickups; one `WUPD` function per weapon |
 | `42-director` `43-draft` `44-coach` | spawning and pressure, events, wardens, room powers; dealing cards and placing rooms; the lessons shown on a draft card |
@@ -53,8 +64,9 @@ Every version branch (`v0.3`, `v0.4`, ...) is published next to it under its own
 the branch being playtested and for the ones already merged: version branches are not deleted after
 a merge, so any version can be opened and compared with the ones before it. A copy served from a
 version folder keeps its own save, so playing it never touches progress in the released game. A push
-to a version branch from `v0.4` on publishes all of them again. A run uses the workflow of the branch
-that was pushed: until 0.4 is merged, a deploy started from `main` or `v0.3` publishes only those two.
+to `main` or to a version branch from `v0.4` on publishes all of them again. A run uses the workflow
+of the branch that was pushed, and `v0.3` is from before this: a push to it would publish only `main`
+and `v0.3`.
 
 So run `tools/build.sh` before you commit a change in `src/`: a stale `index.html` stops the deploy.
 After a deploy, run the full checks against the live copy:

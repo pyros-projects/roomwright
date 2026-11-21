@@ -35,6 +35,7 @@
      23-monsters ......... DATA: monsters, pests, elites, wardens
      24-floors ........... DATA: floors, difficulty curves, heroes, unlocks
      25-music ............ DATA: music written out note by note (the three floors)
+     26-changelog ........ DATA: the changelog, read from CHANGELOG.md's text
      30-dungeon .......... grid, rooms, doors, gates, breaches, painting, flow
      40-actors ........... run + floor state, player, monster AI, pickups
      41-weapons .......... auto-attack behaviours and evolutions
@@ -46,6 +47,33 @@
    ===================================================================== */
 (() => {
 'use strict';
+
+const CHANGELOG_MD = String.raw`# Changelog
+
+What changed for a player, newest first. The game shows the same text: CHANGELOG on its title screen.
+
+## 0.3: The card decides the run (2026-11-21)
+
+- Doors cost more the deeper you are. A sealed door adds to the knocking: 11% on floor 1, 15% on floor 2, 17% on floor 3. The HUD and each card show it.
+- Rooms do the work. A room's power is 0.85, 1.6 and 2.6 at one, two and three stars, resonance is +40% per link, and room power keeps pace with the monsters downstairs.
+- Each floor's elite goes for the room you built up most and switches it off while it stands there.
+- The Stairwell is a sharper choice. Its bar says how strong the warden would be now and what a fast kill pays. Late in the dread clock the knocking grows, and a warden gets faster the longer its fight lasts.
+- A damage tally on the end screen and in the pause menu: which weapons, rooms and charms did the run's damage.
+- Pocket Bombs are trimmed.
+- Stakes: after a first win the hero screen offers a ladder of six steps, one more rule each.
+- Each floor has its own music: a piece of 48 to 56 bars on the floor's old tune, darker the deeper you go.
+- A tick in the music is gone.
+- A changelog: this file, and a screen in the game.
+- Every version keeps its own address, so an older one can be played next to the new one.
+
+## 0.2: The first public version (2026-11-20)
+
+- Three floors, 36 room cards, 24 weapons with an evolution each, 27 charms, four delvers and a deck you build between runs.
+- A 30-second intro film before the title.
+- The first draft teaches the card in the game, and H explains a card again.
+- Knock back: a new hand behind a door, paid for in danger.
+- Walking with the mouse, and first hints for touch.
+`;
 
 /* ============================== 1 CONFIG ============================== */
 const T = 16;                         // tile size in px
@@ -466,7 +494,7 @@ const Input = (() => {
   const KEY = { arrowleft: 'left', a: 'left', arrowright: 'right', d: 'right', arrowup: 'up', w: 'up', arrowdown: 'down', s: 'down', ' ': 'dash', shift: 'dash',
     enter: 'ok', z: 'ok', e: 'ok', escape: 'back', backspace: 'back', p: 'pause', m: 'mute', '1': 'c1', '2': 'c2', '3': 'c3', '4': 'c4', q: 'alt', tab: 'alt', r: 'reroll', i: 'intro', h: 'help', '?': 'help' };
   const act = e => CODE[e.code] || KEY[(e.key || '').toLowerCase()];
-  const mouse = { x: -99, y: -99, click: false, moved: false };
+  const mouse = { x: -99, y: -99, click: false, moved: false, wheel: 0 };   // wheel: pixels turned since the last frame
   const stick = { on: false, id: -1, ox: 0, oy: 0, x: 0, y: 0 };
   const lead = { on: false, x: 0, y: 0 };   // the pointer the delver walks toward while the left button is held, in view pixels
   let padX = 0, padY = 0, touch = false; const padPrev = {};
@@ -500,6 +528,8 @@ const Input = (() => {
   });
   addEventListener('mouseup', e => { if (e.button !== 0) return; lead.on = false; if (stick.on && stick.id === 'mouse') drop(); });
   cv.addEventListener('contextmenu', e => e.preventDefault());
+  // only where a screen scrolls, and never with Ctrl held: that is the browser's zoom
+  cv.addEventListener('wheel', e => { if (e.ctrlKey || App.mode !== 'changes') return; mouse.wheel += e.deltaMode ? e.deltaY * 16 : e.deltaY; e.preventDefault(); }, { passive: false });
   cv.addEventListener('touchstart', e => {
     e.preventDefault(); Snd.ensure(); touch = true;
     for (const t of e.changedTouches) {
@@ -543,7 +573,7 @@ const Input = (() => {
       if (lead.on && ox !== undefined) { const dx = lead.x - ox, dy = lead.y - oy, d = Math.hypot(dx, dy), k = clamp((d - 4) / 8, 0, 1); if (k > 0) { x += dx / d * k; y += dy / d * k; } }
       const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; } return { x, y };
     },
-    endFrame() { pressed.clear(); mouse.click = false; mouse.moved = false; },
+    endFrame() { pressed.clear(); mouse.click = false; mouse.moved = false; mouse.wheel = 0; },
     inRect: (r) => mouse.x >= r.x && mouse.x < r.x + r.w && mouse.y >= r.y && mouse.y < r.y + r.h,
   };
 })();
@@ -2737,6 +2767,23 @@ function kilnScore() {
     [41, 0, 100, 66], [43, 8, 98, 66], [45, 0, 100, 68], [48, 8, 99, 72], [52, 12, 95, 46], [54, 12, 88, 44]]) put('bell', bar, st, p, 4, vel);
   return notes;
 }
+
+/* ========================= 8f CONTENT: changelog ====================== */
+// CHANGELOG.md is the one source. tools/build.sh puts its text into the game as CHANGELOG_MD, and this reads it:
+// a version starts with "## 0.3: Its name (2026-11-21)" or "(in progress)", an entry with "- ", and a line that
+// starts with two spaces continues the entry above it. Everything else in the file is for readers of the file.
+// A "## " line that is not written that way becomes a version without a number, which the content check reports.
+const CHANGES = (() => {
+  const out = [];
+  for (const line of CHANGELOG_MD.split('\n')) {
+    const head = line.match(/^## (\S+?): (.*?)(?: \((in progress|\d{4}-\d\d-\d\d)\))?\s*$/), last = out[out.length - 1];
+    if (head) out.push({ v: head[1], name: head[2], date: head[3] || '', items: [] });
+    else if (line.startsWith('## ')) out.push({ v: '', name: line.slice(3).trim(), date: '', items: [] });
+    else if (last && line.startsWith('- ')) last.items.push(line.slice(2).trim());
+    else if (last && last.items.length && /^ {2,}\S/.test(line)) last.items[last.items.length - 1] += ' ' + line.trim();
+  }
+  return out;
+})();
 
 /* ============================== 9 DUNGEON ============================= */
 let G = null;                         // the current run: all world state lives here
@@ -5464,6 +5511,12 @@ function renderDeck(g) {
 
 // ---- title ----
 const LOGO = 'ROOMWRIGHT';
+// The title's small entries along the bottom, left to right. The big one, START, is the rest of the screen.
+// App.titleSel holds the id of the chosen one, '' for START.
+function titleLayout() {
+  const items = []; if (Intro.ok) items.push(['intro', 'INTRO']); items.push(['changes', 'CHANGELOG']);
+  let x = 0; return items.map(([id, label]) => { const r = { id, label, x, y: VH - 18, w: textW(label) + 12, h: 18 }; x += r.w; return r; });
+}
 function renderTitle(g) {
   const t = frameT, hid = Save.data.hero;
   renderWorld(g);
@@ -5489,14 +5542,58 @@ function renderTitle(g) {
   g.drawImage(App.big.key, VW / 2 - 24, my - 8 + Math.round(Math.sin(t * 2.5) * 2));
   g.drawImage(SPR.sh_xl.c, VW / 2 + 27, my + 17); g.drawImage(App.big['slime' + (bob > 1 ? 0 : 1)], VW / 2 + 26, my - 12 - bob);
   // prompt + how-to
-  if ((Math.floor(t * 2.2) & 1) || App.fade) txo(g, Input.touch ? 'TAP TO START' : 'PRESS ENTER TO START', VW / 2, Math.round(VH * 0.76), '#fff8e8', '#1a1426', 0.5);
-  const hy = VH - 30, cols = [['@', 'Glints forge keys'], ['}', 'Keys open doors'], ['?', 'Doors hide rooms... and monsters']];
+  const T = titleLayout(), sel = T.findIndex(e => e.id === App.titleSel);          // -1: START
+  if (sel >= 0) txo(g, Input.touch ? 'TAP TO START' : 'PRESS ENTER TO START', VW / 2, Math.round(VH * 0.76), '#5d667c', '#1a1426', 0.5);
+  else if ((Math.floor(t * 2.2) & 1) || App.fade) txo(g, Input.touch ? 'TAP TO START' : 'PRESS ENTER TO START', VW / 2, Math.round(VH * 0.76), '#fff8e8', '#1a1426', 0.5);
+  const hy = VH - 42, cols = [['@', 'Glints forge keys'], ['}', 'Keys open doors'], ['?', 'Doors hide rooms... and monsters']];
   let tw = 0; for (const c of cols) tw += textW(c[0] + '  ' + c[1]) + 18; let hx = Math.round(VW / 2 - (tw - 18) / 2);
   for (const c of cols) { txo(g, c[0], hx, hy, '#ffd95e'); txo(g, c[1], hx + textW(c[0]) + 5, hy, '#d8dbe6'); hx += textW(c[0] + '  ' + c[1]) + 18; }
   const b = Save.data.best, nc = Object.keys(Save.data.rooms).length;
-  txt(g, Save.data.runs > 0 ? 'Deepest: floor ' + Math.max(1, b.floor) + '   Cards: ' + nc + '/' + DRAFTABLE.length + (Save.data.wins ? '   Wins: ' + Save.data.wins : '') : 'WASD move - SPACE dash - P pause - M mute', VW / 2, VH - 14, '#5d667c', 0.5);
+  txt(g, Save.data.runs > 0 ? 'Deepest: floor ' + Math.max(1, b.floor) + '   Cards: ' + nc + '/' + DRAFTABLE.length + (Save.data.wins ? '   Wins: ' + Save.data.wins : '') : 'WASD move - SPACE dash - P pause - M mute', VW / 2, VH - 28, '#5d667c', 0.5);
   txt(g, 'v' + VERSION, VW - 5, VH - 10, '#3b2d4f', 1);
-  if (Intro.ok) txt(g, (Input.touch ? '' : 'I  ') + 'INTRO', 5, VH - 10, Input.inRect(introRect()) ? '#9aa3b5' : '#5d667c');
+  T.forEach((r, i) => {
+    const on = i === sel;
+    if (on) { g.fillStyle = '#ffd95e'; g.fillRect(r.x + 5, r.y + 17, r.w - 12, 1); }
+    txt(g, r.label, r.x + 5, r.y + 8, on ? '#fff8e8' : Input.inRect(r) ? '#9aa3b5' : '#5d667c');
+  });
+}
+// ---- the changelog: CHANGELOG.md's entries (src/26-changelog.js), newest first, in a panel that scrolls
+let _changes = null;
+function changesLayout() {
+  const w = Math.min(VW - 64, 420), x = Math.round(VW / 2 - w / 2), top = 26, h = VH - top - 26;
+  if (!_changes || _changes.w !== w) {              // the text as lines for this width: [text, kind, date]; kind v: a version, i: an entry, c: its next lines
+    const lines = [];
+    for (const c of CHANGES) {
+      if (lines.length) lines.push(['', '']);
+      lines.push([c.v + '  ' + c.name, 'v', c.date]);
+      for (const it of c.items) wrapText(it, w - 10).forEach((l, i) => lines.push([l, i ? 'c' : 'i']));
+    }
+    _changes = { w, lines };
+  }
+  const lines = _changes.lines, total = lines.length * 10 + 6;
+  return { view: { x, y: top, w, h }, lines, total, max: Math.max(0, total - h), page: h - 20,
+    up: { x: x + w + 8, y: top - 4, w: 22, h: 22 }, down: { x: x + w + 8, y: top + h - 18, w: 22, h: 22 },
+    upper: { x, y: top, w, h: h / 2 }, lower: { x, y: top + h / 2, w, h: h / 2 },      // a click or tap in the text pages too: its upper half back, its lower half on
+    back: { x: 0, y: 0, w: textW('BACK') + 12, h: 18 } };                               // top left, away from where the title has its entries
+}
+function renderChanges(g) {
+  renderWorld(g);
+  g.fillStyle = 'rgba(13,10,26,0.8)'; g.fillRect(0, 0, VW, VH);
+  const L_ = changesLayout(), v = L_.view, y0 = v.y + 4 - Math.round(App.changes.y);
+  txs(g, 'CHANGELOG', VW / 2, 8, '#ffd95e', 0.5);
+  panel(g, v.x - 6, v.y - 4, v.w + 12, v.h + 8);
+  g.save(); g.beginPath(); g.rect(v.x - 2, v.y, v.w + 4, v.h); g.clip();
+  L_.lines.forEach(([s, kind, date], i) => {
+    const y = y0 + i * 10; if (y < v.y - 10 || y > v.y + v.h) return;
+    if (kind === 'v') { txt(g, s, v.x, y, '#ffd95e'); if (date) txt(g, date, v.x + v.w, y, '#9aa3b5', 1); }
+    else if (kind) { if (kind === 'i') txt(g, '-', v.x + 1, y, '#9cecf2'); txt(g, s, v.x + 10, y, '#d8dbe6'); }
+  });
+  g.restore();
+  for (const [r, ch, on] of [[L_.up, '^', App.changes.y > 0], [L_.down, 'v', App.changes.y < L_.max]]) {
+    panel(g, r.x, r.y, r.w, r.h, on ? '#8e9cc0' : '#3b2d4f'); txt(g, ch, r.x + r.w / 2, r.y + 7, on ? '#fff8e8' : '#5d667c', 0.5);
+  }
+  txt(g, 'BACK', 5, 8, Input.inRect(L_.back) ? '#fff8e8' : '#9aa3b5');
+  txt(g, Input.touch ? 'tap the lower half to read on, the upper half to go back up' : 'UP and DOWN scroll - ESC goes back', VW / 2, VH - 10, '#5d667c', 0.5);
 }
 function renderIris(g) {
   const f = App.fade, k = clamp(f.t / f.d, 0, 1), maxR = Math.hypot(VW, VH) * 0.6, r = maxR * (f.phase ? easeOut(k) : 1 - easeOut(k));
@@ -5510,6 +5607,7 @@ function render() {
   else if (m === 'title') renderTitle(g);
   else if (m === 'prep') renderPrep(g);
   else if (m === 'deck') renderDeck(g);
+  else if (m === 'changes') renderChanges(g);
   else if (m === 'descend') renderDescend(g);
   else {
     renderWorld(g); renderHUD(g);
@@ -5520,8 +5618,9 @@ function render() {
 
 /* ============================= 15 GAME LOOP =========================== */
 // modes: (intro ->) title -> prep (<-> deck) -> play <-> draft / pause -> descend -> play ... -> over | win
-const App = { mode: 'title', prevMode: '', modeT: 0, sel: 0, fade: null, record: false, big: {}, manual: false, coach: true, titleT: 0, titleRoom: 0,
-  prep: { i: 0 }, deck: { cur: 0, msg: '', msgT: 0 }, descend: null };
+//        title <-> changes (the changelog)
+const App = { mode: 'title', prevMode: '', modeT: 0, sel: 0, fade: null, record: false, big: {}, manual: false, coach: true, titleT: 0, titleRoom: 0, titleSel: '', titlePtr: false,
+  changes: { y: 0 }, prep: { i: 0 }, deck: { cur: 0, msg: '', msgT: 0 }, descend: null };
 
 // ---- save data: options, records, and the meta-game (cards collected, heroes, one deck per hero) ----
 const Save = {
@@ -5590,7 +5689,7 @@ function makeShowcase() {
   G.P.hidden = true; G.P.keys = 99; G.dir.calm = 1e9;
   for (let i = 0; i < 9 && G.sealed.length; i++) { openDraft(pick(G.sealed)); const room = chooseCard(ri(0, G.draft.cards.length - 1)); room.reveal = 1; room.seen = true; onRoomReady(room); }
   G.parts.length = 0; G.shake = 0; G.banner = null; G.draft = null; G.tipQ.length = 0;
-  App.mode = 'title'; App.titleRoom = 0; App.titleT = 0;
+  App.mode = 'title'; App.titleRoom = 0; App.titleT = 0; App.titleSel = '';
   G.cam.x = G.rooms[0].px + CWP / 2 - VW / 2; G.cam.y = G.rooms[0].py + CHP / 2 - VH / 2;
 }
 function toTitle() { Snd.music('title'); makeShowcase(); }
@@ -5672,12 +5771,41 @@ const MODES = {
     const r = G.rooms[App.titleRoom], k = 1 - Math.exp(-dt * 0.8);
     G.cam.x += (r.px + CWP / 2 - VW / 2 - G.cam.x) * k; G.cam.y += (r.py + CHP / 2 - VH / 2 - G.cam.y) * k;
     G.t += dt; updateDoors(dt); updateRooms(dt); updateAllies(dt); updateSmall(dt);
-    if (Intro.ok && App.modeT > 0.3 && (Input.hit('intro') || (Input.mouse.click && Input.inRect(introRect())))) { Intro.begin(); return; }   // watch the intro again
-    if ((Input.confirm() || Input.mouse.click) && App.modeT > 0.3) {
+    // START is the whole screen and what ENTER does. The small entries sit in a row along the bottom: DOWN steps
+    // into the row, LEFT and RIGHT move along it, UP or ESC step out again; the pointer chooses what it is on, and
+    // nothing once it leaves. The choice is an entry's id, '' for START, and it goes back to START when an entry is used.
+    const T = titleLayout(), m = Input.mouse, over = T.find(e => Input.inRect(e)); let at = T.findIndex(e => e.id === App.titleSel), act = '';
+    if (at < 0) App.titleSel = '';
+    const choose = i => { App.titleSel = i < 0 ? '' : T[i].id; at = i; sfx('tick'); };
+    if (at < 0) { if (Input.hit('down') && T.length) choose(0); }
+    else if (Input.hit('up') || Input.hit('back')) choose(-1);
+    else if (Input.hit('right') && at < T.length - 1) choose(at + 1);
+    else if (Input.hit('left') && at > 0) choose(at - 1);
+    if (m.moved && (over ? over.id : '') !== App.titleSel && (over || T.some(e => e.id === App.titleSel && App.titlePtr))) choose(over ? T.indexOf(over) : -1);
+    if (m.moved) App.titlePtr = !!over;                                  // the pointer put the choice there: it takes it away again
+    if (App.modeT > 0.3) {
+      if (Intro.ok && Input.hit('intro')) act = 'intro';
+      else if (m.click) act = over ? over.id : 'start';
+      else if (Input.confirm()) act = App.titleSel || 'start';
+    }
+    if (act && act !== 'start') { App.titleSel = ''; App.titlePtr = false; }
+    if (act === 'intro') { Intro.begin(); return; }                      // watch the intro again
+    if (act === 'changes') { Snd.ensure(); sfx('ok'); App.changes.y = 0; App.mode = 'changes'; return; }
+    if (act === 'start') {
       Snd.ensure(); sfx('ok');
       if (Save.data.runs === 0) startFade(() => startRun());             // very first run: straight in, with the tutorial
       else { App.prep.i = Math.max(0, HERO_ORDER.indexOf(Save.data.hero)); App.mode = 'prep'; }
     }
+  },
+  changes(dt) {
+    G.t += dt; updateDoors(dt); updateRooms(dt); updateAllies(dt); updateSmall(dt);      // the title's rooms live on behind it
+    const C = App.changes, L_ = changesLayout(), m = Input.mouse;
+    let dy = Input.axis().y * 150 * dt + m.wheel * 0.5;                                  // keys, a stick or the wheel scroll
+    if (Input.confirm() || Input.hit('right')) dy += L_.page; if (Input.hit('left')) dy -= L_.page;
+    const click = m.click && App.modeT > 0.3;                                             // not the click that opened it
+    if (click && (Input.inRect(L_.down) || Input.inRect(L_.lower))) dy += L_.page; else if (click && (Input.inRect(L_.up) || Input.inRect(L_.upper))) dy -= L_.page;
+    C.y = clamp(C.y + dy, 0, L_.max);
+    if (Input.hit('back') || Input.hit('alt') || (click && Input.inRect(L_.back))) { App.mode = 'title'; sfx('back'); }
   },
   prep(dt) {
     G.t += dt; updateDoors(dt); updateSmall(dt);
@@ -5889,7 +6017,6 @@ const Intro = (() => {
     get ok() { return !!el && !failed && el.readyState >= 1; } };
 })();
 const introWanted = () => new URLSearchParams(location.search).get('intro') !== '0';
-const introRect = () => ({ x: 0, y: VH - 18, w: textW('I  INTRO') + 12, h: 18 });
 function renderIntro(g) {             // under the film: black, or the prompt for the key that lets it start
   g.fillStyle = '#0d0a1a'; g.fillRect(0, 0, VW, VH);
   if (!Intro.gate) return;
@@ -5907,6 +6034,7 @@ window.RW = {
   manual(on) { App.manual = !!on; },
   coach(on) { App.coach = !!on; },                                     // false = no card lessons in drafts (the checks and the bot use this)
   coachPlan, cardPart, stairsLocked, knockBack, knockTier, KNOCK, draftLayout, pauseLayout, hintFor, view: () => ({ VW, VH, SCALE }),
+  titleLayout, changesLayout, CHANGES, CHANGELOG_MD, FONT,             // the title's entries and the changelog
   tallyList, tallyShare, record: runRecord, endLayout, siegeTarget, dreadMul, knocking, wardenShare, swiftLeft, doorPressure,
   STAKES, stake, stakesOpen, stakeOf, prepLayout, floorMix,           // the Stakes ladder                 // the damage tally, and the census record of the run as it stands
   census() { const c = Save.data.census; if (console.table) console.table(c.map(r => Object.assign({}, r, { by: r.by.join(' < ') }))); return c; },                                   // true = the page stops ticking itself; drive it with step()

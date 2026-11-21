@@ -5,14 +5,21 @@
 #   tools/build.sh --check   exit 1 if index.html is out of date with src/
 #
 # Order = file-name order. Everything in src/*.js shares one strict-mode function scope.
+# CHANGELOG.md goes in ahead of them as the text CHANGELOG_MD, exactly as it is written: it is the one source of
+# the changelog, for the repo and for the game's screen (src/26-changelog.js reads it).
 set -euo pipefail
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$DIR/index.html"
 TMP="$DIR/.index.build.tmp"
+LOG="$DIR/CHANGELOG.md"
+# it sits in the game inside a template literal in a script element: a backtick, a dollar sign with a brace, a
+# backslash or a closing script tag would end or break one of the two
+if grep -q -i -e '`' -e '\${' -e '\\' -e '</script' "$LOG"; then echo "CHANGELOG.md must not contain a backtick, a dollar sign followed by a brace, a backslash or a closing script tag"; exit 1; fi
 {
   cat "$DIR/src/head.html"
   cat "$DIR/src/00-banner.js"
   printf '(() => {\n'"'"'use strict'"'"';\n\n'
+  printf 'const CHANGELOG_MD = String.raw`'; cat "$LOG"; printf '`;\n\n'
   for f in "$DIR"/src/[0-9]*.js; do
     [ "$(basename "$f")" = "00-banner.js" ] && continue
     cat "$f"

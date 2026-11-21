@@ -90,7 +90,8 @@ it and is optional. Without it the game starts on the title screen.
 | Pause / options | P or Esc | Start | pause button |
 | Mute | M | | |
 | Skip the intro | Enter, Space or Esc, or click | A or B | tap |
-| Watch the intro again (title screen) | I, or click INTRO | | tap INTRO |
+| The title's entries (INTRO, CHANGELOG) | Down, then Left / Right and Enter; or click one | down, left / right, A | tap one |
+| Watch the intro again (title screen) | I | | |
 
 With a mouse you can also walk by dragging, as on a touch screen: set `Mouse walk` to `DRAG` in the pause
 menu, then hold the button and drag. The game remembers the choice.

@@ -23,6 +23,9 @@ if [ -n "${AB_FLAGS:-}" ]; then FLAGS+=( $AB_FLAGS ); fi
 ab() { "$AB" "${FLAGS[@]}" "$@"; }
 FAILED=0
 
+# the local file has to be the one src/ and CHANGELOG.md build: a stale index.html would be checked as if it were today's
+if [ -z "${GAME_URL:-}" ]; then "$DIR/tools/build.sh" --check || FAILED=1; fi
+
 GAME="${GAME_URL:-file://$DIR/index.html}"
 # A new address on every run: a browser that kept the page from before a deploy would otherwise check the old copy.
 PAGE="$GAME?intro=0&run=$(date +%s)"

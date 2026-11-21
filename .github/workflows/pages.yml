@@ -8,8 +8,8 @@
 # .../roomwright/v0.3/, for as long as the branch exists: the one being playtested and the ones already
 # merged, so a version can be compared with those before it. A copy served from a version folder keeps
 # its own save (see Save.KEY), so playing it never touches progress in the released game.
-# A run uses the workflow file of the branch that was pushed. Branches from before this file listed every
-# version (main until 0.4 is merged, and v0.3) still publish only main and v0.3 when they are pushed.
+# A run uses the workflow file of the branch that was pushed. The branch v0.3 is from before this file
+# listed every version: a push to it would publish only main and v0.3.
 #
 # Runs on a push to main or to a version branch that changes the game, or by hand from the Actions tab.
 name: Deploy to GitHub Pages
@@ -21,6 +21,7 @@ on:
       - index.html
       - intro.mp4
       - src/**
+      - CHANGELOG.md
       - tools/build.sh
       - .github/workflows/pages.yml
   workflow_dispatch:
