@@ -242,4 +242,6 @@ const Snd = (() => {
     pos() { if (!ac || !cur) return null; const at = step - Math.max(0, nextT - ac.currentTime) / (60 / cur.bpm / 4); return { step: Math.max(0, Math.floor(at)), steps: cur.steps ? cur.steps.length : 16 * cur.chords.length }; },
     since(voice) { const h = hits[voice]; let best = Infinity; if (ac && h) for (const t of h) if (t <= ac.currentTime) best = Math.min(best, ac.currentTime - t); return best; }, get names() { return Object.keys(FX); }, get tracks() { return Object.keys(TRACKS); }, get track() { return curName; }, secs(name, bars) { const tr = TRACKS[name]; return (bars || tr.bars || tr.chords.length) * 240 / tr.bpm; }, get on() { return !!ac && ac.state === 'running'; }, suspend() { if (ac && ac.state === 'running') ac.suspend(); }, resume() { if (ac && ac.state === 'suspended') ac.resume(); } };
 })();
-const sfx = (n, a) => Snd.play(n, a);
+// How the game plays an effect. While sfx.quiet is set it plays none: the title's showcase builds nine rooms in one
+// instant, and their sounds on top of each other were deafening when a run was left for the title.
+const sfx = (n, a) => { if (!sfx.quiet) Snd.play(n, a); };

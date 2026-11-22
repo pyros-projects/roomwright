@@ -57,6 +57,7 @@ What changed for a player, newest first. The game shows the same text: CHANGELOG
 
 - You, enemy bullets and pickups are now drawn above every blast, glow, spark and number, and above the screen's flash.
 - An elite's death has a ring, a boom and a shake; a warden's a bigger ring. The screen never flashes more than three times a second.
+- Going back to the title from a run is no longer deafening. The rooms that the title builds behind its logo used to sound all at once.
 - Each warden has a bullet phase at 60% of its health: Gatejaw's rings with a turning gap, Mother Morel's bloom of spores, the Unmaker's walls with doorways. A banner names it, and walking finds the way through.
 - Dice now roll in with ordinary waves: from minute 5 on floor 1, sooner further down, and loaded dice from floor 2. A knock back still calls far more of them, and a warden fights without them.
 - Enemy bullets have a dark rim, so they show on every floor and every carpet.
@@ -546,7 +547,9 @@ const Snd = (() => {
     pos() { if (!ac || !cur) return null; const at = step - Math.max(0, nextT - ac.currentTime) / (60 / cur.bpm / 4); return { step: Math.max(0, Math.floor(at)), steps: cur.steps ? cur.steps.length : 16 * cur.chords.length }; },
     since(voice) { const h = hits[voice]; let best = Infinity; if (ac && h) for (const t of h) if (t <= ac.currentTime) best = Math.min(best, ac.currentTime - t); return best; }, get names() { return Object.keys(FX); }, get tracks() { return Object.keys(TRACKS); }, get track() { return curName; }, secs(name, bars) { const tr = TRACKS[name]; return (bars || tr.bars || tr.chords.length) * 240 / tr.bpm; }, get on() { return !!ac && ac.state === 'running'; }, suspend() { if (ac && ac.state === 'running') ac.suspend(); }, resume() { if (ac && ac.state === 'suspended') ac.resume(); } };
 })();
-const sfx = (n, a) => Snd.play(n, a);
+// How the game plays an effect. While sfx.quiet is set it plays none: the title's showcase builds nine rooms in one
+// instant, and their sounds on top of each other were deafening when a run was left for the title.
+const sfx = (n, a) => { if (!sfx.quiet) Snd.play(n, a); };
 
 /* =============================== 6 INPUT ============================== */
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
@@ -5873,7 +5876,9 @@ function makeShowcase() {
   newRun((Math.random() * 1e9) | 0, { hero: Save.data.hero }); G.demo = true;
   const deep = clamp(Save.data.best.floor + 1, 1, FLOORS.length); if (deep > 1) enterFloor(Math.floor(Math.random() * deep));
   G.P.hidden = true; G.P.keys = 99; G.dir.calm = 1e9;
-  for (let i = 0; i < 9 && G.sealed.length; i++) { openDraft(pick(G.sealed)); const room = chooseCard(ri(0, G.draft.cards.length - 1)); room.reveal = 1; room.seen = true; onRoomReady(room); }
+  sfx.quiet = true;                   // nine rooms are built in this one instant: none of it is to be heard
+  try { for (let i = 0; i < 9 && G.sealed.length; i++) { openDraft(pick(G.sealed)); const room = chooseCard(ri(0, G.draft.cards.length - 1)); room.reveal = 1; room.seen = true; onRoomReady(room); } }
+  finally { sfx.quiet = false; }
   G.parts.length = 0; G.shake = 0; G.banner = null; G.draft = null; G.tipQ.length = 0;
   App.mode = 'title'; App.titleRoom = 0; App.titleT = 0; App.titleSel = '';
   G.cam.x = G.rooms[0].px + CWP / 2 - VW / 2; G.cam.y = G.rooms[0].py + CHP / 2 - VH / 2;

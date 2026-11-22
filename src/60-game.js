@@ -69,7 +69,9 @@ function makeShowcase() {
   newRun((Math.random() * 1e9) | 0, { hero: Save.data.hero }); G.demo = true;
   const deep = clamp(Save.data.best.floor + 1, 1, FLOORS.length); if (deep > 1) enterFloor(Math.floor(Math.random() * deep));
   G.P.hidden = true; G.P.keys = 99; G.dir.calm = 1e9;
-  for (let i = 0; i < 9 && G.sealed.length; i++) { openDraft(pick(G.sealed)); const room = chooseCard(ri(0, G.draft.cards.length - 1)); room.reveal = 1; room.seen = true; onRoomReady(room); }
+  sfx.quiet = true;                   // nine rooms are built in this one instant: none of it is to be heard
+  try { for (let i = 0; i < 9 && G.sealed.length; i++) { openDraft(pick(G.sealed)); const room = chooseCard(ri(0, G.draft.cards.length - 1)); room.reveal = 1; room.seen = true; onRoomReady(room); } }
+  finally { sfx.quiet = false; }
   G.parts.length = 0; G.shake = 0; G.banner = null; G.draft = null; G.tipQ.length = 0;
   App.mode = 'title'; App.titleRoom = 0; App.titleT = 0; App.titleSel = '';
   G.cam.x = G.rooms[0].px + CWP / 2 - VW / 2; G.cam.y = G.rooms[0].py + CHP / 2 - VH / 2;

@@ -38,8 +38,12 @@
     P.inv = 0; P.shield = 0; RW.hurtPlayer(99); RW.step(130); ok('death leads to game over', RW.App.mode === 'over');
     RW.step(40); press('ok'); RW.step(60); ok('try again starts a fresh run', RW.App.mode === 'play' && RW.G.rooms.length === 1 && RW.G.P.hp === 8 && RW.G.floor === 0);
     /* ---- quit to title, then the hero and deck screens ---- */
-    press('pause'); for (let i = 0; i < 7; i++) press('down'); RW.step(30); press('ok'); RW.step(60);
-    ok('quit to title', RW.App.mode === 'title' && RW.G.rooms.length > 3, RW.G.rooms.length + ' showcase rooms');
+    { const heard = [], play = RW.Snd.play; RW.Snd.play = (n, a) => { heard.push(n); return play(n, a); };
+      try { press('pause'); for (let i = 0; i < 7; i++) press('down'); RW.step(30); heard.length = 0; press('ok'); RW.step(60); } finally { RW.Snd.play = play; }
+      ok('quit to title', RW.App.mode === 'title' && RW.G.rooms.length > 3, RW.G.rooms.length + ' showcase rooms');
+      ok('quit to title: one sound for the choice, and none from the rooms the showcase builds behind the title', heard.join() === 'back', heard.length + ' effects: ' + heard.join(' '));
+      const again = []; RW.Snd.play = (n, a) => { again.push(n); return play(n, a); }; try { press('down'); RW.step(4); press('up'); RW.step(4); } finally { RW.Snd.play = play; }
+      ok('quit to title: ...and the effects are back afterwards', again.length > 0, again.join(' ')); }
     ok('the showcase never touches the save', Object.keys(RW.Save.data.rooms).length <= RW.STARTER_ROOMS.length + 1, Object.keys(RW.Save.data.rooms).length + ' cards');
     /* ---- the pause menu's Music grows row (#17) ---- */
     { RW.start(77, { hero: 'pip' }); RW.step(30); press('pause'); for (let i = 0; i < 5; i++) press('down'); RW.step(30);
