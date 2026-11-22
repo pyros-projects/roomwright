@@ -118,6 +118,19 @@
     RW.step(40); press('ok'); ok('keep delving resumes play', RW.App.mode === 'play' && G.endless && !G.won);
     P.inv = 1e9; G.dir.calm = 0; RW.step(60 * 45); ok('endless keeps the doors knocking', G.mons.length > 10, G.mons.length + ' monsters');
     RW.step(10); RW.render();
+    /* ---- the share card (#19): the end screen's two chips ---- */
+    { RW.Share.dry = true; try { RW.start(31, { hero: 'pip' }); G = RW.G; P = G.P; G.tut.step = 9; G.dir.calm = 1e9; P.inv = 0; P.shield = 0; RW.hurtPlayer(99); RW.step(180);
+        const L = RW.endLayout(), S4 = RW.endLayout(400); ok('share: the end screen has a chip for the picture and one for the text, inside the view also at the smallest one', RW.App.mode === 'over' && L.share && L.text && L.share.w > 20 && L.share.x + L.share.w <= RW.view().VW && L.share.y + 13 <= L.text.y && S4.share.x + S4.share.w <= 400 && S4.text.x + S4.text.w <= 400 && S4.share.x >= 200 + 135, JSON.stringify([L.share, L.text, S4.share]));
+        // the frame's way (a pad's Y arrives like this), then the browser's own key event
+        RW.Share.did = 0; RW.Share.last = null; press('reroll'); const pic = RW.Share.last, said = RW.Share.msg, on = RW.Share.what; ok('share: a pad\'s Y hands on the picture', pic && pic.kind === 'picture' && pic.w === 960 && pic.h === 540 && pic.bytes > 2000 && said === 'READY' && on === 'share' && RW.App.mode === 'over', JSON.stringify(pic));
+        RW.Share.did = 0; RW.Share.last = null; press('help'); const txt = RW.Share.last; ok('share: ...and the text', txt && txt.kind === 'text' && /^Roomwright /.test(txt.text) && txt.text.endsWith(RW.SHARE_URL) && RW.Share.what === 'text' && RW.App.mode === 'over', txt && txt.text.replace(/\n/g, ' / '));
+        const key = (code, k) => dispatchEvent(new KeyboardEvent('keydown', { code, key: k, bubbles: true, cancelable: true })), up = (code, k) => dispatchEvent(new KeyboardEvent('keyup', { code, key: k, bubbles: true }));
+        RW.Share.did = 0; RW.Share.last = null; key('KeyR', 'r'); const inEvent = RW.Share.last; RW.Share.last = null; RW.step(2); const again = RW.Share.last; up('KeyR', 'r'); RW.Share.last = null; key('KeyH', 'h'); const inEventT = RW.Share.last; up('KeyH', 'h'); RW.step(2);
+        ok('share: the R and H keys do it inside the key\'s own event, once', inEvent && inEvent.kind === 'picture' && again === null && inEventT && inEventT.kind === 'text', JSON.stringify([inEvent && inEvent.kind, again, inEventT && inEventT.kind]));
+        RW.step(200); ok('share: the chip goes back to its label', RW.Share.t <= 0, RW.Share.t);
+        RW.Share.did = 0; press('reroll'); const word = RW.Share.t > 0; RW.start(31, { hero: 'pip' }); G = RW.G; P = G.P; G.tut.step = 9; G.dir.calm = 1e9; P.inv = 0; P.shield = 0; RW.hurtPlayer(99); RW.step(180);
+        ok('share: the word of one end screen is not on the next one', word && RW.App.mode === 'over' && RW.Share.t <= 0 && RW.Share.msg === '', RW.Share.msg + ' ' + RW.Share.t);
+      } finally { RW.Share.dry = false; } }
     /* ---- the daily delve (#18): from the title with keys, the mouse and a pad; leaving it; the end screen ---- */
     { const DAY = Date.UTC(2026, 11, 24, 12), I = RW.dailyInfo(DAY); RW.Daily.now = DAY;
       const cv0 = document.getElementById('game'), V0 = RW.view(), b0 = cv0.getBoundingClientRect(), mouse0 = (type, vx, vy, button = 0, buttons = 1) => cv0.dispatchEvent(new MouseEvent(type, { clientX: b0.left + vx * b0.width / V0.VW, clientY: b0.top + vy * b0.height / V0.VH, button, buttons, bubbles: true, cancelable: true }));
@@ -251,6 +264,11 @@
     const fresh = () => { RW.start(77, { hero: 'pip' }); G = RW.G; P = G.P; G.tut.step = 9; G.dir.calm = 1e9; G.dir.ti = 99; P.inv = 1e9; P.keys = 9; RW.step(5); };
     const here = () => ({ x: P.x - G.cam.x, y: P.y - 8 - G.cam.y }), lead = RW.Input.lead, stick = RW.Input.stick;   // here: the delver on screen
     const settle = () => { mouse('mouseup', 0, 0, 0, 0); RW.step(90); };                // let go and let the camera catch up
+    { RW.Share.dry = true; try { RW.start(31, { hero: 'pip' }); G = RW.G; P = G.P; G.tut.step = 9; G.dir.calm = 1e9; P.inv = 0; P.shield = 0; RW.hurtPlayer(99); RW.step(180); const L = RW.endLayout(), mid = r => [r.x + r.w / 2, r.y + r.h / 2];
+        const clickOn = r => { mouse('mousemove', ...mid(r), 0, 0); RW.step(2); mouse('mousedown', ...mid(r)); RW.step(3); mouse('mouseup', ...mid(r), 0, 0); mouse('click', ...mid(r), 0, 0); RW.step(2); };
+        RW.Share.did = 0; RW.Share.last = null; clickOn(L.share); const a = RW.Share.last; RW.Share.last = null; clickOn(L.text); const b = RW.Share.last;
+        ok('mouse: a click on a share chip hands on the picture or the text, and the run\'s end screen stays', a && a.kind === 'picture' && b && b.kind === 'text' && RW.App.mode === 'over', JSON.stringify([a && a.kind, b && b.kind, RW.App.mode])); mouse('mousemove', V.VW / 2, V.VH / 2, 0, 0); RW.step(2);
+      } finally { RW.Share.dry = false; } }
     fresh(); settle(); let at0 = here(), px0 = P.x, py0 = P.y;
     ok('mouse: walking toward the pointer is the default', RW.Save.data.opts.mouse === 'point' && RW.pauseLayout().items[4].value === 'TO POINTER', RW.Save.data.opts.mouse);
     mouse('mousedown', at0.x + 60, at0.y); RW.step(30);
@@ -332,6 +350,10 @@
       { RW.Daily.now = Date.UTC(2026, 11, 24, 12); try { RW.toTitle(); RW.step(40); RW.Save.data.daily.length = 0; const e = RW.titleLayout().find(t => t.id === 'daily');
           touch('touchstart', [[21, e.x + e.w / 2, e.y + e.h / 2]]); RW.step(3); touch('touchend', [[21, 0, 0]]); RW.step(60);
           ok('touch: a tap on the title\'s DAILY starts today\'s delve', RW.App.mode === 'play' && RW.G.daily && RW.G.daily.day === 33, RW.App.mode); } finally { RW.Daily.now = null; } }
+      { RW.Share.dry = true; try { RW.start(31, { hero: 'pip' }); G = RW.G; P = G.P; G.tut.step = 9; G.dir.calm = 1e9; P.inv = 0; P.shield = 0; RW.hurtPlayer(99); RW.step(180); const L = RW.endLayout(), mid = r => [r.x + r.w / 2, r.y + r.h / 2];
+          RW.Share.did = 0; RW.Share.last = null; touch('touchstart', [[31, ...mid(L.share)]]); RW.step(3); const before = RW.Share.last; touch('touchend', [[31, ...mid(L.share)]]); const after = RW.Share.last; RW.step(2);
+          ok('touch: a tap on the share chip hands on the picture when the finger lifts, not before', before === null && after && after.kind === 'picture' && RW.App.mode === 'over', JSON.stringify([before, after && after.kind]));
+          ok('touch: the chips read SHARE and TEXT without a key', L.share.w > 20 && RW.shareAt(...mid(L.text)) === 'text', JSON.stringify(L.share)); } finally { RW.Share.dry = false; } }
     } else out.push('SKIP touch checks: this browser has no Touch constructor');
   } catch (e) { out.push('EXCEPTION ' + String(e && e.stack || e).slice(0, 500)); }
   try { localStorage.setItem(RW.Save.KEY, saved); RW.Save.load(); RW.toTitle(); } catch (e) { /* ignore */ }

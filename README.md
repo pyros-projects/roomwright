@@ -91,6 +91,7 @@ it and is optional. Without it the game starts on the title screen.
 | Let the music follow the floor plan | `Music grows` in the pause menu | | |
 | Mute | M | | |
 | Skip the intro | Enter, Space or Esc, or click | A or B | tap |
+| Share the floor plan (end screen): picture / text | R / H; or click a chip | Y (picture) | tap a chip |
 | The title's entries (INTRO, DAILY, MUSIC, CHANGELOG) | Down, then Left / Right and Enter; or click one | down, left / right, A | tap one |
 | In the music player | Arrows choose, Enter plays or switches, Q turns the page, Esc leaves | stick, A, Y, B | tap |
 | Watch the intro again (title screen) | I | | |

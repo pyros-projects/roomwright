@@ -288,6 +288,29 @@ cards, whatever the save holds, without Stakes and without the first-run tutoria
 
 The numbers are `dailyInfo()` in `src/60-game.js`; the deal is `makeCards()` in `src/43-draft.js`.
 
+## The share card
+
+A run leaves a floor plan behind, and the end screen can hand it on. Two chips stand beside the end
+panel: SHARE (`R`, or Y on a pad) and TEXT (`H`); both can be clicked or tapped. The action runs
+inside the browser's own event (the key, the click, the lifted finger), because a share sheet and
+the clipboard open only to a gesture; the picture is made ready when the end screen opens.
+
+- **The picture** is 960 by 540: the game's name, how the run ended, the delver, the floor reached,
+  the time, the run's rooms and monsters, the plan of the last floor (it says which), and the
+  game's address. A daily
+  delve says its day. It is drawn at half size with the game's own letters and map and then
+  doubled, so it keeps the game's pixels. On a phone whose browser has a share sheet for files it
+  goes there; elsewhere it is copied to the clipboard; where a browser cannot copy a picture it is
+  handed to the browser as the file `roomwright.png`. The chip then says SHARED, COPIED or SAVED.
+- **The text** is one line of facts, the plan as a grid with one square per room (white for
+  stone, orange fire, an ice cube for frost, yellow steel, blue water, red lore, green wild, purple
+  shadow, brown for the hearth, black for no room), and the address.
+
+Neither holds anything personal: no name, nothing from the save, no clock time, no seed. Nothing is
+sent anywhere by the game; the picture and the text go where the player puts them. What the checks
+cannot reach: the share sheet, the clipboard and the download themselves. They need a hand on a
+real browser; the checks cover the picture, the text, which way is chosen and the chips.
+
 ## The deck
 
 Drafts deal from a **deck of ten room cards** plus one room native to the floor. Drafting a native

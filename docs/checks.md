@@ -27,7 +27,9 @@ console error, then runs five scripts:
   most, door pressure per floor, the knocking late in the clock, a warden's fury, each warden's bullet phase (it starts at
   60% of its health, once, after a tell; a delver that only walks gets through it unhurt at three
   distances, calm and enraged; standing still is hit; enraged it is over sooner), each rule of
-  Stakes in force from its step on, the daily delve (day, seed, delver and deck from a fixed date;
+  Stakes in force from its step on, the share card (the picture's size, that it is not blank and
+  keeps the game's pixels; the text's line of facts, its grid and the address; that nothing from
+  the save is in either; where the picture goes in which browser), the daily delve (day, seed, delver and deck from a fixed date;
   two saves and two different fights find the same cards behind the same doors; the first attempt
   counts and a later one is practice; the last 14 days are kept), room overloads (when a room overloads and when not, the
   20 seconds, that it fires with the delver elsewhere and never hurts the delver, that a hexed room

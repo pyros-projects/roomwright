@@ -152,7 +152,7 @@ function endRun(win) {
       if (stakesOpen(G.hero) > had) { App.stakesNew = stakesOpen(G.hero); d.stake[G.hero] = App.stakesNew; }
     }
   }
-  Save.store(); App.mode = win ? 'win' : 'over'; App.sel = 0;
+  Save.store(); App.mode = win ? 'win' : 'over'; App.sel = 0; sharePrepare();
 }
 // walking onto the open stairs
 function beginDescent() {
@@ -325,11 +325,11 @@ const MODES = {
     if (App.modeT > 0.5 && (Input.confirm() || Input.mouse.click)) { sfx('ok'); startFade(arriveNextFloor); }
   },
   over(dt) {
-    updateSmall(dt); const L_ = endLayout(), a = menuNav(L_.items.length, L_.rects);
+    updateSmall(dt); const L_ = endLayout(); shareInput(L_, dt); const a = menuNav(L_.items.length, L_.rects);
     if (a === 0) { sfx('ok'); const day = G.daily && G.daily.day; startFade(() => day ? startDaily(day) : startRun()); } else if (a === 1 || Input.hit('back')) { sfx('back'); startFade(toTitle); }
   },
   win(dt) {
-    updateSmall(dt); const L_ = endLayout(), a = menuNav(L_.items.length, L_.rects);
+    updateSmall(dt); const L_ = endLayout(); shareInput(L_, dt); const a = menuNav(L_.items.length, L_.rects);
     if (a === 0) { sfx('ok'); G.won = false; G.endless = true; G.endT = 0; App.mode = 'play'; floorMusic(); banner('ENDLESS DELVE', 'The doors start knocking again...', '#9cecf2', 3); }
     else if (a === 1) { sfx('ok'); const day = G.daily && G.daily.day; startFade(() => day ? startDaily(day) : startRun()); }
     else if (a === 2 || Input.hit('back')) { sfx('back'); startFade(toTitle); }

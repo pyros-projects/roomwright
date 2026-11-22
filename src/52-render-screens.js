@@ -177,7 +177,12 @@ function renderPause(g) {
   txt(g, 'M mutes everything', VW / 2, y + L_.h - 11, '#5d667c', 0.5);
 }
 function endItems() { const again = G.daily ? 'Again, as practice' : ''; return App.mode === 'win' ? [{ label: 'Keep delving (endless)' }, { label: again || 'New run' }, { label: 'Back to title' }] : [{ label: again || 'Try again' }, { label: 'Back to title' }]; }
-function endLayout() { const items = endItems(), h = 206 + (items.length - 2) * 14, y = Math.max(2, Math.round(VH / 2 - h / 2)); return { items, h, y, rects: menuRects(items.length, y + h - items.length * 14 - 8, 170) }; }
+const shareLabels = () => Input.touch ? ['SHARE', 'TEXT'] : ['R  SHARE', 'H  TEXT'];
+function endLayout(vw = VW) {
+  const items = endItems(), h = 206 + (items.length - 2) * 14, y = Math.max(2, Math.round(VH / 2 - h / 2)), x = Math.round(vw / 2 - 135), lab = shareLabels(), w = Math.max(textW(lab[0]), textW(lab[1])) + 10;
+  // the two share chips stand beside the panel, at its top right (#19)
+  return { items, h, y, rects: menuRects(items.length, y + h - items.length * 14 - 8, 170), share: { x: x + 273, y: y + 6, w, h: 13 }, text: { x: x + 273, y: y + 23, w, h: 13 } };
+}
 function drawNewCards(g, x, y, w, label) {   // cards and heroes unlocked this run
   const n = G.newCards.length + G.newHeroes.length; if (!n) return 0;
   txt(g, label, x, y, '#9cecf2'); let lx = x + textW(label) + 6;
@@ -190,6 +195,8 @@ function renderEnd(g) {
   g.fillStyle = win ? 'rgba(40,30,10,0.55)' : 'rgba(30,6,16,0.66)'; g.fillRect(0, 0, VW, VH);
   panel(g, x, y, 270, L_.h, win ? '#ffd95e' : '#a32a3c');
   txo(g, win ? 'THE KNOCKING STOPS' : 'THE DARK GOT IN', VW / 2, y + 9, win ? '#ffd95e' : '#ff9ec4', '#1a1426', 0.5, 2);
+  { const lab = shareLabels(); [[L_.share, lab[0], 'share'], [L_.text, lab[1], 'text']].forEach(([r, label, id]) => { const said = Share.t > 0 && Share.what === id, hot = Input.inRect(r) || said;
+      panel(g, r.x, r.y, r.w, r.h, hot ? '#ffd95e' : '#4c5a84', hot ? '#3a3052' : '#24203a'); txt(g, said ? Share.msg : label, r.x + r.w / 2, r.y + 3, hot ? '#ffd95e' : '#9cecf2', 0.5); }); }
   txt(g, G.daily ? dailyEndLine() : win ? 'Three floors, three wardens, one very good floor plan.' : 'Every door you opened was a choice. Choose again?', VW / 2, y + 30, G.daily ? '#ffd95e' : '#d8dbe6', 0.5);
   const rows = [['Reached', G.F.name], ['Time', fmtTime(G.tRun)], ['Rooms drafted', String(S.rooms)], ['Monsters felled', String(S.kills)], ['Weapons evolved', String(S.evos)]];
   if (G.stakes) rows.push(['Stakes', String(G.stakes)]);

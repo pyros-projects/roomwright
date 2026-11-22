@@ -411,6 +411,32 @@
       { fresh(142); const d = RW.spawnMon('die', P.x + 60, P.y); d.shootT = 0.05; let n = 0; for (let i = 0; i < 400 && !n; i++) { RW.step(1); n = G.ebullets.length; }
         RW.killMon(d); G.hits.length = 0; const b0 = G.ebullets[0]; if (b0) { b0.x = P.x - 3; b0.y = P.y - 4; b0.vx = 20; b0.vy = 0; } P.inv = 0; P.shield = 0; RW.step(3);
         ok('dice: a die throws a ring of bullets, and one that hits is filed as a bullet from a die', n >= 8 && G.hits.length === 1 && G.hits[0].by === 'die' && G.hits[0].how === 'bullet', n + ' bullets, ' + JSON.stringify(G.hits)); } }
+    /* ---- the share card (#19) ---- */
+    { fresh(191, { hero: 'wick' }); G.dir.ti = 99; for (const t of ['ember', 'frost', 'garden']) build(t, [1, 1, 1, 1]); G.tRun = 581; G.stats.kills = 412;
+      const c = RW.shareCard(), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, cols = new Set(); let lit = 0;
+      for (let i = 0; i < d.length; i += 4 * 53) { cols.add(d[i] << 16 | d[i + 1] << 8 | d[i + 2]); if (d[i] + d[i + 1] + d[i + 2] > 200) lit++; }
+      const hex = h => parseInt(h.slice(1), 16), has = h => { const v = hex(h); for (let i = 0; i < d.length; i += 4) if ((d[i] << 16 | d[i + 1] << 8 | d[i + 2]) === v) return true; return false; };
+      ok('share: the picture is 960 by 540 and not blank: the letters, the plan\'s rooms and the frame are in it', c.width === 960 && c.height === 540 && cols.size >= 8 && lit > 300 && has('#ffd95e') && G.rooms.every(r => has(r.def.col)), cols.size + ' colours, ' + lit + ' lit samples');
+      // doubled game pixels: every 2 by 2 block is one colour
+      let soft = 0; for (let y = 0; y < c.height; y += 2) for (let x = 0; x < c.width; x += 2) { const i = (y * c.width + x) * 4, j = i + 4, k = i + c.width * 4; if (d[i] !== d[j] || d[i + 1] !== d[j + 1] || d[i] !== d[k] || d[i + 2] !== d[k + 2]) soft++; }
+      ok('share: the picture keeps the game\'s pixels, doubled', soft === 0, soft + ' blocks of mixed colour');
+      let foot = 0, cap = 0; for (let y = 496; y < 516; y++) for (let x = 300; x < 660; x++) { const i = (y * c.width + x) * 4; if (d[i] + d[i + 1] + d[i + 2] > 300) foot++; } for (let y = 200; y < 216; y++) for (let x = 84; x < 240; x++) { const i = (y * c.width + x) * 4; if (d[i] > 80 && d[i + 2] > 100) cap++; }
+      ok('share: the picture carries the game\'s address and says which floor\'s plan it shows', foot > 200 && cap > 60, foot + ' lit pixels in the address line, ' + cap + ' in the plan\'s caption');
+      const t = RW.shareAsText(), lines = t.split('\n'), B = { x0: Math.min(...G.rooms.map(r => r.cx)), x1: Math.max(...G.rooms.map(r => r.cx)), y0: Math.min(...G.rooms.map(r => r.cy)), y1: Math.max(...G.rooms.map(r => r.cy)) }, grid = lines.slice(1, -1), SQ = RW.SHARE_SQ;
+      const want = []; for (let y = B.y0; y <= B.y1; y++) { let s = ''; for (let x = B.x0; x <= B.x1; x++) { const r = G.cells[y * RW.K.GRID + x]; s += !r ? SQ.none : r.type === 'hearth' ? SQ.hearth : SQ[r.def.el]; } want.push(s); }
+      ok('share: the text is one line of facts, the plan as squares in the rooms\' element colours, and the address', lines[0] === 'Roomwright ' + RW.K.VERSION + ': Wick, floor 1, 9:41, 3 rooms' && grid.join('|') === want.join('|') && grid.every(g => Array.from(g).length === B.x1 - B.x0 + 1) && lines[lines.length - 1] === RW.SHARE_URL && new Set(Array.from(grid.join(''))).size >= 4, t.replace(/\n/g, ' / '));
+      ok('share: every element has a square of its own', new Set(Object.keys(RW.ELEMENTS).map(e => SQ[e])).size === 8 && Object.keys(RW.ELEMENTS).every(e => SQ[e]), Object.values(SQ).join(''));
+      // nothing personal: the picture's words and the text come from the run alone
+      const saved = JSON.stringify(RW.Save.data); RW.Save.data.runs = 99; RW.Save.data.wins = 7; const t2 = RW.shareAsText(); RW.Save.data.runs = JSON.parse(saved).runs; RW.Save.data.wins = JSON.parse(saved).wins;
+      ok('share: nothing from the save or the clock is in it', t2 === t && !/\d{4}-\d\d|\d\d:\d\d:\d\d/.test(t), t2 === t);
+      // a daily says so, and a win reads differently
+      G.daily = { day: 33, practice: true }; const td = RW.shareFacts(); G.daily = null; G.won = true; const tw = RW.shareFacts(); G.won = false; G.stakes = 2; const ts = RW.shareFacts(); G.stakes = 0;
+      ok('share: the facts name a daily delve, a win and the Stakes', /^Roomwright [\d.]+, daily delve 33 \(practice\): Wick, floor 1, /.test(td) && /: Wick, all three floors, 9:41, 3 rooms$/.test(tw) && /, Stakes 2$/.test(ts), td + ' / ' + tw + ' / ' + ts);
+      // where the picture goes: a phone's share sheet, else the clipboard, else a file
+      { const N = navigator, keep = { canShare: N.canShare, share: N.share }, def = (k, v) => Object.defineProperty(N, k, { value: v, configurable: true, writable: true }), f = {};
+        try { def('canShare', () => true); def('share', () => Promise.resolve()); const sheet = RW.shareRoute(f, true); def('canShare', () => false); const noFiles = RW.shareRoute(f, true); def('canShare', () => true); const desk = RW.shareRoute(f, false);
+          ok('share: on a phone with a share sheet for files the picture goes there; else to the clipboard or into a file', sheet === 'sheet' && noFiles !== 'sheet' && desk !== 'sheet' && ['clipboard', 'file'].includes(desk), [sheet, noFiles, desk].join(' '));
+        } finally { if (keep.canShare) def('canShare', keep.canShare); else delete N.canShare; if (keep.share) def('share', keep.share); else delete N.share; } } }
     /* ---- the daily delve (#18) ---- */
     { const DAY = Date.UTC(2026, 11, 24, 15), NEXT = Date.UTC(2026, 11, 25, 3), a = RW.dailyInfo(DAY), a2 = RW.dailyInfo(Date.UTC(2026, 11, 24, 0, 0, 1)), b = RW.dailyInfo(NEXT), keep = localStorage.getItem(RW.Save.KEY);
       try {
