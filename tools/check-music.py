@@ -1,6 +1,6 @@
 """Music checks: every track rendered in full by the game's own sequencer, faster than real time.
 
-    uv run --with playwright tools/check-music.py [--url URL]
+    uv run --with playwright tools/check-music.py [--url URL] [--wav DIR]
 
 Checks index.html next to this folder, or a deployed copy with --url https://example.net/.
 Prints one PASS/FAIL/SKIP line per check and exits non-zero on a failure.
@@ -10,13 +10,20 @@ that this check turns by hand. The game's code then schedules a track in a momen
 read back. A track shorter than half a minute is played twice, a longer one once and two bars into its
 repeat, so every track is heard across its loop point. This reads levels, finds gaps
 and finds single samples that jump out of the wave (a tick); it cannot tell whether a piece sounds good.
+A written piece is also rendered in its thinnest and its thickest form (the Music grows option).
+Every sound effect is rendered the same way, at the default sound volume, and has to be heard and stay clear
+of full scale. --wav DIR saves what was rendered (each track as written, and the effects one after another) as
+WAV files, for listening or for measuring with other tools.
 
 The browser is found as in tools/check-intro.py. Without a Chromium for Playwright it is skipped.
 """
 
 import argparse
+import base64
 import importlib.util
+import statistics
 import sys
+import wave
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
@@ -29,12 +36,15 @@ _spec.loader.exec_module(_intro)                 # for its launch(): one way to 
 out, failed = [], False
 QUIET = -50                 # a bar under this level counts as silent
 LEVEL = (-48, -35)          # where a track's mean level has to lie, at the default music volume
+FX_PEAK = (-45, -6)         # where a sound effect's peak has to lie, at the default sound volume
 TICK = 0.05                 # a sample this far from both its neighbours is a tick; the music's own waves stay under 0.03
 
 # Runs before the game's script. The sequencer is the only 50 ms interval in the game.
 BEFORE = """(() => {
   const M = window.__music = { now: 0, seconds: 0, ticks: [], ctx: null }, every = window.setInterval;
   window.setInterval = (fn, ms) => ms === 50 ? (M.ticks.push(fn), 0) : every(fn, ms);
+  window.__pcm = x => { const p = new Int16Array(x.length); for (let i = 0; i < x.length; i++) p[i] = Math.max(-32768, Math.min(32767, Math.round(x[i] * 32767)));
+    const u = new Uint8Array(p.buffer); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
   window.AudioContext = function () {
     M.ctx = new OfflineAudioContext(1, Math.ceil(M.seconds * 48000), 48000);
     return new Proxy(M.ctx, { get: (t, k) => k === 'state' ? 'running' : k === 'currentTime' ? M.now : typeof t[k] === 'function' ? t[k].bind(t) : t[k] });
@@ -43,13 +53,18 @@ BEFORE = """(() => {
 
 # Renders a track and measures it bar by bar. A live start puts the first step 50 ms after a block boundary
 # of the audio clock, which is a whole sample; the clock here starts the same way.
-RENDER = """async ([track, limit]) => {
+RENDER = """async ([track, limit, way, pcm]) => {
   const M = window.__music, S = RW.Snd, pass = S.secs(track), bar = S.secs(track, 1), bars = Math.round(pass / bar);
   const played = pass < 30 ? 2 * bars : bars + 2;         // in bars
   M.seconds = played * bar + 2; M.now = 0.05;
   let threw = '';
   try {
-    RW.manual(true); S.vol.sfx = 0; S.vol.music = 0.6; S.ensure(); S.applyVol(); S.music(null); S.music(track);
+    RW.manual(true); S.vol.sfx = 0; S.vol.music = 0.6; S.ensure(); S.applyVol(); S.music(null);
+    const every = Object.fromEntries(S.info(track).elements.map(e => [e, 1]));
+    if (way === 'thin') { S.grow('plan'); S.plan({ step: 0 }); }                              // only what always plays
+    else if (way === 'thick') { S.grow('element'); S.plan({ step: 3, els: every, res: every }); }   // the piece and every element's voice, all of them resonating
+    else S.grow('full');
+    S.music(track);
     for (; M.now < played * bar; M.now += 0.05) for (const tick of M.ticks) tick();
   } catch (e) { threw = String(e && e.stack || e).slice(0, 300); }
   const x = (await M.ctx.startRendering()).getChannelData(0), rate = 48000, t0 = 0.1;
@@ -68,8 +83,39 @@ RENDER = """async ([track, limit]) => {
     const d = Math.min(Math.abs(a), Math.abs(b)); if (d > limit) { spikes++; spike = Math.max(spike, Math.abs(x[i])); } else jut = Math.max(jut, d);
   }
   const db = v => +(20 * Math.log10(v + 1e-9)).toFixed(1);
-  return { threw, bars, played, seconds: +pass.toFixed(1), levels, spikes, spike: db(spike), jut: +jut.toFixed(4), peak: db(peak), level: +(10 * Math.log10(square / (played * bar * rate) + 1e-12)).toFixed(1) };
+  return { pcm: pcm ? window.__pcm(x) : '', threw, bars, played, seconds: +pass.toFixed(1), levels, spikes, spike: db(spike), jut: +jut.toFixed(4), peak: db(peak), level: +(10 * Math.log10(square / (played * bar * rate) + 1e-12)).toFixed(1) };
 }"""
+
+
+# Every sound effect, one after another with room to ring out, at the default sound volume and with the music off.
+# For each: its peak, and the level of its loudest twentieth of a second.
+EFFECTS = """async ([gap, pcm]) => {
+  const M = window.__music, S = RW.Snd, names = S.names, rate = 48000;
+  M.seconds = names.length * gap + 1; M.now = 0.1;
+  let threw = '';
+  try {
+    RW.manual(true); S.vol.sfx = 0.8; S.vol.music = 0; S.ensure(); S.applyVol(); S.music(null);
+    names.forEach((n, i) => { M.now = 0.1 + i * gap; S.play(n, 3); });
+  } catch (e) { threw = String(e && e.stack || e).slice(0, 300); }
+  const x = (await M.ctx.startRendering()).getChannelData(0), db = v => +(20 * Math.log10(v + 1e-9)).toFixed(1), win = rate / 20, out = {};
+  names.forEach((n, i) => {
+    const i0 = Math.round((0.1 + i * gap) * rate), i1 = i0 + Math.round(gap * rate); let pk = 0, loud = 0;
+    for (let j = i0; j < i1; j++) pk = Math.max(pk, Math.abs(x[j]));
+    for (let a = i0; a + win <= i1; a += win / 2) { let sq = 0; for (let j = a; j < a + win; j++) sq += x[j] * x[j]; loud = Math.max(loud, Math.sqrt(sq / win)); }
+    out[n] = [db(pk), db(loud)];
+  });
+  return { threw, out, pcm: pcm ? window.__pcm(x) : '' };
+}"""
+
+
+def save(folder, name, pcm):
+    """Sixteen-bit mono WAV from the page's samples."""
+    folder.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(folder / f"{name}.wav"), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(48000)
+        w.writeframes(base64.b64decode(pcm))
 
 
 def check(name, ok, info=""):
@@ -81,6 +127,7 @@ def check(name, ok, info=""):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", default=URL, help="the game's address (default: the local index.html)")
+    parser.add_argument("--wav", type=Path, help="save each track as written, and the effects, as WAV files in this folder")
     args = parser.parse_args()
     with sync_playwright() as driver:
         browser = _intro.launch(driver, False)
@@ -95,7 +142,9 @@ def main():
         tracks = page.evaluate("RW.Snd.tracks")
         for track in tracks:
             page.goto(args.url + f"?intro=0&track={track}", wait_until="domcontentloaded")      # a new page: one render per context
-            r = page.evaluate(RENDER, [track, TICK])
+            r = page.evaluate(RENDER, [track, TICK, "", bool(args.wav)])
+            if args.wav:
+                save(args.wav, track, r["pcm"])
             what = f"{r['bars']} bars, {r['seconds']} s, {r['played']} bars played"
             check(f"{track}: plays through without an error", not r["threw"], r["threw"] or what)
             # A bar with notes reads -45 dBFS or more. An empty one reads -59 or less even right after a loud bar,
@@ -107,6 +156,33 @@ def main():
             check(f"{track}: the level is in the music's range ({low} to {high} dBFS)", low < r["level"] < high, f"{r['level']} dBFS, peak {r['peak']}")
             # A step that starts exactly on a sample once let one sample of a hat's noise through at full level.
             check(f"{track}: no single sample jumps out", not r["spikes"], f"{r['spikes']} of them, up to {r['spike']} dBFS" if r["spikes"] else f"the wave's own largest: {r['jut']} of {TICK}")
+            if not page.evaluate("t => RW.Snd.info(t).written", track):
+                continue
+            # A written piece follows the floor plan (the Music grows option). Its thinnest form is what always plays, and
+            # what a floor starts with by default; its thickest is the whole piece with the voice of every element, all resonating.
+            page.goto(args.url + f"?intro=0&track={track}&way=thin", wait_until="domcontentloaded")
+            r = page.evaluate(RENDER, [track, TICK, "thin", False])
+            quiet = [i + 1 for i, level in enumerate(r["levels"]) if level < QUIET]
+            check(f"{track}, growing with the plan, before anything is built: plays through, every bar sounds, in the music's range", not r["threw"] and not quiet and low < r["level"] < high,
+                  r["threw"] or (f"under {QUIET} dBFS: bars {quiet}" if quiet else f"{r['level']} dBFS, quietest bar {min(r['levels'])}"))
+            page.goto(args.url + f"?intro=0&track={track}&way=thick", wait_until="domcontentloaded")
+            r = page.evaluate(RENDER, [track, TICK, "thick", False])
+            check(f"{track}, with every element's voice: plays through, in the music's range, no tick", not r["threw"] and low < r["level"] < high and not r["spikes"],
+                  r["threw"] or f"{r['level']} dBFS, peak {r['peak']}, {r['spikes']} ticks, the wave's own largest {r['jut']}")
+        # ---- the sound effects
+        page.goto(args.url + "?intro=0&effects=1", wait_until="domcontentloaded")
+        r = page.evaluate(EFFECTS, [1.2, bool(args.wav)])
+        if args.wav:
+            save(args.wav, "effects", r["pcm"])
+        peaks = {n: v[0] for n, v in r["out"].items()}
+        low, high = FX_PEAK
+        faint = sorted(n for n, pk in peaks.items() if pk <= low)
+        hot = sorted(n for n, pk in peaks.items() if pk >= high)
+        check("effects: every one plays without an error", not r["threw"] and len(peaks) > 0, r["threw"] or f"{len(peaks)} effects")
+        check(f"effects: every one is heard (its peak over {low} dBFS)", not faint, ", ".join(f"{n} {peaks[n]}" for n in faint) or
+              f"quietest {min(peaks, key=peaks.get)} {min(peaks.values())} dBFS")
+        check(f"effects: none comes near full scale (every peak under {high} dBFS)", not hot, ", ".join(f"{n} {peaks[n]}" for n in hot) or
+              f"loudest {max(peaks, key=peaks.get)} {max(peaks.values())} dBFS, half of them over {statistics.median(peaks.values())}")
         check("no page errors", not errors, "; ".join(errors)[:200])
         browser.close()
     print("\n".join(out))

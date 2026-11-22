@@ -16,7 +16,18 @@ function rollExits(type, cx, cy, entry, minAfter) {
   } while (++tries < 40 && !def.dead && !def.exits && G.sealed.length - 1 - plan.links + plan.fresh < minAfter);
   return { want, plan };
 }
-function makeCards(door) {
+// In a daily delve the cards behind a door come from the day and the door, not from how the fight went so far: for
+// the deal the generator is seeded from the run's seed, the floor, the door's place and how many new hands this door
+// has been asked for (a knock back or a Map Room's free deal; `fresh` says this is one). The game's own generator is
+// put back afterwards. A hand that is only dealt again because it has to be larger (a Map Room was built) keeps its
+// number, so it does not matter whether the door was looked behind before (#18).
+function makeCards(door, fresh) {
+  if (!G.daily) return dealCards(door);
+  const keep = rand; if (fresh) door.deals = (door.deals || 0) + 1;
+  rand = RNG((G.seed ^ Math.imul(G.floor + 1, 0x9e3779b1) ^ Math.imul(door.room.cx * 64 + door.room.cy * 4 + door.dir + 1, 0x85ebca6b) ^ Math.imul((door.deals || 0) + 1, 0xc2b2ae35)) >>> 0);
+  try { return dealCards(door); } finally { rand = keep; }
+}
+function dealCards(door) {
   const cx = door.room.cx + DIRS[door.dir].x, cy = door.room.cy + DIRS[door.dir].y, entry = (door.dir + 2) % 4;
   const first = G.stats.rooms === 0, n = draftSize(), minAfter = G.rooms.length < 4 ? 2 : 1;
   const used = new Set(), usedB = new Set(), cards = [];
@@ -40,6 +51,7 @@ function refreshCard(c, cx, cy, entry) {
   c.plan = planDoors(cx, cy, entry, c.want);
   c.lv = lv; c.lvTo = own ? Math.min(def.max, lv + 1) : Math.min(def.max, 1 + (charm('blueprint') ? 1 : 0));
   c.res = previewRes(cx, cy, c.type, c.plan.doors);
+  c.over = previewOver(cx, cy, c.type, c.plan.doors, c.lvTo);
   c.mul = 1; c.hidden = c.type === 'dice';
   if (c.hidden) c.mul = 2;
   for (let d = 0; d < 4; d++) { const nx = cx + DIRS[d].x, ny = cy + DIRS[d].y, nb = inGrid(nx, ny) ? G.cells[ny * GRID + nx] : null; if (nb && nb.type === 'script' && roomLive(nb)) c.mul = 2; }
@@ -75,7 +87,7 @@ function knockBack() {
   const D = G.draft; if (!D) return false;
   const d = D.door, k = G.fstat.knocks, K = KNOCK[knockTier()], mixl = floorMix(), more = Math.max(0, k - (KNOCK.length - 1));
   const n = K.n + G.floor * Math.round(K.n / 4) + more * 6, elites = Math.min(3, K.elites + more), big = Math.min(3, K.big + more);
-  G.fstat.knocks++; G.fstat.wrath += K.clock; d.cards = makeCards(d); d.hold = true;
+  G.fstat.knocks++; G.fstat.wrath += K.clock; d.cards = makeCards(d, true); d.hold = true;
   for (let i = 0; i < K.dice; i++) d.queue.push({ id: 'die', rage: true });
   for (let i = 0; i < big; i++) d.queue.push({ id: 'bigdie', rage: true });
   for (let i = 0; i < elites; i++) d.queue.push({ id: G.F.elite, rage: true });
@@ -88,7 +100,7 @@ function knockBack() {
 }
 function rerollDraft() {
   const D = G.draft; if (!D || D.rerolls <= 0) return false;
-  D.door.rerolled++; D.door.cards = makeCards(D.door); D.cards = D.door.cards; D.rerolls--; D.t = 0; D.sel = Math.min(D.sel, D.cards.length - 1);
+  D.door.rerolled++; D.door.cards = makeCards(D.door, true); D.cards = D.door.cards; D.rerolls--; D.t = 0; D.sel = Math.min(D.sel, D.cards.length - 1);
   for (const c of D.cards) refreshCard(c, D.cx, D.cy, D.entry);
   sfx('draft'); return true;
 }

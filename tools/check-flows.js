@@ -1,5 +1,5 @@
-// Flow checks: first run, pause and options, drafting (step back, stairs), game over, the title's entries and
-// the changelog, the hero and deck screens, victory, endless, back to title. Driven purely by input actions.
+// Flow checks: first run, pause and options, drafting (step back, stairs), game over, the title's entries, the
+// changelog and the music player, the hero and deck screens, victory, endless, back to title. Driven purely by input actions.
 // Run with tools/check.sh; returns one PASS/FAIL line per check.
 (() => {
   const out = [], ok = (n, c, i) => out.push((c ? 'PASS ' : 'FAIL ') + n + (i !== undefined ? ' (' + i + ')' : ''));
@@ -21,7 +21,7 @@
     press('down'); press('down'); const sh0 = RW.Save.data.opts.shake; RW.step(30); press('ok'); ok('screen shake toggles', RW.Save.data.opts.shake !== sh0); press('ok');
     press('back'); ok('Esc resumes', RW.App.mode === 'play');
     press('mute'); ok('M mutes', RW.Save.data.opts.mute === 1 && RW.Snd.vol.sfx === 0); press('mute'); ok('M unmutes', RW.Save.data.opts.mute === 0 && RW.Snd.vol.sfx > 0);
-    const old = RW.G; RW.step(120); press('pause'); for (let i = 0; i < 5; i++) press('down'); RW.step(30); press('ok'); RW.step(60);
+    const old = RW.G; RW.step(120); press('pause'); for (let i = 0; i < 6; i++) press('down'); RW.step(30); press('ok'); RW.step(60);
     ok('restart run from pause', RW.App.mode === 'play' && RW.G !== old && RW.G.t < 1.5, 't=' + RW.G.t.toFixed(2));
     /* ---- drafting ---- */
     let G = RW.G, P = G.P; G.dir.calm = 1e9; G.dir.ti = 99; P.inv = 1e9; P.keys = 20;
@@ -38,9 +38,30 @@
     P.inv = 0; P.shield = 0; RW.hurtPlayer(99); RW.step(130); ok('death leads to game over', RW.App.mode === 'over');
     RW.step(40); press('ok'); RW.step(60); ok('try again starts a fresh run', RW.App.mode === 'play' && RW.G.rooms.length === 1 && RW.G.P.hp === 8 && RW.G.floor === 0);
     /* ---- quit to title, then the hero and deck screens ---- */
-    press('pause'); for (let i = 0; i < 6; i++) press('down'); RW.step(30); press('ok'); RW.step(60);
-    ok('quit to title', RW.App.mode === 'title' && RW.G.rooms.length > 3, RW.G.rooms.length + ' showcase rooms');
+    { const heard = [], play = RW.Snd.play; RW.Snd.play = (n, a) => { heard.push(n); return play(n, a); };
+      try { press('pause'); for (let i = 0; i < 7; i++) press('down'); RW.step(30); heard.length = 0; press('ok'); RW.step(60); } finally { RW.Snd.play = play; }
+      ok('quit to title', RW.App.mode === 'title' && RW.G.rooms.length > 3, RW.G.rooms.length + ' showcase rooms');
+      ok('quit to title: one sound for the choice, and none from the rooms the showcase builds behind the title', heard.join() === 'back', heard.length + ' effects: ' + heard.join(' '));
+      const again = []; RW.Snd.play = (n, a) => { again.push(n); return play(n, a); }; try { press('down'); RW.step(4); press('up'); RW.step(4); } finally { RW.Snd.play = play; }
+      ok('quit to title: ...and the effects are back afterwards', again.length > 0, again.join(' ')); }
     ok('the showcase never touches the save', Object.keys(RW.Save.data.rooms).length <= RW.STARTER_ROOMS.length + 1, Object.keys(RW.Save.data.rooms).length + ' cards');
+    /* ---- the pause menu's Music grows row (#17) ---- */
+    { RW.start(77, { hero: 'pip' }); RW.step(30); press('pause'); for (let i = 0; i < 5; i++) press('down'); RW.step(30);
+      const row = () => RW.pauseLayout().items[5], seq = [row().value];
+      for (let i = 0; i < 3; i++) { press('ok'); seq.push(row().value + '=' + RW.Save.data.opts.grow); }
+      ok('options: Music grows goes from WITH THE PLAN to BY ELEMENT to NO and round again', row().label === 'Music grows' && seq.join(' ') === 'WITH THE PLAN BY ELEMENT=element NO=full WITH THE PLAN=plan', seq.join(' '));
+      press('ok'); ok('options: the choice is saved', JSON.parse(localStorage.getItem(RW.Save.KEY)).opts.grow === 'element', RW.Save.data.opts.grow);
+      press('left'); ok('options: LEFT goes back a step', RW.Save.data.opts.grow === 'plan', RW.Save.data.opts.grow);
+      press('back'); RW.toTitle(); RW.step(30); }
+    /* ---- Music grows is on from the first start: WITH THE PLAN ---- */
+    { const K = RW.Save.KEY, keep = localStorage.getItem(K), S = RW.Snd;
+      const load = way => { const s = RW.Save.fresh(); if (way === undefined) delete s.opts.grow; else s.opts.grow = way; localStorage.setItem(K, JSON.stringify(s)); RW.Save.load(); RW.Save.apply(); return RW.Save.data.opts.grow; };
+      const got = { fresh: RW.Save.fresh().opts.grow, before: load(undefined), junk: load('loud'), no: load('full'), element: load('element') };
+      ok('options: Music grows is WITH THE PLAN on a fresh save and on a save from before the option; a choice of NO or BY ELEMENT stays', got.fresh === 'plan' && got.before === 'plan' && got.junk === 'plan' && got.no === 'full' && got.element === 'element', JSON.stringify(got));
+      load(undefined); RW.start(78, { hero: 'pip' }); RW.step(30); const bare = ['bass', 'arp', 'drum', 'lead', 'bell'].map(v => +S.sounds(v)).join('');
+      load('full'); RW.start(78, { hero: 'pip' }); RW.step(30); const whole = ['bass', 'arp', 'drum', 'lead', 'bell'].map(v => +S.sounds(v)).join('');
+      ok('options: so a first run starts its floor with bass, arpeggio and drums and the lead waits for a room; with NO the whole piece plays', bare === '11100' && whole === '11111', bare + ' ' + whole);
+      if (keep === null) localStorage.removeItem(K); else localStorage.setItem(K, keep); RW.Save.load(); RW.Save.apply(); RW.toTitle(); RW.step(30); }
     /* ---- the title's small entries, and the changelog ---- */
     { RW.step(30); const T = RW.titleLayout(), ci = T.findIndex(e => e.id === 'changes');
       ok('title: the changelog is one of its entries', ci >= 0, T.map(e => e.id).join(' '));
@@ -55,6 +76,43 @@
       for (let i = 0; i < 20; i++) press('ok'); ok('changelog: it stops at its end', RW.App.changes.y === L.max && RW.App.mode === 'changes', Math.round(RW.App.changes.y));
       press('back'); ok('changelog: ESC goes back to the title, with the choice on START again', RW.App.mode === 'title' && RW.App.titleSel === '', RW.App.mode + ' ' + RW.App.titleSel);
       press('down'); press('back'); ok('title: ESC puts the choice back on START', RW.App.titleSel === '', RW.App.titleSel); }
+    /* ---- the music player ---- */
+    { RW.toTitle(); RW.step(40); const T = RW.titleLayout(), mi = T.findIndex(e => e.id === 'music'), S = RW.Snd;
+      ok('title: the music player is one of its entries', mi >= 0, T.map(e => e.id).join(' '));
+      press('down'); for (let i = 0; i < mi; i++) press('right'); press('ok'); RW.step(30);
+      ok('music player: ENTER on its entry opens it', RW.App.mode === 'music', RW.App.mode);
+      let L = RW.playerLayout(); const ids = k => L.items.filter(i => i.id.startsWith(k + ':')).map(i => i.id.split(':')[1]);
+      ok('music player: it lists every track of the game', ids('track').sort().join() === S.tracks.slice().sort().join(), ids('track').join(' '));
+      RW.Player.sel = 'track:cellar'; press('ok');
+      ok('music player: ENTER on a track plays it', S.track === 'cellar' && RW.Player.track === 'cellar', S.track);
+      L = RW.playerLayout(); ok('music player: a written piece shows its voices and the eight elements', ids('voice').length === S.info('cellar').voices.length && ids('el').length === 8, ids('voice').length + ' voices, ' + ids('el').length + ' elements');
+      RW.Player.sel = 'voice:lead'; press('ok'); const off = !S.sounds('lead') && S.sounds('bass'); press('ok');
+      ok('music player: a voice\'s switch turns it off, and on again', off && S.sounds('lead'), off + ' ' + S.sounds('lead'));
+      RW.Player.sel = 'el:fire'; press('ok'); ok('music player: an element\'s switch turns its voice on', S.sounds('fire') && !S.sounds('fire+') && !S.sounds('frost'));
+      RW.Player.sel = 'full'; press('ok'); ok('music player: "resonating" adds the second layer of the elements that are on', S.sounds('fire+') && !S.sounds('frost+'));
+      RW.Player.sel = 'track:cellar'; press('right'); const a = RW.Player.sel; press('right'); press('right'); const b = RW.Player.sel;
+      ok('music player: the arrows walk from the tracks to the voices and on to the elements', a.startsWith('voice:') && (b.startsWith('el:') || b === 'full'), a + ' ' + b);
+      RW.Player.sel = 'track:title'; press('down'); ok('music player: DOWN moves along the tracks', RW.Player.sel === 'track:cellar', RW.Player.sel);
+      { const walk = (from, keys) => { RW.Player.sel = from; for (const k of keys) press(k); return RW.Player.sel; };
+        ok('music player: RIGHT keeps to the row across the columns', walk('track:kiln', ['right']) === 'voice:lead' && walk('el:steel', ['right']) === 'el:frost' && walk('voice:lead', ['right', 'right']) === 'el:steel', walk('track:kiln', ['right']) + ' ' + walk('el:steel', ['right']));
+        ok('music player: the top row walks BACK, MUSIC, SOUNDS and steps down into the page', walk('back', ['right']) === 'tab:0' && walk('tab:0', ['left']) === 'back' && walk('tab:0', ['right']) === 'tab:1' && walk('back', ['down']) === 'track:title' && walk('track:title', ['up']) === 'back', walk('back', ['right']) + ' ' + walk('back', ['down']));
+        ok('music player: "resonating" lies under both element columns', walk('el:steel', ['down']) === 'full' && walk('el:frost', ['down']) === 'full' && walk('full', ['up']) === 'el:steel' && walk('full', ['left']) === 'voice:bell', walk('full', ['left']));
+        const reach = new Set(), todo = ['track:title']; while (todo.length) { const id = todo.pop(); if (reach.has(id)) continue; reach.add(id); for (const k of ['up', 'down', 'left', 'right']) todo.push(walk(id, [k])); }
+        const all = RW.playerLayout().items.map(i => i.id); ok('music player: the arrows reach every item of the page', all.every(id => reach.has(id)), all.filter(id => !reach.has(id)).join(' ') || all.length + ' items'); }
+      RW.Player.sel = 'track:boss'; press('ok'); L = RW.playerLayout(); ok('music player: a pattern track has its own voices and no element', S.track === 'boss' && ids('voice').join() === 'bass,drum,arp,lead' && ids('el').length === 0, ids('voice').join(' '));
+      RW.Player.sel = 'voice:lead'; press('ok'); ok('music player: a pattern\'s voices switch too', !S.sounds('lead') && S.sounds('bass'));
+      press('alt'); L = RW.playerLayout(); ok('music player: Q turns to the sounds, one entry for every effect', RW.Player.page === 1 && ids('fx').length === S.names.length, ids('fx').length + ' of ' + S.names.length);
+      RW.Player.sel = 'fx:boom'; press('ok'); press('right'); ok('music player: a sound can be played and the arrows move among them, the track plays on', S.track === 'boss' && RW.Player.sel.startsWith('fx:') && RW.Player.sel !== 'fx:boom', RW.Player.sel);
+      { const walk = (from, keys) => { RW.Player.sel = from; for (const k of keys) press(k); return RW.Player.sel; }, reach = new Set(), todo = ['fx:boom'];
+        while (todo.length) { const id = todo.pop(); if (reach.has(id)) continue; reach.add(id); for (const k of ['up', 'down', 'left', 'right']) todo.push(walk(id, [k])); }
+        const all = RW.playerLayout().items.map(i => i.id); ok('music player: the arrows reach every sound and stay in their row', all.every(id => reach.has(id)) && walk('fx:hit', ['right', 'left']) === 'fx:hit', all.filter(id => !reach.has(id)).join(' ') || all.length + ' items'); }
+      const lost = []; for (const t of S.tracks) for (const v of S.info(t).voices) { const who = (RW.DANCERS[t] || {})[v]; if (!who || !(who === '@' || RW.SPR[who + '0'] || RW.SPR[who + 'D0'])) lost.push(t + ':' + v); }
+      ok('music player: every voice of every track has a dancer', lost.length === 0, lost.join(' ') || 'ok');
+      RW.render(); press('alt'); RW.render();
+      // the switches let go: a voice turned off by hand sounds again and one turned on by hand does not (the plan is set to a whole piece, so that only the hand could keep the lead out)
+      for (const id of ['track:cellar', 'voice:lead', 'el:fire']) { if (id === 'el:fire' && S.sounds('fire')) continue; RW.Player.sel = id; press('ok'); } S.plan({ step: 3 }); const held = !S.sounds('lead') && S.sounds('fire');   // an element stays switched on from track to track
+      press('back'); ok('music player: ESC goes back to the title, its tune and every voice', RW.App.mode === 'title' && S.track === 'title' && held && S.sounds('lead') && !S.sounds('fire'), RW.App.mode + ' ' + S.track + ', by hand before: ' + held);
+      RW.step(30); }
     RW.step(30); press('ok'); ok('later runs go through the hero screen', RW.App.mode === 'prep', RW.App.mode);
     press('right'); ok('RIGHT shows the next delver', RW.App.prep.i === 1); RW.step(30); press('ok'); RW.step(30); ok('a locked delver cannot start', RW.App.mode === 'prep' && !RW.App.fade);
     press('alt'); ok('...nor open a deck', RW.App.mode === 'prep'); press('left');
@@ -71,6 +129,45 @@
     RW.step(40); press('ok'); ok('keep delving resumes play', RW.App.mode === 'play' && G.endless && !G.won);
     P.inv = 1e9; G.dir.calm = 0; RW.step(60 * 45); ok('endless keeps the doors knocking', G.mons.length > 10, G.mons.length + ' monsters');
     RW.step(10); RW.render();
+    /* ---- the share card (#19): the end screen's two chips ---- */
+    { RW.Share.dry = true; try { RW.start(31, { hero: 'pip' }); G = RW.G; P = G.P; G.tut.step = 9; G.dir.calm = 1e9; P.inv = 0; P.shield = 0; RW.hurtPlayer(99); RW.step(180);
+        const L = RW.endLayout(), S4 = RW.endLayout(400); ok('share: the end screen has a chip for the picture and one for the text, inside the view also at the smallest one', RW.App.mode === 'over' && L.share && L.text && L.share.w > 20 && L.share.x + L.share.w <= RW.view().VW && L.share.y + 13 <= L.text.y && S4.share.x + S4.share.w <= 400 && S4.text.x + S4.text.w <= 400 && S4.share.x >= 200 + 135, JSON.stringify([L.share, L.text, S4.share]));
+        // the frame's way (a pad's Y arrives like this), then the browser's own key event
+        RW.Share.did = 0; RW.Share.last = null; press('reroll'); const pic = RW.Share.last, said = RW.Share.msg, on = RW.Share.what; ok('share: a pad\'s Y hands on the picture', pic && pic.kind === 'picture' && pic.w === 960 && pic.h === 540 && pic.bytes > 2000 && said === 'READY' && on === 'share' && RW.App.mode === 'over', JSON.stringify(pic));
+        RW.Share.did = 0; RW.Share.last = null; press('help'); const txt = RW.Share.last; ok('share: ...and the text', txt && txt.kind === 'text' && /^Roomwright /.test(txt.text) && txt.text.endsWith(RW.SHARE_URL) && RW.Share.what === 'text' && RW.App.mode === 'over', txt && txt.text.replace(/\n/g, ' / '));
+        const key = (code, k) => dispatchEvent(new KeyboardEvent('keydown', { code, key: k, bubbles: true, cancelable: true })), up = (code, k) => dispatchEvent(new KeyboardEvent('keyup', { code, key: k, bubbles: true }));
+        RW.Share.did = 0; RW.Share.last = null; key('KeyR', 'r'); const inEvent = RW.Share.last; RW.Share.last = null; RW.step(2); const again = RW.Share.last; up('KeyR', 'r'); RW.Share.last = null; key('KeyH', 'h'); const inEventT = RW.Share.last; up('KeyH', 'h'); RW.step(2);
+        ok('share: the R and H keys do it inside the key\'s own event, once', inEvent && inEvent.kind === 'picture' && again === null && inEventT && inEventT.kind === 'text', JSON.stringify([inEvent && inEvent.kind, again, inEventT && inEventT.kind]));
+        RW.step(200); ok('share: the chip goes back to its label', RW.Share.t <= 0, RW.Share.t);
+        RW.Share.did = 0; press('reroll'); const word = RW.Share.t > 0; RW.start(31, { hero: 'pip' }); G = RW.G; P = G.P; G.tut.step = 9; G.dir.calm = 1e9; P.inv = 0; P.shield = 0; RW.hurtPlayer(99); RW.step(180);
+        ok('share: the word of one end screen is not on the next one', word && RW.App.mode === 'over' && RW.Share.t <= 0 && RW.Share.msg === '', RW.Share.msg + ' ' + RW.Share.t);
+      } finally { RW.Share.dry = false; } }
+    /* ---- the daily delve (#18): from the title with keys, the mouse and a pad; leaving it; the end screen ---- */
+    { const DAY = Date.UTC(2026, 11, 24, 12), I = RW.dailyInfo(DAY); RW.Daily.now = DAY;
+      const cv0 = document.getElementById('game'), V0 = RW.view(), b0 = cv0.getBoundingClientRect(), mouse0 = (type, vx, vy, button = 0, buttons = 1) => cv0.dispatchEvent(new MouseEvent(type, { clientX: b0.left + vx * b0.width / V0.VW, clientY: b0.top + vy * b0.height / V0.VH, button, buttons, bubbles: true, cancelable: true }));
+      try {
+        localStorage.removeItem(RW.Save.KEY); RW.Save.load(); RW.Save.data.runs = 3; RW.toTitle(); RW.step(40);
+        const T = RW.titleLayout(), di = T.findIndex(e => e.id === 'daily'); ok('title: the daily delve is one of its entries', di >= 0, T.map(e => e.id).join(' '));
+        press('down'); for (let i = 0; i < di; i++) press('right'); const line0 = RW.dailyTitleLine(); press('ok'); RW.step(60);
+        ok('daily: ENTER on its entry starts today\'s delve, with the day\'s delver and seed', RW.App.mode === 'play' && RW.G.daily && RW.G.daily.day === 33 && !RW.G.daily.practice && RW.G.seed === I.seed && RW.G.hero === I.hero && RW.G.stakes === 0, RW.App.mode + ' ' + JSON.stringify(RW.G.daily) + ' ' + line0);
+        ok('daily: the title says what today holds', line0 === 'Daily delve 33 as ' + RW.HEROES[I.hero].name + '. One try counts.', line0);
+        press('pause'); for (let i = 0; i < 7; i++) press('down'); RW.step(30); press('ok'); RW.step(60);
+        ok('daily: leaving the run from the pause menu counts it', RW.App.mode === 'title' && RW.Save.data.daily.length === 1 && RW.Save.data.daily[0].open === undefined && RW.Save.data.daily[0].won === false, JSON.stringify(RW.Save.data.daily));
+        press('down'); for (let i = 0; i < di; i++) press('right'); const line1 = RW.dailyTitleLine(); press('back');
+        ok('daily: ...and the title shows the result', /^Daily delve 33: floor 1 in \d+:\d\d, .*\. Again is practice\.$/.test(line1), line1);
+        const e = RW.titleLayout().find(t => t.id === 'daily'); mouse0('mousemove', e.x + e.w / 2, e.y + 9, 0, 0); RW.step(2); mouse0('mousedown', e.x + e.w / 2, e.y + 9); RW.step(3); mouse0('mouseup', 0, 0, 0, 0); RW.step(60);
+        ok('daily: a click on the entry starts it, as practice now', RW.App.mode === 'play' && RW.G.daily && RW.G.daily.practice && RW.G.seed === I.seed, RW.App.mode);
+        mouse0('mousemove', V0.VW / 2, V0.VH / 2, 0, 0); RW.G.dir.calm = 1e9; RW.G.P.inv = 0; RW.G.P.shield = 0; RW.hurtPlayer(99); RW.step(140);
+        ok('daily: the end screen names the day', RW.App.mode === 'over' && /^Daily delve 33, practice\./.test(RW.dailyEndLine()), RW.dailyEndLine());
+        const label = RW.endItems()[0].label; RW.Daily.now = DAY + 864e5;                // midnight passes on the end screen
+        RW.step(40); press('ok'); RW.step(60); ok('daily: its retry is labelled as practice and replays the same day, also after midnight', label === 'Again, as practice' && RW.App.mode === 'play' && RW.G.daily && RW.G.daily.day === 33 && RW.G.daily.practice && RW.G.seed === I.seed, label + ' ' + RW.App.mode + ' ' + JSON.stringify(RW.G.daily));
+        press('pause'); for (let i = 0; i < 6; i++) press('down'); RW.step(30); press('ok'); RW.step(60); ok('daily: Restart in the pause menu replays the same day too', RW.App.mode === 'play' && RW.G.daily && RW.G.daily.day === 33 && RW.G.daily.practice, RW.App.mode + ' ' + JSON.stringify(RW.G.daily)); RW.Daily.now = DAY;
+        RW.toTitle(); RW.step(40); RW.Save.data.daily.length = 0; const pad = { connected: true, axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false })) }, real = navigator.getGamepads;
+        try { navigator.getGamepads = () => [pad]; const gstep = n => { for (let i = 0; i < n; i++) { RW.Input.poll(); RW.step(1); } }, tap = b => { pad.buttons[b].pressed = true; gstep(2); pad.buttons[b].pressed = false; gstep(2); };
+          gstep(5); tap(13); for (let i = 0; i < di; i++) tap(15); tap(0); gstep(60);
+          ok('daily: a pad reaches the entry and starts it', RW.App.mode === 'play' && RW.G.daily && RW.G.daily.day === 33 && !RW.G.daily.practice, RW.App.mode + ' ' + RW.App.titleSel);
+        } finally { navigator.getGamepads = real; RW.Input.poll(); }
+      } finally { RW.Daily.now = null; } }
     /* ---- gamepad: a simulated pad exercises the mapping (not real hardware) ---- */
     const pad = { connected: true, axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false })) };
     Object.defineProperty(navigator, 'getGamepads', { value: () => [pad], configurable: true });
@@ -87,7 +184,11 @@
     { const ci = RW.titleLayout().findIndex(e => e.id === 'changes'); pad.axes[1] = 1; gstep(2); pad.axes[1] = 0; gstep(2); for (let i = 0; i < ci; i++) { pad.axes[0] = 1; gstep(2); pad.axes[0] = 0; gstep(2); }
       tap(0); gstep(20); ok('pad: the stick and A open the changelog', RW.App.mode === 'changes', RW.App.mode + ' sel ' + RW.App.titleSel);
       const L = RW.changesLayout(); pad.axes[1] = 1; gstep(30); pad.axes[1] = 0; gstep(2); ok('pad: the stick scrolls it', L.max === 0 || RW.App.changes.y > 0, Math.round(RW.App.changes.y));
-      tap(1); ok('pad: B closes it, and the choice is START', RW.App.mode === 'title' && RW.App.titleSel === '', RW.App.mode + ' ' + RW.App.titleSel); }
+      tap(1); ok('pad: B closes it, and the choice is START', RW.App.mode === 'title' && RW.App.titleSel === '', RW.App.mode + ' ' + RW.App.titleSel);
+      gstep(30); const mi = RW.titleLayout().findIndex(e => e.id === 'music'); pad.axes[1] = 1; gstep(2); pad.axes[1] = 0; gstep(2); for (let i = 0; i < mi; i++) { pad.axes[0] = 1; gstep(2); pad.axes[0] = 0; gstep(2); }
+      tap(0); gstep(30); ok('pad: the stick and A open the music player', RW.App.mode === 'music', RW.App.mode);
+      pad.axes[1] = 1; gstep(2); pad.axes[1] = 0; gstep(2); tap(0); ok('pad: the stick chooses a track and A plays it', RW.Snd.track === 'cellar', RW.Snd.track + ' ' + RW.Player.sel);
+      tap(3); ok('pad: Y turns the page', RW.Player.page === 1, RW.Player.page); tap(1); ok('pad: B leaves the music player', RW.App.mode === 'title' && RW.Snd.track === 'title', RW.App.mode); }
     gstep(30); tap(0); gstep(40); ok('pad: A leaves the title', RW.App.mode === 'prep', RW.App.mode);
     gstep(30); tap(3); ok('pad: Y opens the deck builder', RW.App.mode === 'deck', RW.App.mode); tap(1); ok('pad: B closes it', RW.App.mode === 'prep', RW.App.mode);
     delete navigator.getGamepads;
@@ -158,7 +259,8 @@
     ok('stakes: the choice is saved', JSON.parse(localStorage.getItem(RW.Save.KEY)).stake.pip === 1);
     press('right'); press('up'); ok('stakes: a delver who has not won has none', RW.prepLayout('wick').sk === 0 && RW.stakeOf('wick') === 0); press('left');
     press('ok'); RW.step(60); ok('stakes: the run plays at the chosen step', RW.App.mode === 'play' && RW.G.stakes === 1 && RW.stake(1) && !RW.stake(2), RW.App.mode + ' ' + RW.G.stakes);
-    press('pause'); ok('stakes: the pause menu has a line for the step', RW.App.mode === 'pause' && RW.pauseLayout().h === RW.pauseLayout().items.length * 14 + 122 && RW.pauseLayout().h <= RW.view().VH, RW.pauseLayout().h); press('back');
+    press('pause'); ok('stakes: the pause menu has a line for the step', RW.App.mode === 'pause' && RW.pauseLayout().h === RW.pauseLayout().items.length * RW.pauseLayout().lh + 122 && RW.pauseLayout().h <= RW.view().VH, RW.pauseLayout().h);
+    ok('stakes: with that line the pause menu still fits the smallest view', RW.pauseLayout(225).h <= 225 && RW.pauseLayout(225).rects.every(r => r.y >= 0 && r.y + r.h <= 225), RW.pauseLayout(225).h + ' of 225'); press('back');
     winNow(); ok('stakes: a win at step 1 opens step 2', RW.Save.data.stakes.pip === 1 && RW.stakesOpen('pip') === 2 && RW.stakeOf('pip') === 2 && RW.App.stakesNew === 2 && RW.record(true).stakes === 1, JSON.stringify(RW.Save.data.stakes));
     RW.Save.data.stake.pip = 0; RW.Save.store(); toHeroes(); press('ok'); RW.step(60); winNow();
     ok('stakes: a win below the highest step opens nothing new', RW.stakesOpen('pip') === 2 && RW.App.stakesNew === 0 && RW.stakeOf('pip') === 0);
@@ -173,6 +275,11 @@
     const fresh = () => { RW.start(77, { hero: 'pip' }); G = RW.G; P = G.P; G.tut.step = 9; G.dir.calm = 1e9; G.dir.ti = 99; P.inv = 1e9; P.keys = 9; RW.step(5); };
     const here = () => ({ x: P.x - G.cam.x, y: P.y - 8 - G.cam.y }), lead = RW.Input.lead, stick = RW.Input.stick;   // here: the delver on screen
     const settle = () => { mouse('mouseup', 0, 0, 0, 0); RW.step(90); };                // let go and let the camera catch up
+    { RW.Share.dry = true; try { RW.start(31, { hero: 'pip' }); G = RW.G; P = G.P; G.tut.step = 9; G.dir.calm = 1e9; P.inv = 0; P.shield = 0; RW.hurtPlayer(99); RW.step(180); const L = RW.endLayout(), mid = r => [r.x + r.w / 2, r.y + r.h / 2];
+        const clickOn = r => { mouse('mousemove', ...mid(r), 0, 0); RW.step(2); mouse('mousedown', ...mid(r)); RW.step(3); mouse('mouseup', ...mid(r), 0, 0); mouse('click', ...mid(r), 0, 0); RW.step(2); };
+        RW.Share.did = 0; RW.Share.last = null; clickOn(L.share); const a = RW.Share.last; RW.Share.last = null; clickOn(L.text); const b = RW.Share.last;
+        ok('mouse: a click on a share chip hands on the picture or the text, and the run\'s end screen stays', a && a.kind === 'picture' && b && b.kind === 'text' && RW.App.mode === 'over', JSON.stringify([a && a.kind, b && b.kind, RW.App.mode])); mouse('mousemove', V.VW / 2, V.VH / 2, 0, 0); RW.step(2);
+      } finally { RW.Share.dry = false; } }
     fresh(); settle(); let at0 = here(), px0 = P.x, py0 = P.y;
     ok('mouse: walking toward the pointer is the default', RW.Save.data.opts.mouse === 'point' && RW.pauseLayout().items[4].value === 'TO POINTER', RW.Save.data.opts.mouse);
     mouse('mousedown', at0.x + 60, at0.y); RW.step(30);
@@ -214,7 +321,14 @@
       mouse('mousedown', e.x + e.w / 2, e.y + 9); RW.step(3); mouse('mouseup', 0, 0, 0, 0); RW.step(20); ok('mouse: a click on it opens the changelog', RW.App.mode === 'changes', RW.App.mode);
       const L = RW.changesLayout(); cvs.dispatchEvent(new WheelEvent('wheel', { deltaY: 120, bubbles: true, cancelable: true })); RW.step(2);
       ok('mouse: the wheel scrolls it', L.max === 0 || RW.App.changes.y > 0, Math.round(RW.App.changes.y) + ' of ' + L.max);
-      mouse('mousedown', L.back.x + 8, L.back.y + 9); RW.step(3); mouse('mouseup', 0, 0, 0, 0); ok('mouse: BACK closes it, and the choice is START', RW.App.mode === 'title' && RW.App.titleSel === '', RW.App.mode + ' ' + RW.App.titleSel); mouse('mousemove', V.VW / 2, V.VH / 2, 0, 0); RW.step(2); }
+      mouse('mousedown', L.back.x + 8, L.back.y + 9); RW.step(3); mouse('mouseup', 0, 0, 0, 0); ok('mouse: BACK closes it, and the choice is START', RW.App.mode === 'title' && RW.App.titleSel === '', RW.App.mode + ' ' + RW.App.titleSel); mouse('mousemove', V.VW / 2, V.VH / 2, 0, 0); RW.step(2);
+      const click = r => { mouse('mousemove', r.x + r.w / 2, r.y + r.h / 2, 0, 0); RW.step(2); mouse('mousedown', r.x + r.w / 2, r.y + r.h / 2); RW.step(3); mouse('mouseup', 0, 0, 0, 0); RW.step(2); };
+      const item = id => RW.playerLayout().items.find(i => i.id === id);
+      RW.step(30); click(RW.titleLayout().find(t => t.id === 'music')); RW.step(30); ok('mouse: a click on the title entry opens the music player', RW.App.mode === 'music', RW.App.mode);
+      click(item('track:garden')); ok('mouse: a click on a track plays it and the choice follows', RW.Snd.track === 'garden' && RW.Player.sel === 'track:garden', RW.Snd.track + ' ' + RW.Player.sel);
+      click(item('voice:bass')); click(item('el:water')); ok('mouse: clicks on the switches set the voices', !RW.Snd.sounds('bass') && RW.Snd.sounds('water') && RW.Snd.sounds('lead'));
+      click(item('tab:1')); ok('mouse: a click on SOUNDS turns the page', RW.Player.page === 1, RW.Player.page);
+      click(item('back')); ok('mouse: BACK leaves the music player', RW.App.mode === 'title' && RW.Snd.track === 'title', RW.App.mode); mouse('mousemove', V.VW / 2, V.VH / 2, 0, 0); RW.step(2); }
     if (typeof Touch === 'function' && typeof TouchEvent === 'function') {
       const touch = (type, pts) => { const ts = pts.map(([id, vx, vy]) => new Touch({ identifier: id, target: cvs, ...at(vx, vy) })); cvs.dispatchEvent(new TouchEvent(type, { changedTouches: ts, touches: type === 'touchstart' || type === 'touchmove' ? ts : [], bubbles: true, cancelable: true })); };
       const lx = V.VW * 0.25, ly = V.VH * 0.7, rx = V.VW * 0.8, ry = V.VH * 0.6;
@@ -236,10 +350,21 @@
         ok('touch: a tap on the title entry opens the changelog', RW.App.mode === 'changes', RW.App.mode);
         const L = RW.changesLayout(); touch('touchstart', [[11, L.lower.x + L.lower.w / 2, L.lower.y + L.lower.h / 2]]); RW.step(3); touch('touchend', [[11, 0, 0]]);
         ok('touch: a tap on the lower half of the text reads on', L.max === 0 || RW.App.changes.y > 0, Math.round(RW.App.changes.y) + ' of ' + L.max);
-        touch('touchstart', [[12, L.back.x + 8, L.back.y + 9]]); RW.step(3); touch('touchend', [[12, 0, 0]]); ok('touch: BACK closes it', RW.App.mode === 'title', RW.App.mode); }
+        touch('touchstart', [[12, L.back.x + 8, L.back.y + 9]]); RW.step(3); touch('touchend', [[12, 0, 0]]); ok('touch: BACK closes it', RW.App.mode === 'title', RW.App.mode);
+        const tapOn = r => { touch('touchstart', [[13, r.x + r.w / 2, r.y + r.h / 2]]); RW.step(3); touch('touchend', [[13, 0, 0]]); RW.step(2); }, item = id => RW.playerLayout().items.find(i => i.id === id);
+        RW.step(30); tapOn(RW.titleLayout().find(t => t.id === 'music')); RW.step(30); ok('touch: a tap on the title entry opens the music player', RW.App.mode === 'music', RW.App.mode);
+        tapOn(item('track:kiln')); const chose = RW.Player.sel; tapOn(item('voice:drum')); ok('touch: taps play a track and set a switch, and the choice follows the tap', RW.Snd.track === 'kiln' && chose === 'track:kiln' && !RW.Snd.sounds('drum') && RW.Snd.sounds('bass'), RW.Snd.track + ' ' + chose);
+        tapOn(item('back')); ok('touch: BACK leaves the music player', RW.App.mode === 'title' && RW.Snd.track === 'title', RW.App.mode); }
       RW.toTitle(); RW.step(40); touch('touchstart', [[8, V.VW / 2, V.VH / 2]]); RW.step(3); touch('touchend', [[8, 0, 0]]); RW.step(40);
       { const L = RW.prepLayout('pip'), cx = V.VW / 2, cy = L.sy + 9, seq = []; for (let i = 0; i < 3; i++) { touch('touchstart', [[9, cx, cy]]); RW.step(3); touch('touchend', [[9, 0, 0]]); seq.push(RW.stakeOf('pip')); }
         ok('stakes, touch: a tap on the Stakes lines does the same', RW.App.mode === 'prep' && seq.join() === '1,2,0', RW.App.mode + ' ' + seq.join()); }
+      { RW.Daily.now = Date.UTC(2026, 11, 24, 12); try { RW.toTitle(); RW.step(40); RW.Save.data.daily.length = 0; const e = RW.titleLayout().find(t => t.id === 'daily');
+          touch('touchstart', [[21, e.x + e.w / 2, e.y + e.h / 2]]); RW.step(3); touch('touchend', [[21, 0, 0]]); RW.step(60);
+          ok('touch: a tap on the title\'s DAILY starts today\'s delve', RW.App.mode === 'play' && RW.G.daily && RW.G.daily.day === 33, RW.App.mode); } finally { RW.Daily.now = null; } }
+      { RW.Share.dry = true; try { RW.start(31, { hero: 'pip' }); G = RW.G; P = G.P; G.tut.step = 9; G.dir.calm = 1e9; P.inv = 0; P.shield = 0; RW.hurtPlayer(99); RW.step(180); const L = RW.endLayout(), mid = r => [r.x + r.w / 2, r.y + r.h / 2];
+          RW.Share.did = 0; RW.Share.last = null; touch('touchstart', [[31, ...mid(L.share)]]); RW.step(3); const before = RW.Share.last; touch('touchend', [[31, ...mid(L.share)]]); const after = RW.Share.last; RW.step(2);
+          ok('touch: a tap on the share chip hands on the picture when the finger lifts, not before', before === null && after && after.kind === 'picture' && RW.App.mode === 'over', JSON.stringify([before, after && after.kind]));
+          ok('touch: the chips read SHARE and TEXT without a key', L.share.w > 20 && RW.shareAt(...mid(L.text)) === 'text', JSON.stringify(L.share)); } finally { RW.Share.dry = false; } }
     } else out.push('SKIP touch checks: this browser has no Touch constructor');
   } catch (e) { out.push('EXCEPTION ' + String(e && e.stack || e).slice(0, 500)); }
   try { localStorage.setItem(RW.Save.KEY, saved); RW.Save.load(); RW.toTitle(); } catch (e) { /* ignore */ }

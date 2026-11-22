@@ -44,7 +44,7 @@ const Snd = (() => {
     src.connect(flt); flt.connect(g); g.connect(o.bus || sfxBus); src.start(t0, Math.random() * 0.5); src.stop(t0 + d + 0.05);
   }
   const GAP = { hit: 0.05, kill: 0.045, glint: 0.035, shoot: 0.07, bounce: 0.06, zap: 0.09, boom: 0.07, knock: 0.14, spike: 0.25, swing: 0.08, burn: 0.3, tick: 0.05, ebullet: 0.12,
-    freeze: 0.09, dig: 0.3, fuse: 0.25, sting: 0.12, saw: 0.3, shield: 0.2, hex: 0.5 };
+    freeze: 0.09, dig: 0.3, fuse: 0.25, sting: 0.12, saw: 0.3, shield: 0.2, hex: 0.5, cards: 0.2, wheel: 0.1, slot: 0.3, overload: 0.25 };
   const FX = {
     hit() { noise(0.05, { v: 0.1, f: 1700, ft: 'bandpass' }); tone(180, 0.05, { v: 0.05, f2: 100 }); },
     kill() { tone(500 + fxr() * 180, 0.09, { v: 0.06, f2: 900 + fxr() * 200, type: 'triangle' }); noise(0.05, { v: 0.05, f: 3200, ft: 'highpass' }); },
@@ -95,6 +95,11 @@ const Snd = (() => {
     squish() { noise(0.14, { v: 0.07, f: 500, f2: 250 }); tone(160, 0.1, { v: 0.05, f2: 90, type: 'sine' }); },
     windup() { for (let i = 0; i < 4; i++) tone(500 + i * 90, 0.04, { v: 0.04, t: i * 0.05, type: 'square' }); },
     dice() { for (let i = 0; i < 3; i++) tone(900 + fxr() * 500, 0.03, { v: 0.04, t: i * 0.04, type: 'triangle' }); },
+    overload() { tone(110, 0.45, { v: 0.09, f2: 520, type: 'sawtooth' }); noise(0.28, { v: 0.08, f: 700, f2: 4200, ft: 'bandpass', t: 0.16 }); tone(880, 0.3, { v: 0.05, type: 'triangle', t: 0.2 }); },      // a room lets go (#15)
+    // the house (#12): a riffle of cards, the ball clicking over the wheel's frets, a machine's reels and its bell
+    cards() { for (let i = 0; i < 5; i++) noise(0.03, { v: 0.09, f: 3400, ft: 'highpass', t: i * 0.035 }); },
+    wheel() { tone(1250 + fxr() * 250, 0.025, { v: 0.05, type: 'square' }); noise(0.02, { v: 0.04, f: 4200, ft: 'highpass' }); },
+    slot() { for (let i = 0; i < 6; i++) tone(520 + (i % 3) * 140, 0.035, { v: 0.045, t: i * 0.075, type: 'square' }); tone(1760, 0.2, { v: 0.06, t: 0.5, type: 'triangle' }); },
     warp() { tone(200, 0.3, { v: 0.08, f2: 1200, type: 'sine' }); tone(300, 0.3, { v: 0.05, f2: 1800, type: 'triangle', t: 0.03 }); },
     revive() { [60, 67, 72, 76, 79, 84].forEach((m, i) => tone(mtof(m), 0.25, { v: 0.1, t: i * 0.09, type: 'sine' })); },
   };
@@ -106,7 +111,7 @@ const Snd = (() => {
   }
 
   // ---- music: a step sequencer. A track is a pattern (three voices: bass / harp arpeggio / flute lead, and noise
-  // drums) or a written score (below)
+  // drums) or a written score (below), whose voices can follow the floor plan (further below)
   const MIN = [0, 3, 7], MAJ = [0, 4, 7];
   const TRACKS = {
     title: { bpm: 80, chords: [[45, MIN], [41, MAJ], [48, MAJ], [43, MAJ]], arp: [0, -1, 1, -1, 2, -1, 3, -1, 2, -1, 1, -1, 2, -1, 1, -1], bass: { 0: 0, 8: 7 }, drums: 0, leadVol: 0.07,
@@ -139,8 +144,40 @@ const Snd = (() => {
     snare: [0.07, 66, 0.1, 'bandpass', 1900], slap: [0.07, 72, 0.1, 'bandpass', 1900], clap: [0.07, 72, 0.12, 'bandpass', 2400], claves: [0.06, 60, 0.04, 'bandpass', 2600],
     hat: [0.022, 58, 0.03, 'highpass', 7000], cabasa: [0.022, 54, 0.03, 'highpass', 7000], shaker: [0.022, 50, 0.05, 'highpass', 5000], cymbal: [0.03, 60, 0.3, 'highpass', 8000],
   };
+  // ---- element voices (#17): one figure per element, written once and played over any piece's chords. A figure gets
+  // the bar's root, third and fifth as pitch classes, the bar's number and the bass's pitch class, and gives its notes
+  // for that bar as [step, pitch, steps long, velocity]. Each has a register and steps of its own, so that several can
+  // sound together. near(pc, lo) is the pitch of that class at or above lo.
+  const near = (pc, lo) => lo + ((pc - lo) % 12 + 12) % 12;
+  const ELEMENT_VOICES = {   // element: [level, wave, attack, seconds per step of length, vibrato on long notes, figure, where its second layer lies]
+    stone:  [0.07, 'triangle', 0.01, 0.95, 0, (r, t, f, bar, b) => [[0, near(b, 48), 6, 80], [8, near(f, 48), 6, 72]], 12],               // footing: low, on one and three
+    shadow: [0.05, 'triangle', 0.03, 0.98, 1, (r, t, f) => [[4, near(t, 52), 4, 80], [12, near(t, 52), 4, 74]], 12],                     // the third, low, on two and four
+    water:  [0.035, 'triangle', 0.01, 1.4, 0, (r, t, f) => { const a = near(r, 60), b = near(t, a), c = near(f, b); return [[0, a, 1, 80], [1, b, 1, 74], [2, c, 2, 78], [8, a, 1, 74], [9, b, 1, 70], [10, c, 2, 76]]; }, 12],   // a ripple up the chord from its root, twice a bar
+    steel:  [0.02, 'square', 0, 1.2, 0, (r, t, f) => [2, 6, 10, 14].map((st, i) => [st, near(f, 64), 1, i % 2 ? 72 : 80]), 12],         // ticks off the beat
+    lore:   [0.035, 'triangle', 0.03, 0.98, 1, (r, t, f) => [[0, near(t, 67), 8, 80], [8, near(r, 67), 8, 74]], -12],                    // two long notes a bar
+    wild:   [0.022, 'square', 0, 1.3, 0, (r, t, f, bar) => [3, 6, 11, 14].map((st, i) => [st, near(i % 2 ? r : f, 67 + 5 * ((i + bar) % 2)), 1, 80]), -12],   // hops between the beats
+    fire:   [0.02, 'square', 0, 0.9, 0, (r, t, f) => [[2, near(f, 76), 1, 80], [3, near(r, 79), 1, 70], [10, near(f, 76), 1, 78], [11, near(t, 79), 1, 68]], -12],   // a flicker, high
+    frost:  [0.03, 'triangle', 0, 1.5, 0, (r, t, f, bar) => bar % 2 ? [[4, near(t, 84), 4, 80]] : [[4, near(t, 84), 4, 80], [12, near(f, 88), 4, 70]], -12],   // single high notes that ring
+  };
+  // an element's voice has a second layer, the same notes an octave away and softer, for when its rooms resonate: "fire+"
+  const ELEMENT_OF = {}; for (const el in ELEMENT_VOICES) { ELEMENT_OF[el] = { el, full: 0 }; ELEMENT_OF[el + '+'] = { el, full: 1 }; }
+  const PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }, pcOf = s => (PC[s[0]] + (s[1] === 'b' ? 11 : s[1] === '#' ? 1 : 0)) % 12;
+  // ---- which voices sound (#17). FULL: the piece as written. PLAN: bass, arpeggio and drums always, the other voices
+  // once the floor plan has earned them. ELEMENT: the whole piece, and the voice of every element in the plan. The
+  // music player sets the voices by hand instead.
+  const GROWS = { lead: 1, answer: 1, counter: 2, pluck: 2, bell: 3 };      // the plan's step at which a voice enters (musicPlan in 60-game)
+  const mix = { mode: 'full', step: 0, els: {}, res: {}, hand: null };
+  function sounds(voice) {
+    if (mix.hand) return !!mix.hand[voice];
+    const E = ELEMENT_OF[voice];
+    if (E) return mix.mode === 'element' && !!mix.els[E.el] && (!E.full || !!mix.res[E.el]);
+    return mix.mode !== 'plan' || (GROWS[voice] || 0) <= mix.step;
+  }
+  // when each voice last started a note, for whoever wants to move in time with it (the music player's dancers)
+  const hits = {}, heard = (voice, t) => { const h = hits[voice] || (hits[voice] = []); h.push(t); if (h.length > 8) h.shift(); };
   function note(n, t, spb) {                                // n: [step, voice, pitch or drum sound, steps long, velocity]
-    const [, voice, p, len, vel] = n;
+    const [, voice, p, len, vel] = n, E = ELEMENT_OF[voice];
+    if (E) { const [lv, type, a, k, vib] = ELEMENT_VOICES[E.el]; tone(mtof(p), spb * len * k, { at: t, v: lv * (E.full ? 0.6 : 1) * (vel / 80) ** 2, type, bus: musBus, a, vib: vib && len >= 4 }); return; }
     if (voice === 'drum') {
       const [lv, ref, d, a, b] = DRUMS[p], v = lv * (vel / ref) ** 2;
       if (typeof a === 'number') tone(a, d, { at: t, v, f2: b, type: 'sine', bus: musBus }); else noise(d, { at: t, v, f: b, ft: a, bus: musBus });
@@ -151,14 +188,15 @@ const Snd = (() => {
   }
   let cur = null, curName = null, step = 0, nextT = 0;
   function sched(tr, s, t, spb) {
-    if (tr.score) { for (const n of tr.steps[s % tr.steps.length]) note(n, t, spb); return; }
+    if (tr.score) { for (const n of tr.steps[s % tr.steps.length]) if (sounds(n[1])) { note(n, t, spb); heard(n[1], t); } return; }
     const len = tr.chords.length, bar = Math.floor(s / 16) % len, st = s % 16, ch = tr.chords[bar];
-    const b = tr.bass[st]; if (b !== undefined) tone(mtof(ch[0] + b), spb * 2.4, { at: t, v: 0.2, type: 'triangle', bus: musBus, a: 0.01 });
-    const ai = tr.arp[st]; if (ai >= 0) tone(mtof(ch[0] + 24 + (ai === 3 ? 12 : ch[1][ai])), spb * 1.6, { at: t, v: 0.03, type: 'square', bus: musBus });
-    if (tr.lead) for (const n of tr.lead[bar]) if (n[0] === st) tone(mtof(n[1]), spb * n[2] * 0.98, { at: t, v: tr.leadVol, type: 'triangle', bus: musBus, a: 0.02, vib: n[2] >= 4 });
-    if (tr.drums) {
-      if (st % 8 === 0 || (tr.drums > 1 && st % 8 === 6)) tone(140, 0.13, { at: t, v: 0.26, f2: 42, type: 'sine', bus: musBus });
-      if (st % 8 === 4) noise(0.1, { at: t, v: 0.07, f: 1900, ft: 'bandpass', bus: musBus });
+    const by = v => !mix.hand || !!mix.hand[v];            // a pattern takes no part in the plan: only the music player switches its voices
+    const b = tr.bass[st]; if (b !== undefined && by('bass')) { heard('bass', t); tone(mtof(ch[0] + b), spb * 2.4, { at: t, v: 0.2, type: 'triangle', bus: musBus, a: 0.01 }); }
+    const ai = tr.arp[st]; if (ai >= 0 && by('arp')) { heard('arp', t); tone(mtof(ch[0] + 24 + (ai === 3 ? 12 : ch[1][ai])), spb * 1.6, { at: t, v: 0.03, type: 'square', bus: musBus }); }
+    if (tr.lead && by('lead')) for (const n of tr.lead[bar]) if (n[0] === st) { heard('lead', t); tone(mtof(n[1]), spb * n[2] * 0.98, { at: t, v: tr.leadVol, type: 'triangle', bus: musBus, a: 0.02, vib: n[2] >= 4 }); }
+    if (tr.drums && by('drum')) {
+      if (st % 8 === 0 || (tr.drums > 1 && st % 8 === 6)) { heard('drum', t); tone(140, 0.13, { at: t, v: 0.26, f2: 42, type: 'sine', bus: musBus }); }
+      if (st % 8 === 4) { heard('drum', t); noise(0.1, { at: t, v: 0.07, f: 1900, ft: 'bandpass', bus: musBus }); }
       if (st % 2 === 0) noise(0.03, { at: t, v: 0.022, f: 7000, ft: 'highpass', bus: musBus });
     }
   }
@@ -168,13 +206,23 @@ const Snd = (() => {
     if (nextT < ac.currentTime) nextT = ac.currentTime + 0.05;
     while (nextT < ac.currentTime + 0.25) { sched(cur, step, nextT, spb); step++; nextT += spb; }
   }, 50);
-  function music(name) {
-    if (curName === name) return; curName = name; cur = name ? TRACKS[name] : null; step = 0; nextT = 0;
-    if (cur && cur.score && !cur.steps) {                   // a written score is laid out by step the first time it plays
-      const steps = Array.from({ length: 16 * cur.bars }, () => []);
-      for (const n of cur.score()) steps[n[0]].push(n);
-      cur.steps = steps;
+  function laid(tr) {                                       // a written score is laid out by step the first time it is asked for
+    if (tr.score && !tr.steps) {
+      const sc = tr.score(), steps = Array.from({ length: 16 * tr.bars }, () => []);
+      for (const n of sc.notes) steps[n[0]].push(n);
+      sc.chords.forEach((ch, bar) => {                      // the element voices, over the same chords
+        // Am is minor, F/E has E in the bass, E5 has no third (its voices take the root there)
+        const [name, bass] = ch.split('/'), r = pcOf(name), t = name.endsWith('5') ? r : (r + (/^[A-G][b#]?m(?!aj)/.test(name) ? 3 : 4)) % 12, f = (r + 7) % 12;
+        for (const el in ELEMENT_VOICES) for (const [st, p, len, vel] of ELEMENT_VOICES[el][5](r, t, f, bar, bass ? pcOf(bass) : r))
+          steps[bar * 16 + st].push([bar * 16 + st, el, p, len, vel], [bar * 16 + st, el + '+', p + ELEMENT_VOICES[el][6], len, vel]);
+      });
+      tr.steps = steps; tr.title = sc.name; tr.parts = sc.parts;
     }
+    return tr;
+  }
+  function music(name) {
+    if (curName === name) return; curName = name; cur = name ? laid(TRACKS[name]) : null; step = 0; nextT = 0;
+    for (const v in hits) delete hits[v];
   }
   // test hooks (tools/check-audio.js, tools/check-music.py): the peak level on the master bus, what there is to play,
   // and how many seconds one pass of a track takes (or, with `bars`, that many of its bars)
@@ -185,6 +233,20 @@ const Snd = (() => {
     const buf = new Float32Array(tap.fftSize);
     return () => { tap.getFloatTimeDomainData(buf); let p = 0; for (let i = 0; i < buf.length; i++) p = Math.max(p, Math.abs(buf[i])); return p; };
   }
-  return { ensure, play, music, vol, applyVol, probe, get names() { return Object.keys(FX); }, get tracks() { return Object.keys(TRACKS); }, get track() { return curName; }, secs(name, bars) { const tr = TRACKS[name]; return (bars || tr.bars || tr.chords.length) * 240 / tr.bpm; }, get on() { return !!ac && ac.state === 'running'; }, suspend() { if (ac && ac.state === 'running') ac.suspend(); }, resume() { if (ac && ac.state === 'suspended') ac.resume(); } };
+  // what a track is, for the music player and the checks: its piece's name, length, parts and the voices it has
+  function info(name) {
+    const tr = laid(TRACKS[name]), voices = [];
+    if (tr.score) { for (const st of tr.steps) for (const n of st) if (!ELEMENT_OF[n[1]] && !voices.includes(n[1])) voices.push(n[1]); }
+    else voices.push('bass', 'arp', ...(tr.lead ? ['lead'] : []), ...(tr.drums ? ['drum'] : []));
+    return { title: tr.title || '', written: !!tr.score, bars: tr.bars || tr.chords.length, bpm: tr.bpm, parts: tr.parts || [], voices, elements: tr.score ? Object.keys(ELEMENT_VOICES) : [] };
+  }
+  return { ensure, play, music, info, vol, applyVol, probe,
+    // #17: how the music follows the plan ('full', 'plan' or 'element'), what the plan is now ({ step, els, res }), and the voices set by hand (an object of voice names, or null)
+    grow(mode) { mix.mode = mode === 'plan' || mode === 'element' ? mode : 'full'; }, plan(p) { mix.step = p.step | 0; mix.els = p.els || {}; mix.res = p.res || {}; }, hand(set) { mix.hand = set || null; }, sounds,
+    // where the piece is ({ step, steps }, null when nothing plays), and the seconds since a voice last sounded
+    pos() { if (!ac || !cur) return null; const at = step - Math.max(0, nextT - ac.currentTime) / (60 / cur.bpm / 4); return { step: Math.max(0, Math.floor(at)), steps: cur.steps ? cur.steps.length : 16 * cur.chords.length }; },
+    since(voice) { const h = hits[voice]; let best = Infinity; if (ac && h) for (const t of h) if (t <= ac.currentTime) best = Math.min(best, ac.currentTime - t); return best; }, get names() { return Object.keys(FX); }, get tracks() { return Object.keys(TRACKS); }, get track() { return curName; }, secs(name, bars) { const tr = TRACKS[name]; return (bars || tr.bars || tr.chords.length) * 240 / tr.bpm; }, get on() { return !!ac && ac.state === 'running'; }, suspend() { if (ac && ac.state === 'running') ac.suspend(); }, resume() { if (ac && ac.state === 'suspended') ac.resume(); } };
 })();
-const sfx = (n, a) => Snd.play(n, a);
+// How the game plays an effect. While sfx.quiet is set it plays none: the title's showcase builds nine rooms in one
+// instant, and their sounds on top of each other were deafening when a run was left for the title.
+const sfx = (n, a) => { if (!sfx.quiet) Snd.play(n, a); };

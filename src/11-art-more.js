@@ -138,6 +138,83 @@ function buildArtMore() {
   for (const f of [0, 1]) reg('eshroom' + f, scaleCanvas(SPR['spore' + f].c, 2));
   for (const f of [0, 1]) reg('bigtin' + f, scaleCanvas(SPR['tin' + f].c, 2));
   // the dice a knock back calls: snake eyes on one frame, a five on the other, so it seems to roll as it hops
+  /* ---- the house (#12): a dealer, a roulette wheel, a slot machine, and what they throw ---- */
+  two('dealer', [
+    '...NNNNNN...',
+    '..NnnnnnnN..',
+    '.nnnnnnnnnnn',
+    '..ssssssss..',
+    '..skssssks..',
+    '..ssssssss..',
+    '...wwrrww...',
+    '..KKwwwwKK..',
+    '.sKKwwwwKKww',
+    '.sKKKwwKKKwr',
+    '..KKKKKKKK..',
+    '..KK....KK..',
+    '..KK....KK..'], [
+    '............',
+    '...NNNNNN...',
+    '..NnnnnnnN..',
+    '.nnnnnnnnnnn',
+    '..ssssssss..',
+    '..skssssks..',
+    '..ssssssss..',
+    '...wwrrww...',
+    '.sKKwwwwKKww',
+    '.sKKKwwKKKwr',
+    '..KKKKKKKK..',
+    '..KK....KK..',
+    '...KK..KK...']);
+  { const rows = [
+    '....YYYYYY....',
+    '..YYrKrKrKYY..',
+    '.YrKrKrKrKrKY.',
+    '.YKrKwwwwrKrY.',
+    'YrKrwTTTTwKrKY',
+    'YKrwTTyyTTwrKY',
+    'YrKwTyyyyTwKrY',
+    'YKrwTyyyyTwrKY',
+    'YrKwTTyyTTwKrY',
+    'YKrKwTTTTwrKrY',
+    '.YrKrwwwwKrKY.',
+    '.YKrKrKrKrKrY.',
+    '..YYKrKrKrYY..',
+    '....YYYYYY....'];
+    two('wheel', rows, rows.map(r => r.replace(/[rK]/g, c => c === 'r' ? 'K' : 'r')), { ay: 11 }); }
+  two('slot', [
+    '..YYYYYYYYYY....',
+    '.YrrrrrrrrrrY.rr',
+    '.YrwwwwwwwwrY.rr',
+    '.YrwrwwywwPrY..g',
+    '.YrwwwwwwwwrY..g',
+    '.YrrrrrrrrrrYggg',
+    '.YRRRRRRRRRRY...',
+    '.YRyyRRRRyyRY...',
+    '.YRRRRRRRRRRY...',
+    '.YRkkkkkkkkRY...',
+    '.YRyyyyyyyyRY...',
+    '.YYYYYYYYYYYY...',
+    '..KK......KK....'], [
+    '..YYYYYYYYYY....',
+    '.YrrrrrrrrrrY...',
+    '.YrwwwwwwwwrY...',
+    '.YrwywwPwwrrY.rr',
+    '.YrwwwwwwwwrY.rr',
+    '.YrrrrrrrrrrYggg',
+    '.YRRRRRRRRRRY...',
+    '.YRyyRRRRyyRY...',
+    '.YRRRRRRRRRRY...',
+    '.YRkkkkkkkkRY...',
+    '.YRyyyyyyyyRY...',
+    '.YYYYYYYYYYYY...',
+    '..KK......KK....'], { ax: 6 });
+  // what the slot machine's reels show: cherries (a ring), a bell (a fan), a seven (three fast bolts)
+  A('sym0', ['..n..', '.n.n.', 'rr.rr', 'rr.rr', '.....'], { ay: 6 });
+  A('sym1', ['..y..', '.yyy.', '.yyy.', 'yyyyy', '..Y..'], { ay: 6 });
+  A('sym2', ['PPPPP', '...PP', '..PP.', '.PP..', '.PP..'], { ay: 6 });
+  A('s_card', ['.ww.', 'wrww', 'wwrw', '.ww.'], { ol: 'k', ay: 3 });
+  A('s_ball', ['.ww.', 'wwwW', 'wwWW', '.WW.'], { ol: 'k', ay: 3 });
   A('die0', [
     '.wwwwwwwwww.',
     'wwwwwwwwwwwW',
@@ -370,9 +447,9 @@ function buildArtMore() {
     '.rrrrrrrrrrrr.'], { ol: 'R', ay: 4 });
   reg('s_mat_off', recolor(SPR.s_mat.c, [[PAL.r, PAL.G], [PAL.y, PAL.g], [PAL.R, PAL.K]]), SPR.s_mat.ax, SPR.s_mat.ay);
   two('s_moth', ['w...w', 'wyoyw', '.yyy.', '..y..'], ['.....', 'wyoyw', 'wyyyw', '..y..'], { ol: 'O', ay: 3 });
-  reg('s_spore', recolor(SPR.s_ebullet.c, [[PAL.r, PAL.n], [PAL.p, PAL.l], [PAL.R, PAL.N]]), SPR.s_ebullet.ax, SPR.s_ebullet.ay);
-  reg('s_fire', recolor(SPR.s_ebullet.c, [[PAL.r, PAL.o], [PAL.p, PAL.y], [PAL.R, PAL.O]]), SPR.s_ebullet.ax, SPR.s_ebullet.ay);
-  reg('s_hexbolt', recolor(SPR.s_ebullet.c, [[PAL.r, PAL.P], [PAL.p, PAL.c], [PAL.R, PAL.v]]), SPR.s_ebullet.ax, SPR.s_ebullet.ay);
+  reg('s_spore', recolor(SPR.s_ebullet.c, [[PAL.r, PAL.n], [PAL.p, PAL.l]]), SPR.s_ebullet.ax, SPR.s_ebullet.ay);
+  reg('s_fire', recolor(SPR.s_ebullet.c, [[PAL.r, PAL.o], [PAL.p, PAL.y]]), SPR.s_ebullet.ax, SPR.s_ebullet.ay);
+  reg('s_hexbolt', recolor(SPR.s_ebullet.c, [[PAL.r, PAL.P], [PAL.p, PAL.c]]), SPR.s_ebullet.ax, SPR.s_ebullet.ay);
   A('s_bolt', ['wwwwwwwwwW', 'WWWWWWWWWg'], { ol: 'k', ay: 1 });
 
   /* ---- latched gate across a doorway (48x14), horizontal and vertical ---- */

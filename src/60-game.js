@@ -1,6 +1,6 @@
 /* ============================= 15 GAME LOOP =========================== */
 // modes: (intro ->) title -> prep (<-> deck) -> play <-> draft / pause -> descend -> play ... -> over | win
-//        title <-> changes (the changelog)
+//        title <-> changes (the changelog), title <-> music (the music player, 62-music-player)
 const App = { mode: 'title', prevMode: '', modeT: 0, sel: 0, fade: null, record: false, big: {}, manual: false, coach: true, titleT: 0, titleRoom: 0, titleSel: '', titlePtr: false,
   changes: { y: 0 }, prep: { i: 0 }, deck: { cur: 0, msg: '', msgT: 0 }, descend: null };
 
@@ -10,7 +10,7 @@ const Save = {
   data: null,
   fresh() {
     const rooms = {}; for (const id of STARTER_ROOMS) rooms[id] = 1;
-    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0, mouse: 'point' }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {}, census: [],
+    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0, mouse: 'point', grow: 'plan' }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {}, census: [], daily: [],
       stakes: {}, stake: {} };          // Stakes per delver: the highest step won (0 = the plain game), and the step chosen for the next run
   },
   load() {
@@ -18,13 +18,14 @@ const Save = {
     try {
       const s = JSON.parse(localStorage.getItem(this.KEY));
       if (s && s.v === 2) {
-        const d = this.data; d.runs = s.runs | 0; d.wins = s.wins | 0; Object.assign(d.best, s.best); Object.assign(d.opts, s.opts);
+        const d = this.data; d.runs = s.runs | 0; d.wins = s.wins | 0; Object.assign(d.best, s.best); Object.assign(d.opts, s.opts); if (!Object.keys(GROW_WAYS).includes(d.opts.grow)) d.opts.grow = this.fresh().opts.grow;   // a save from before the option, or junk: the default
         for (const id in s.rooms || {}) if (ROOM_TYPES[id] && ROOM_TYPES[id].tier !== 'x') d.rooms[id] = 1;
         for (const id in s.heroes || {}) if (HEROES[id]) d.heroes[id] = 1;
         if (HEROES[s.hero] && d.heroes[s.hero]) d.hero = s.hero;
         for (const id in s.decks || {}) if (HEROES[id] && Array.isArray(s.decks[id])) d.decks[id] = s.decks[id].filter(r => typeof r === 'string');
         Object.assign(d.tips, s.tips);
         if (Array.isArray(s.census)) d.census = s.census.filter(r => r && typeof r === 'object').slice(-CENSUS_MAX);
+        if (Array.isArray(s.daily)) d.daily = s.daily.filter(r => r && typeof r === 'object' && Number.isInteger(r.day) && HEROES[r.hero] && (r.open === true || (Number.isFinite(r.floor) && Number.isFinite(r.time)))).slice(-DAILY_KEEP);
         for (const id in s.stakes || {}) if (HEROES[id]) d.stakes[id] = clamp(s.stakes[id] | 0, 0, STAKES.length);
         if (!s.stakes && d.wins > 0) for (const id in d.heroes) d.stakes[id] = 0;       // a save from before Stakes that has won: the first step is open
         for (const id in s.stake || {}) if (HEROES[id]) d.stake[id] = clamp(s.stake[id] | 0, 0, stakesOpen(id));
@@ -33,7 +34,7 @@ const Save = {
     this.apply();
   },
   store() { try { localStorage.setItem(this.KEY, JSON.stringify(this.data)); } catch (e) { /* ignore */ } },
-  apply() { const o = this.data.opts; Snd.vol.music = o.mute ? 0 : o.music; Snd.vol.sfx = o.mute ? 0 : o.sfx; Snd.applyVol(); Intro.vol(); },
+  apply() { const o = this.data.opts; Snd.vol.music = o.mute ? 0 : o.music; Snd.vol.sfx = o.mute ? 0 : o.sfx; Snd.applyVol(); Snd.grow(o.grow); Intro.vol(); },
 };
 // Stakes: the highest step this delver may play (one above the highest won; 0 until a first win), and the step chosen
 const stakesOpen = id => { const won = Save.data.stakes[id]; return won === undefined ? 0 : Math.min(STAKES.length, won + 1); };
@@ -56,9 +57,18 @@ function grantBossUnlocks(f) {
   if (G.newHeroes.length || G.newCards.length) sfx('unlock');
 }
 
+// A phone (a coarse pointer) gets at least two CSS pixels for each game pixel, at a whole-number scale, and so a
+// smaller view: about 190 to 210 wide held upright, about 200 tall when turned (#20). A desk keeps at least 400 by 225.
+// narrow() and short() are what the layouts ask: is this view narrower, or lower, than the smallest one on a desk?
+const PHONE_W = 180, PHONE_H = 180;
+const onPhone = () => !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
+const narrow = () => VW < 320, short = () => VH < 225;
+const TAP = () => onPhone() || Input.touch ? 20 : 0;          // the smallest side of anything to tap, in game pixels: 40 CSS px at scale 2
 function resize() {
-  const ww = innerWidth, wh = innerHeight; let s = Math.min(ww / 400, wh / 225); s = s >= 1 ? Math.floor(s) : Math.max(0.2, s);
-  VW = clamp(Math.ceil(ww / s), 400, 640); VH = clamp(Math.ceil(wh / s), 225, wh > ww ? 600 : 360); SCALE = s;   // portrait phones get a tall view
+  const ww = innerWidth, wh = innerHeight; let s;
+  if (onPhone()) { s = Math.max(2, Math.floor(Math.min(ww / 320, wh / 180))); VW = clamp(Math.ceil(ww / s), PHONE_W, 640); VH = clamp(Math.ceil(wh / s), PHONE_H, 600); }
+  else { s = Math.min(ww / 400, wh / 225); s = s >= 1 ? Math.floor(s) : Math.max(0.2, s); VW = clamp(Math.ceil(ww / s), 400, 640); VH = clamp(Math.ceil(wh / s), 225, wh > ww ? 600 : 360); }
+  SCALE = s;
   cv.width = VW; cv.height = VH; cv.style.width = Math.round(VW * s) + 'px'; cv.style.height = Math.round(VH * s) + 'px';
   ctx.imageSmoothingEnabled = false; Intro.layout();
 }
@@ -69,19 +79,62 @@ function makeShowcase() {
   newRun((Math.random() * 1e9) | 0, { hero: Save.data.hero }); G.demo = true;
   const deep = clamp(Save.data.best.floor + 1, 1, FLOORS.length); if (deep > 1) enterFloor(Math.floor(Math.random() * deep));
   G.P.hidden = true; G.P.keys = 99; G.dir.calm = 1e9;
-  for (let i = 0; i < 9 && G.sealed.length; i++) { openDraft(pick(G.sealed)); const room = chooseCard(ri(0, G.draft.cards.length - 1)); room.reveal = 1; room.seen = true; onRoomReady(room); }
+  sfx.quiet = true;                   // nine rooms are built in this one instant: none of it is to be heard
+  try { for (let i = 0; i < 9 && G.sealed.length; i++) { openDraft(pick(G.sealed)); const room = chooseCard(ri(0, G.draft.cards.length - 1)); room.reveal = 1; room.seen = true; onRoomReady(room); } }
+  finally { sfx.quiet = false; }
   G.parts.length = 0; G.shake = 0; G.banner = null; G.draft = null; G.tipQ.length = 0;
   App.mode = 'title'; App.titleRoom = 0; App.titleT = 0; App.titleSel = '';
   G.cam.x = G.rooms[0].px + CWP / 2 - VW / 2; G.cam.y = G.rooms[0].py + CHP / 2 - VH / 2;
 }
-function toTitle() { Snd.music('title'); makeShowcase(); }
+// ---- the daily delve (#18) ----
+// Everyone gets the same run for a day. The seed comes from the date (UTC), and so do the delver and the deck: the
+// four delvers take turns, each with its own ten cards, whatever the save holds. Day 1 is 2026-11-22. The first
+// attempt of a day counts, also when it is left unfinished; later ones are practice. The save keeps the last
+// DAILY_KEEP days. Nothing leaves the browser.
+const DAILY_EPOCH = Date.UTC(2026, 10, 22) / 864e5, DAILY_KEEP = 14, DAILY_HEROES = ['pip', 'wick', 'brin', 'moss'];
+const Daily = { now: null };          // Daily.now: a fixed moment in ms for the checks; null = the clock
+const dailyInfo = ms => dailyOf(Math.floor((ms !== undefined ? ms : Daily.now !== null ? Daily.now : Date.now()) / 864e5) - DAILY_EPOCH + 1);
+function dailyOf(day) {
+  let h = Math.imul(day ^ 0x9e3779b9, 2654435761) >>> 0; h ^= h >>> 15; h = Math.imul(h, 2246822519) >>> 0; h ^= h >>> 13;
+  const hero = DAILY_HEROES[((day % DAILY_HEROES.length) + DAILY_HEROES.length) % DAILY_HEROES.length];
+  return { day, seed: (h >>> 0) % 2147483647, hero, deck: HEROES[hero].deck.slice() };
+}
+const dailyDone = day => Save.data.daily.find(r => r.day === day);
+function startDaily(day) {            // today's delve; or, with a day's number, that day's again (as practice: it is on file)
+  const d = day === undefined ? dailyInfo() : dailyOf(day), first = !dailyDone(d.day);
+  newRun(d.seed, { hero: d.hero, deck: d.deck, tutorial: false, stakes: 0, daily: { day: d.day, practice: !first } });
+  if (first) { const L = Save.data.daily; L.push({ day: d.day, hero: d.hero, won: false, floor: 1, time: 0, rooms: 0, open: true }); while (L.length > DAILY_KEEP) L.shift(); }
+  Save.store();                       // (a daily does not count as one of the first runs: the tutorial waits for an ordinary one)
+  App.mode = 'play'; App.sel = 0; App.record = false; floorMusic();
+  banner('DAILY DELVE ' + d.day, first ? 'One try counts. Everyone gets these floors today.' : 'Practice. Your first try today has counted.', '#ffd95e', 3.4);
+}
+// the counted attempt ends: by a win, a death, or by leaving the run
+function dailyClose(win) {
+  if (!G.daily || G.daily.practice) return; const r = dailyDone(G.daily.day); if (!r || !r.open) return;
+  r.won = !!win; r.floor = G.floor + 1; r.time = Math.round(G.tRun); r.rooms = G.stats.rooms; delete r.open; Save.store();
+}
+// what the end screen says about a daily run, and what the title says about today
+function dailyEndLine() {
+  const d = G.daily, r = d && dailyDone(d.day); if (!r) return '';
+  return d.practice ? 'Daily delve ' + d.day + ', practice. First try: ' + (r.open ? 'begun' : r.won ? 'won' : 'floor ' + r.floor) + '.' : dailyLine(r) + '.';
+}
+function dailyTitleLine() {
+  const d = dailyInfo(), r = dailyDone(d.day);
+  return r ? dailyLine(r) + '. Again is practice.' : 'Daily delve ' + d.day + ' as ' + HEROES[d.hero].name + '. One try counts.';
+}
+// one line for the end screen and the title: the day's number and what came of it
+function dailyLine(r) {
+  if (!r) return '';
+  return 'Daily delve ' + r.day + ': ' + (r.open ? 'begun' : r.won ? 'won in ' + fmtTime(r.time) : 'floor ' + r.floor + ' in ' + fmtTime(r.time)) + ', ' + HEROES[r.hero].name;
+}
+function toTitle() { Snd.hand(null); Snd.music('title'); makeShowcase(); }
 function floorBanner() { banner('FLOOR ' + (G.floor + 1) + ': ' + G.F.name.toUpperCase(), G.floor === 0 ? 'Draft rooms. After ' + STAIRS_MIN + ', a draft offers the Stairwell down.' : 'New monsters. New rooms. Same idea.', '#ffd95e', 3.2); }
 function startRun(seed, opts = {}) {
   if (seed === undefined) { const q = new URLSearchParams(location.search).get('seed'); seed = q !== null && q !== '' && isFinite(+q) ? +q : (Math.random() * 2147483647) | 0; }   // ?seed=123 pins the run
   const hero = opts.hero && HEROES[opts.hero] ? opts.hero : Save.data.hero;
   newRun(seed, { hero, deck: opts.deck || fullDeck(hero), tutorial: Save.data.runs < 2, stakes: opts.stakes === undefined ? stakeOf(hero) : opts.stakes });
   Save.data.runs++; Save.store();
-  App.mode = 'play'; App.sel = 0; App.record = false; Snd.music(G.F.music);
+  App.mode = 'play'; App.sel = 0; App.record = false; floorMusic();
   floorBanner();
 }
 // The census: what a run looked like when it ended. The save keeps the last CENSUS_MAX runs (RW.census() prints them),
@@ -90,22 +143,25 @@ const CENSUS_MAX = 20;
 function runRecord(win) {
   const P = G.P, S = G.stats;
   return { v: VERSION, hero: G.hero, stakes: G.stakes, seed: G.seed, won: !!win, floor: G.floor + 1, minute: Math.round(G.t / 6) / 10, time: Math.round(G.tRun),
-    by: G.hits.map(h => h.by), doors: G.sealed.length, rooms: G.fstat.rooms, drafted: S.rooms,
+    by: G.hits.map(h => h.by), how: G.hits.map(h => h.how), doors: G.sealed.length, rooms: G.fstat.rooms, drafted: S.rooms,
     weapons: P.weapons.map(w => w.id + (w.evo ? '*' : w.lv)).join(' '),
     top: tallyList().slice(0, 3).map(t => t.key + ' ' + Math.round(t.share * 100)).join(', '), roomShare: Math.round(tallyShare('r') * 100) };
 }
 function endRun(win) {
   const b = Save.data.best, S = G.stats, depth = G.floor + 1, c = Save.data.census;
+  dailyClose(win);
   c.push(runRecord(win)); while (c.length > CENSUS_MAX) c.shift();
   App.record = Save.data.runs > 1 && (depth > b.floor || (depth === b.floor && Math.floor(G.tRun) > b.time));
   b.time = Math.max(b.time, Math.floor(G.tRun)); b.rooms = Math.max(b.rooms, S.rooms); b.kills = Math.max(b.kills, S.kills); b.floor = Math.max(b.floor, depth);
   App.stakesNew = 0;
   if (win) {                          // a win at a step opens the next one for this delver, and sets it for the next run
     const d = Save.data, had = stakesOpen(G.hero); d.wins++;
-    d.stakes[G.hero] = Math.max(d.stakes[G.hero] === undefined ? -1 : d.stakes[G.hero], G.stakes);
-    if (stakesOpen(G.hero) > had) { App.stakesNew = stakesOpen(G.hero); d.stake[G.hero] = App.stakesNew; }
+    if (!G.daily) {                   // (a daily delve is outside the ladder: its delver may not even be yours)
+      d.stakes[G.hero] = Math.max(d.stakes[G.hero] === undefined ? -1 : d.stakes[G.hero], G.stakes);
+      if (stakesOpen(G.hero) > had) { App.stakesNew = stakesOpen(G.hero); d.stake[G.hero] = App.stakesNew; }
+    }
   }
-  Save.store(); App.mode = win ? 'win' : 'over'; App.sel = 0;
+  Save.store(); App.mode = win ? 'win' : 'over'; App.sel = 0; sharePrepare();
 }
 // walking onto the open stairs
 function beginDescent() {
@@ -117,11 +173,23 @@ function arriveNextFloor() {
   const P = G.P;
   enterFloor(App.descend.next);
   P.costN = Math.floor(P.costN * CURVE.costKeep); P.keyCost = keyCostNow(); P.glints = 0; P.hp = Math.min(P.maxHp, P.hp + 2);
-  App.mode = 'play'; Snd.music(G.F.music); floorBanner();
+  App.mode = 'play'; floorMusic(); floorBanner();
 }
 
+// What the floor plan gives the music (#17). Its step counts the rooms built on this floor: 1 with the first, 2 with
+// the third, 3 with the fifth, which is when the Stairwell is first offered. And the elements of those rooms, and
+// which of them resonate: an element does when one of its rooms links to another room you built. The floor's first
+// room and the Stairwell were not chosen for what they are, and count for none of it.
+function musicPlan() {
+  const els = {}, res = {}, mine = G.rooms.filter(r => r.type !== 'hearth' && r.type !== 'stairs');
+  for (const r of mine) { els[r.el] = 1; for (let d = 0; d < 4; d++) if (r.resDir[d] && mine.includes(nbOf(r, d))) res[r.el] = 1; }
+  return { step: mine.length >= 5 ? 3 : mine.length >= 3 ? 2 : mine.length >= 1 ? 1 : 0, els, res };
+}
+// a floor's piece starts, and with it what this floor's plan gives it, not the last floor's
+function floorMusic() { G.planT = 0.5; Snd.hand(null); Snd.plan(musicPlan()); Snd.music(G.F.music); }
 function updatePlay(dt) {
   const P = G.P;
+  if ((G.planT = (G.planT || 0) - dt) <= 0) { G.planT = 0.5; Snd.plan(musicPlan()); }
   if (G.banner) { G.banner.t += dt; if (G.banner.t > G.banner.d) G.banner = null; }
   if (G.roomLabel) { G.roomLabel.t += dt; if (G.roomLabel.t > 2.4) G.roomLabel = null; }
   if (G.flashT > 0) G.flashT -= dt;
@@ -173,6 +241,8 @@ const MODES = {
     if (act && act !== 'start') { App.titleSel = ''; App.titlePtr = false; }
     if (act === 'intro') { Intro.begin(); return; }                      // watch the intro again
     if (act === 'changes') { Snd.ensure(); sfx('ok'); App.changes.y = 0; App.mode = 'changes'; return; }
+    if (act === 'music') { Snd.ensure(); sfx('ok'); openPlayer(); return; }
+    if (act === 'daily') { Snd.ensure(); sfx('ok'); startFade(startDaily); return; }
     if (act === 'start') {
       Snd.ensure(); sfx('ok');
       if (Save.data.runs === 0) startFade(() => startRun());             // very first run: straight in, with the tutorial
@@ -195,8 +265,8 @@ const MODES = {
     let go = Input.hit('ok') || (App.modeT > 0.4 && Input.hit('dash')), edit = Input.hit('alt'), step = (Input.hit('right') ? 1 : 0) - (Input.hit('left') ? 1 : 0);
     const L_ = prepLayout(id), top = stakesOpen(id); let turn = top && own ? (Input.hit('up') ? 1 : 0) - (Input.hit('down') ? 1 : 0) : 0;
     if (m.click && App.modeT > 0.3) {
-      if (m.y < L_.sy && m.x < VW / 2 - 40) step = 1; else if (L_.sk && m.y >= L_.sy && m.y < L_.sy + L_.sk) turn = stakeOf(id) >= top ? -top : 1;   // a tap goes up a step, and from the top back to none
-      else if (m.y >= L_.dy - 6 && m.y < L_.dy + 44) edit = true; else go = true;
+      if (Input.inRect(L_.next)) step = 1; else if (L_.sk && Input.inRect(L_.stakes)) turn = stakeOf(id) >= top ? -top : 1;   // a tap goes up a step, and from the top back to none
+      else if (Input.inRect(L_.deck)) edit = true; else go = true;
     }
     if (turn && own) { Save.data.stake[id] = clamp(stakeOf(id) + turn, 0, top); Save.store(); sfx('tick'); }
     if (step) { P_.i = (P_.i + step + n) % n; sfx('tick'); }
@@ -208,7 +278,7 @@ const MODES = {
     const D_ = App.deck, L_ = deckLayout(), hid = HERO_ORDER[App.prep.i], n = DECK_LIST.length, m = Input.mouse; let tog = Input.hit('ok') || Input.hit('dash');
     if (D_.msgT > 0) D_.msgT -= dt;
     const move = d => { const c = D_.cur + d; if (c >= 0 && c < n) { D_.cur = c; sfx('tick'); } };
-    if (Input.hit('left')) move(-1); if (Input.hit('right')) move(1); if (Input.hit('up')) move(-DECK_COLS); if (Input.hit('down')) move(DECK_COLS);
+    if (Input.hit('left')) move(-1); if (Input.hit('right')) move(1); if (Input.hit('up')) move(-L_.cols); if (Input.hit('down')) move(L_.cols);
     let onCell = false; L_.cells.forEach((c, i) => { if (Input.inRect(c)) { onCell = true; if (m.moved && D_.cur !== i) { D_.cur = i; sfx('tick'); } if (m.click) { D_.cur = i; tog = true; } } });
     if (tog) {
       const id = DECK_LIST[D_.cur], deck = deckFor(hid), at = deck.indexOf(id);
@@ -221,7 +291,7 @@ const MODES = {
     if (Input.hit('back') || Input.hit('alt') || (Input.touch && m.click && !onCell && App.modeT > 0.3)) { Save.data.decks[hid] = fullDeck(hid); Save.store(); App.mode = 'prep'; sfx('back'); }
   },
   play(dt) {
-    const tapPause = Input.touch && Input.mouse.click && Input.inRect({ x: VW / 2 + 40, y: 0, w: 22, h: 22 });
+    const tapPause = Input.touch && Input.mouse.click && Input.inRect(pauseMark());
     if ((Input.hit('pause') || Input.hit('back') || tapPause) && !G.over && !G.won && G.leaving <= 0) { App.mode = 'pause'; App.sel = 0; sfx('tick'); return; }
     updatePlay(dt);
     if (App.mode === 'play') { if (G.over && G.endT > 1.7) endRun(false); else if (G.won && G.endT > 4.2) endRun(true); }
@@ -234,7 +304,9 @@ const MODES = {
     if (L_.bar) { if (Input.hit('down') && !D.onStairs) { D.onStairs = true; sfx('tick'); } else if (Input.hit('up') && D.onStairs) { D.onStairs = false; sfx('tick'); } }
     for (let i = 0; i < n; i++) {
       if (Input.hit('c' + (i + 1))) go = i;
-      if (Input.inRect(rects[i])) { onCard = true; if (Input.mouse.moved && (D.sel !== i || D.onStairs)) { D.sel = i; D.onStairs = false; sfx('tick'); } if (Input.mouse.click) go = i; }
+      if (Input.inRect(rects[i])) { onCard = true;
+        if (L_.narrow && i !== D.sel) { if (Input.mouse.click) { D.sel = i; D.onStairs = false; sfx('tick'); break; } }      // one card at a time: a tap on a neighbour brings it to the middle
+        else { if (Input.mouse.moved && (D.sel !== i || D.onStairs)) { D.sel = i; D.onStairs = false; sfx('tick'); } if (Input.mouse.click) go = i; } }
     }
     if (L_.bar && Input.inRect(L_.bar)) { onCard = true; if (Input.mouse.moved && !D.onStairs) { D.onStairs = true; sfx('tick'); } if (Input.mouse.click) st = true; }
     if (Input.hit('ok') || (D.t > 0.6 && Input.hit('dash'))) { if (D.onStairs) st = true; else go = D.sel; }   // space is dash, so it only confirms after a beat
@@ -249,27 +321,28 @@ const MODES = {
     if (Input.hit('back') || Input.hit('pause')) { App.mode = 'play'; sfx('back'); return; }
     const adj = (i, dir, wrap) => {
       const stepv = v => { let n = Math.round(v * 5) + dir; if (wrap && n > 5) n = 0; return clamp(n, 0, 5) / 5; };
-      if (i === 1) o.music = stepv(o.music); else if (i === 2) o.sfx = stepv(o.sfx); else if (i === 3) o.shake = o.shake ? 0 : 1; else if (i === 4) o.mouse = o.mouse === 'drag' ? 'point' : 'drag'; else return;
-      if (i !== 4) o.mute = 0; Save.apply(); Save.store(); sfx('tick');
+      if (i === 1) o.music = stepv(o.music); else if (i === 2) o.sfx = stepv(o.sfx); else if (i === 3) o.shake = o.shake ? 0 : 1; else if (i === 4) o.mouse = o.mouse === 'drag' ? 'point' : 'drag';
+      else if (i === 5) { const ways = Object.keys(GROW_WAYS); o.grow = ways[(ways.indexOf(o.grow) + (dir < 0 ? ways.length - 1 : 1)) % ways.length]; } else return;
+      if (i < 4) o.mute = 0; Save.apply(); Save.store(); sfx('tick');
     };
     if (Input.hit('left')) adj(App.sel, -1); if (Input.hit('right')) adj(App.sel, 1);
     const a = menuNav(L_.items.length, L_.rects);
     if (a === 0) { App.mode = 'play'; sfx('ok'); }
-    else if (a >= 1 && a <= 4) adj(a, 1, true);
-    else if (a === 5) { sfx('ok'); startFade(() => startRun()); }
-    else if (a === 6) { sfx('back'); startFade(toTitle); }
+    else if (a >= 1 && a <= 5) adj(a, 1, true);
+    else if (a === 6) { sfx('ok'); const day = G.daily && G.daily.day; dailyClose(false); startFade(() => day ? startDaily(day) : startRun()); }      // a daily delve starts again as practice
+    else if (a === 7) { sfx('back'); dailyClose(false); startFade(toTitle); }
   },
   descend() {
     if (App.modeT > 0.5 && (Input.confirm() || Input.mouse.click)) { sfx('ok'); startFade(arriveNextFloor); }
   },
   over(dt) {
-    updateSmall(dt); const L_ = endLayout(), a = menuNav(L_.items.length, L_.rects);
-    if (a === 0) { sfx('ok'); startFade(() => startRun()); } else if (a === 1 || Input.hit('back')) { sfx('back'); startFade(toTitle); }
+    updateSmall(dt); const L_ = endLayout(); shareInput(L_, dt); const a = menuNav(L_.items.length, L_.rects);
+    if (a === 0) { sfx('ok'); const day = G.daily && G.daily.day; startFade(() => day ? startDaily(day) : startRun()); } else if (a === 1 || Input.hit('back')) { sfx('back'); startFade(toTitle); }
   },
   win(dt) {
-    updateSmall(dt); const L_ = endLayout(), a = menuNav(L_.items.length, L_.rects);
-    if (a === 0) { sfx('ok'); G.won = false; G.endless = true; G.endT = 0; App.mode = 'play'; Snd.music(G.F.music); banner('ENDLESS DELVE', 'The doors start knocking again...', '#9cecf2', 3); }
-    else if (a === 1) { sfx('ok'); startFade(() => startRun()); }
+    updateSmall(dt); const L_ = endLayout(); shareInput(L_, dt); const a = menuNav(L_.items.length, L_.rects);
+    if (a === 0) { sfx('ok'); G.won = false; G.endless = true; G.endT = 0; App.mode = 'play'; floorMusic(); banner('ENDLESS DELVE', 'The doors start knocking again...', '#9cecf2', 3); }
+    else if (a === 1) { sfx('ok'); const day = G.daily && G.daily.day; startFade(() => day ? startDaily(day) : startRun()); }
     else if (a === 2 || Input.hit('back')) { sfx('back'); startFade(toTitle); }
   },
 };

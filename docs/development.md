@@ -34,7 +34,7 @@ tools/build.sh --check   # fail if index.html is stale
 | `40-actors` `41-weapons` | player, monsters, shots, pickups; one `WUPD` function per weapon |
 | `42-director` `43-draft` `44-coach` | spawning and pressure, events, wardens, room powers; dealing cards and placing rooms; the lessons shown on a draft card |
 | `50-` `51-` `52-render-*` | world, HUD, and the menu, draft, hero and deck screens |
-| `60-game` `61-intro` `70-debug` | save data, modes and the main loop; the intro film player; the `window.RW` test hooks |
+| `60-game` `61-intro` `62-music-player` `70-debug` | save data, modes and the main loop; the intro film player; the title's music player; the `window.RW` test hooks |
 
 The parts you are most likely to touch:
 
@@ -80,7 +80,8 @@ GAME_URL=https://pyros-projects.github.io/roomwright/ tools/check.sh
 Balance is tuned against two bots, a newcomer and a practised player (`docs/checks.md`), and not
 yet against people. The music of the three floors has been listened to and approved, played by the
 game's synthesizer outside a run. Nobody has yet judged the title and warden music or the sound
-effects, or held a real gamepad: the checks confirm that every sound produces a signal and that the pad
+effects (the title's music player plays them all), and the game is about 24 dB quieter than its
+intro film (`docs/checks.md`, "How loud things are"). Nobody has held a real gamepad: the checks confirm that every sound produces a signal and that the pad
 mapping works with a simulated pad, nothing more. The intro's soundtrack has been
 listened to and approved. Its levels are measured: -15.7 LUFS, peak -1.6 dBFS. There is no rebindable-controls screen, and room cards cannot yet be banned or weighted
 inside a deck.

@@ -36,11 +36,62 @@ door.
 | second | 18 enraged monsters, the floor's elite, two dice | 30 seconds shorter |
 | third and later | 26 or more enraged monsters, two elites, three dice, a loaded die | 45 seconds shorter each |
 
-The dice are what you get for cheating them. A die hops after you and throws a ring of 8 to 18
-bullets, as many as it rolled. A loaded die is twice the size, throws two rings of up to 28 and
-breaks into two dice. Enraged monsters move a quarter faster. Deeper floors add to every pack.
-Nothing a knock calls carries glints or hearts, so a knock is never a way to farm. The count
+The dice are what you get for cheating them: several at once, enraged, where a wave brings one
+now and then (see Dice below). Enraged monsters move a quarter faster. Deeper floors add to every
+pack. Nothing a knock calls carries glints or hearts, so a knock is never a way to farm. The count
 starts again on each floor. A Map Room's free deals come first; `R` knocks back once they are used.
+
+## Dice
+
+A die hops after you and throws a ring of 8 to 18 bullets, as many as it rolled, and you weave
+through the gaps. A loaded die is twice the size, throws two rings of up to 28 and breaks into two
+dice. From a set minute on each floor they come with the ordinary waves, so a run that gets that
+far has moments where the screen is full and movement decides:
+
+| Floor | A die from | A loaded die from | Of 100 monsters in a wave |
+|---|---|---|---|
+| 1 | minute 5 | never | 1 |
+| 2 | minute 3 | minute 5 | about 2 |
+| 3 | minute 2 | minute 4 | about 3 |
+
+The numbers are `DICE` in `src/24-floors.js`. A knock back draws a larger pack from the same
+waves and adds dice of its own: two at the second knock, three and a loaded die at the third, more
+after that. The third step of Stakes brings dice from the second minute of every floor and two to
+six times as many.
+
+A warden fights without them. None join the waves while it lives, and the dice a wave brought flee
+with the small monsters when it comes; only a loaded die that a knock called stays, like the
+floor's elite. (At the third step of Stakes dice do come into a warden's fight, as they did
+before.) A loaded die from a wave is an elite like any other and leaves a heart and 20 glints; one
+that a knock called leaves nothing.
+
+An enemy bullet is a bright core in a near-black rim. On light ground the rim stands off, on dark
+ground the core and the colour around it, so on a ground of any brightness at least half of a
+bullet's 24 pixels differ from it clearly. Before 0.4 the rim was a darker shade of the bullet's
+own colour, and a red bullet nearly vanished on the hearth's red carpet. The price: on the darkest
+floors (Ember Room, Furnace, Altar) the rim no longer shows and a bullet reads as 4 by 4 pixels,
+where it read as 6 by 6. Bullets are also part of the top layer (see What the screen may do), so
+no effect covers them.
+
+## The house
+
+A motif grew by itself: Dice Hall, Loaded Dice, Lucky Coin, Counting House, the dice that punish a
+knock. Three monsters extend it, one on each floor. Each shoots in its own way, and each way asks
+for a different move:
+
+| Floor | Monster | What it does | What it asks |
+|---|---|---|---|
+| 1 | The dealer | Winds up for half a second, then throws five cards in a fan with the middle one at where you stand. Then it waits three to four seconds. | Step through a gap. A delver that is already walking sideways is past the fan before it arrives. |
+| 2 | The roulette wheel | Rattles for half a second, then turns in place for two seconds: an arm of balls that starts well beside you and comes round, toward you and past you. | Circle it, ahead of the arm. The arm comes round by about a quarter turn and no further, so walking away from it is enough at any distance; walking toward it or standing is hit. |
+| 3 | The slot machine | Its reels roll, then three of a kind stand above it for seven tenths of a second. Cherries pay a ring of 14, bells a fan of five at you, sevens three fast bolts at you. | Read it and back off. The ring thins out with distance; the fan and the bolts hit a delver that stands and miss one that keeps walking. |
+
+Each comes by itself the first time: one of its kind, out of a door that is idle, with a banner
+that says what it does, and no new wave starts for three seconds. Other monsters are still about.
+That is three minutes into floor 1, two and a half into floor 2 and two into floor 3. Fifty seconds
+later it joins the waves, where of 100 monsters two to four are of the house. A warden fights
+without them, as it does without the dice. On a floor without a sealed door it never comes.
+The numbers are `HOUSE` in `src/24-floors.js` and the three rows of `MON` in
+`src/23-monsters.js`.
 
 ## Why the floor plan matters
 
@@ -51,6 +102,28 @@ starts again on each floor. A Map Room's free deals come first; `R` knocks back 
   joined by an open doorway resonate: +40% room power each, per link. Stone resonates with anything.
   The draft card previews the bonus for the spot you are about to build on. A three-star room with
   two links is five and a half times a lone one-star room.
+- **Overloads.** A room at three stars with two resonance links overloads by itself. Every 20
+  seconds it lets go of one burst in its element across the whole room. It needs no button, it
+  fires whether or not you are in the room, and it never hurts you. A ring of pips on the room's
+  floor fills up as it charges and blinks just before it goes. A hexed or besieged room does not
+  charge. The draft card says OVERLOAD when a pick would bring a room that far (the new room, a
+  neighbour that gains its second link, or every room of a type that gains its third star), and
+  the coach explains it once. The bursts, all scaled by the room's power:
+
+  | Element | Every monster in the room |
+  |---|---|
+  | Fire | is scorched and burns on for four seconds |
+  | Frost | is frozen for three seconds (wardens are not) |
+  | Steel | takes the heaviest blow of the eight |
+  | Stone | is thrown back and pinned where it lands for a second |
+  | Wild | is rooted for three seconds and poisoned for three |
+  | Shadow | is marked for six seconds: everything hits it half as hard again |
+  | Lore | is marked for four seconds, and every glint on the floor flies to you |
+  | Water | is washed back; if you stand in the room and have no shield, you get one |
+
+  A warden takes the damage but is not frozen, pinned, rooted or thrown. It follows the screen's
+  rules: a ring in the element's colour and one sound, no flash of the screen. The rooms that the
+  title builds behind its logo overload too, without sound. The numbers are `OVER` in `src/42-director.js`.
 - **Evolutions.** Each weapon evolves in one specific room: reach level 5, then walk into that room
   on the current floor. Twelve weapons evolve in starter rooms. The other twelve evolve in rooms
   native to one floor or belonging to one delver, so you have to build that room before you leave
@@ -80,11 +153,91 @@ would wake right now ("warden at 62%") and how many keys a fast kill would still
 Waiting has a price before the clock runs out. Past 60% of the dread clock (the bar under the clock
 turns orange) the knocking grows, up to 60% more at the end. Wait until it runs out and the warden
 comes for you, enraged. And a warden's fight cannot be waited out: after 50 seconds it gains a step
-of fury every 20 seconds, up to eight, and each step makes everything it does a tenth faster. Pips
+of fury every 20 seconds, up to eight, and each step makes everything it does a tenth faster
+(except its bullet phase, below). Pips
 under its health bar count the steps. A build that kills slowly meets a quicker warden.
 
 Once the warden is dead the floor is quiet: no monsters, and a Greenhouse grows no more glints.
-Weapons, charms, hearts and room stars carry down; the floor plan starts again from one room.
+Weapons, charms, hearts, room stars and keys carry down; glints do not, and the floor plan starts
+again from one room. Keys still in hand can be spent here in peace: a door drafted on a quiet
+floor gives its boon and its star, and the room itself stays behind. The same key would do about
+as much on the next floor ([the bots on both](checks.md#doors-the-stairwell-and-stakes)).
+
+### A warden's bullet phase
+
+Once in its fight, when a warden is down to 60% of its health and between two attacks, it stops
+chasing. For nine tenths of a second it stands, flickers and draws the air in, and a banner names
+what comes. Then it fills the room with a pattern, in the character of its floor, and each pattern
+has a way through that plain walking finds:
+
+| Warden | The pattern | The way through |
+|---|---|---|
+| Gatejaw | THE GATE COMES DOWN: six rings of bullets, each with one gap. The first gap points at where you are when the ring is thrown, and it turns a little with every ring. | Stay in the gap and walk with it. |
+| Mother Morel | SHE BLOOMS: seven slow rings of ten spores, each ring set into the gaps of the one before. | Step from gap to gap. |
+| The Unmaker | IT BUILDS WALLS: five walls cross the room you stand in, one after the other from the side farthest from you. Each has a doorway a few steps beside the last. | Walk through the doorways. |
+
+Gatejaw and Mother Morel still hurt to touch while they do this, and Mother Morel keeps smothering
+her room. The Unmaker turns to thin air while it builds: it stays where it hovered, a doorway may
+lie right on it, and walking through it costs nothing. It can still be hit. An
+enraged warden (one that came because you overstayed, or the first step of Stakes) runs its
+pattern 1.3 times as fast. Fury does not touch the phase: its clock is the game's, so the way
+through stays walkable however long the fight has lasted. The numbers are `PHASE` and `PHASES` in
+`src/42-director.js`.
+
+## What the screen may do
+
+The screen should burn, inside rules that keep the next decision readable.
+
+- **A top layer.** The delver, pickups and enemy bullets are drawn once more, last, over every glow,
+  blast, particle and damage number and over the screen's flash. Whatever happens, you see where
+  you are, what is coming at you and what there is to pick up. The delver also shows over a monster
+  that stands in front of it. A prop in front of the delver still hides it, as before. Only the
+  small marks that belong to the delver come after that layer: the dash bar, a key over a door you
+  can open, the bar of a hold.
+- **Flashes are kept apart.** A flash of the whole screen cannot start within a third of a second
+  of the last one, so the screen flashes at most three times a second. The flash is a tint: it
+  covers at most 0.27 of the picture, in a red that is not saturated. At two hearts or fewer a slow
+  pulse of up to 0.12 lies over the picture as well.
+- **The big moments are the loud ones.** A small monster dies with a puff. An elite dies with a
+  ring, a low boom and a shake, a warden with a larger ring. (A mimic has its own moment: the loot
+  it spills.) None of this holds the game, so no key press is lost to a kill. An evolution does
+  hold it, for a little over a second, with a ring, sparks, its own sound and a banner.
+- **Screen shake** has its switch in the pause menu.
+
+## The music, and how it follows the plan
+
+Each floor has a piece of its own, written out note by note on the tune the floor had from the first
+version: "What the Cellar Keeps" (48 bars, A minor), "What Grows Without Light" (48 bars, D minor)
+and "What the Fire Leaves" (56 bars, E minor), darker the deeper you go. The game's synthesizer plays
+them live, from the same plain waves as the sound effects. A piece has up to eight voices: bass,
+arpeggio, drums, a lead, a voice that answers it, a counter voice, plucked chords and bells.
+
+The music follows the floor plan, and `Music grows` in the pause menu sets how. Nothing in play
+depends on hearing it.
+
+| Setting | What plays |
+|---|---|
+| WITH THE PLAN (the default) | Bass, arpeggio and drums from the start. The lead and its answer enter with the first room you build on the floor, the counter voice and the plucked chords with the third, the bells with the fifth, which is when the Stairwell is first offered. From then on the whole piece plays. |
+| BY ELEMENT | The whole piece, and on top of it one voice for each element among the rooms you built: Stone a low footing, Shadow a low third, Water a ripple up the chord, Steel ticks off the beat, Lore two long notes a bar, Wild hops between the beats, Fire a high flicker, Frost single high notes that ring. A voice enters with the first room of its element and gets a second, softer layer an octave away while one of those rooms resonates. |
+| NO | The whole piece from the start, whatever you build. |
+
+The floor's first room and the Stairwell are not rooms you chose for what they are, and count for
+neither of the first two settings. An element resonates, for the music, when one of its rooms links to another room
+you built. The eight element voices are written once, as figures over a piece's chords, so the
+same eight fit all three floors. A new floor starts its piece with that floor's plan: bare again.
+
+### The music player
+
+MUSIC on the title screen opens a player. It lists every track: the title's, the three floors' and
+the wardens'. All are there from the first start. Choosing one plays it from its start and shows
+where it is: the bar and, for a written piece, the part. Its switches turn the voices of the piece
+on and off, and the element voices and their resonating layer, so both ways of `Music grows` can be
+heard there without a run. A second page, SOUNDS, plays every sound effect.
+
+Under it sprites from the game dance. Each voice has a dancer: the floor's monsters for a floor's
+piece with your delver on the lead, the delvers for the title's tune, the three wardens and a pest
+for the wardens' tune, and an icon for each element voice. A dancer hops when its voice starts a
+note, stands still otherwise, and is dimmed while its voice is switched off.
 
 ## What did the work
 
@@ -103,12 +256,110 @@ step opens the next. Each step adds one rule and keeps the ones before it.
 |---|---|
 | 1 | Wardens arrive enraged. |
 | 2 | Pests come from the first floor on, and sooner. |
-| 3 | Dice roll in with the waves. |
+| 3 | More dice, and from the second minute on. |
 | 4 | Hearts drop half as often. |
 | 5 | Monsters are a fifth tougher. |
 | 6 | The dread clock runs a quarter faster. |
 
 The plain game is step 0. The pause menu and the end screen name the step you are playing.
+
+## The daily delve
+
+DAILY on the title starts the same run for everyone for a day. The seed comes from the date (UTC),
+and so do the delver and the deck: Pip, Wick, Brindle and Moss take turns, each with its own ten
+cards, whatever the save holds, without Stakes and without the first-run tutorial. Day 1 is
+22 November 2026.
+
+- **The same cards behind the same doors.** In an ordinary run the cards behind a door come from
+  the run's one generator, so they depend on how the fight went before the door was opened. In a
+  daily delve each deal has its own generator, seeded from the day, the floor, the door's place and
+  how many new hands that door has been asked for. Everyone starts with the same four hands behind
+  the hearth's four doors. Later, two players who are in the same situation when they first look
+  behind a door find the same cards: the hand is dealt at the first look and stays, and what can be
+  dealt depends on the plan and the delver at that moment (the first draft offers weapons, a dead
+  end is not dealt where it would close the floor, a boon that upgrades a weapon needs the weapon).
+  A knock back deals the door's next hand, again the same for both.
+- **One attempt counts.** The first attempt of a day counts from the moment it starts, also when
+  it is left from the pause menu or the tab is closed. Later ones are practice: the banner and the
+  end screen say so, and they do not change the day's result. "Again" on the end screen replays
+  the same day, also after midnight. A daily delve is a run like any other in what it finds: cards
+  and delvers it unlocks are kept, a win counts as a win, practice included. It stands outside the
+  Stakes ladder and does not count as one of the first runs that get the tutorial.
+- **What is kept.** The end screen names the day and the result. The save keeps the last 14 days
+  (day, delver, won or the floor reached, time, rooms). Nothing leaves the browser: there is no
+  server and no list of other players.
+
+The numbers are `dailyInfo()` in `src/60-game.js`; the deal is `makeCards()` in `src/43-draft.js`.
+
+## The share card
+
+A run leaves a floor plan behind, and the end screen can hand it on. Two chips stand beside the end
+panel: SHARE (`R`, or Y on a pad) and TEXT (`H`); both can be clicked or tapped. The action runs
+inside the browser's own event (the key, the click, the lifted finger), because a share sheet and
+the clipboard open only to a gesture; the picture is made ready when the end screen opens.
+
+- **The picture** is 960 by 540: the game's name, how the run ended, the delver, the floor reached,
+  the time, the run's rooms and monsters, the plan of the last floor (it says which), and the
+  game's address. A daily
+  delve says its day. It is drawn at half size with the game's own letters and map and then
+  doubled, so it keeps the game's pixels. On a phone whose browser has a share sheet for files it
+  goes there; elsewhere it is copied to the clipboard; where a browser cannot copy a picture it is
+  handed to the browser as the file `roomwright.png`. The chip then says SHARED, COPIED or SAVED.
+- **The text** is one line of facts, the plan as a grid with one square per room (white for
+  stone, orange fire, an ice cube for frost, yellow steel, blue water, red lore, green wild, purple
+  shadow, brown for the hearth, black for no room), and the address.
+
+Neither holds anything personal: no name, nothing from the save, no clock time, no seed. Nothing is
+sent anywhere by the game; the picture and the text go where the player puts them. What the checks
+cannot reach: the share sheet, the clipboard and the download themselves. They need a hand on a
+real browser; the checks cover the picture, the text, which way is chosen and the chips.
+
+## On a phone
+
+On a desk one game pixel is three or four screen pixels. On a phone it used to be one, and on a
+small phone less than one, which softened the pixels and made capitals five CSS pixels high. Now a
+device with a coarse pointer gets a whole-number scale of at least two CSS pixels per game pixel,
+and so a smaller view:
+
+| Device | View upright | View turned |
+|---|---|---|
+| iPhone 15 | 197 by 426 at 2 | 426 by 197 at 2 |
+| Pixel 7 | 206 by 458 at 2 | 458 by 206 at 2 |
+| iPhone SE | 188 by 334 at 2 | 334 by 188 at 2 |
+| iPad Mini | 384 by 512 at 2 | 342 by 256 at 3 |
+| most Android phones (360 by 800) | 180 by 400 at 2 | 400 by 180 at 2 |
+
+A desk keeps its view of at least 400 by 225, and what it draws there is unchanged: fifteen screens
+at three window sizes were compared pixel for pixel with the build before. Every screen has a
+layout for a narrow view (under 320 wide: a phone held upright) and for a low one (under 225 high:
+a phone on its side). A screen under 360 CSS pixels wide is cut at its right edge: the layouts stop
+at a view of 180.
+
+- **The HUD.** Narrow: the clock, the dread bar and the Stairwell pips sit a row lower, under the
+  hearts; the map is smaller and says only the doors and the knocking; a warden's bar takes the
+  clock's place. The pause mark stands in the free middle of the top row.
+- **The draft.** Where the cards would be too narrow side by side (a phone held upright; four
+  cards on a small tablet), one card is shown at a time, whole and at its full size, with its
+  neighbours looking in from the sides. A tap on a neighbour brings it to the middle, a tap on the
+  middle one builds it. On a low view the cards are lower: the plan gets less room and the boon
+  one line of text; they stay side by side unless four of them would be under 93 wide.
+- **Menus and panels.** No panel is wider than the view. Where there is no room beside the end
+  panel (a view under 382 wide) the share chips take its top corners and the headline is smaller.
+  Narrow: the end screen is one column with the share chips inside it, the hero screen puts the delver's words beside the portrait and the
+  rest below, the deck builder has six columns and the card's text under them, the music player
+  stacks its three lists, the title stacks its three hints. Low: the pause menu is its rows and
+  nothing else, the end screen leaves out the tally and the loadout, the hero screen the row of
+  evolutions, and the sound effects come in pages.
+- **A finger's size.** On a phone, and on any device once a touch was seen, what is tapped is at
+  least 20 game pixels in its smaller dimension, 40 CSS pixels at scale 2: menu rows, the draft's
+  chips and the Stairwell bar, the visible part of a neighbouring card, the title's entries, the
+  share chips, the music player's rows, the deck builder's cells. Where a tap anywhere will do (the
+  coach's next step, the screen between floors, the changelog's halves) there is nothing to miss.
+- **Turning the phone** changes the view and nothing else: the run goes on.
+
+`resize()`, `narrow()`, `short()` and `TAP()` are in `src/60-game.js`; the layouts are the
+`...Layout()` functions in `src/52-render-screens.js` and `src/62-music-player.js`. What no check
+reaches: how it feels in a hand (see docs/checks.md).
 
 ## The deck
 

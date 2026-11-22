@@ -11,7 +11,7 @@ function newRun(seed, opts = {}) {
   let deck = (opts.deck || hero.deck).filter(id => ROOM_TYPES[id] && ROOM_TYPES[id].tier !== 'x');
   if (deck.length < 3) deck = hero.deck.slice();
   G = {
-    seed, hero: hero.id, deck, stakes: clamp(opts.stakes | 0, 0, STAKES.length), floor: 0, F: FLOORS[0], t: 0, tRun: 0, nextId: 1,
+    seed, hero: hero.id, deck, daily: opts.daily || null, stakes: clamp(opts.stakes | 0, 0, STAKES.length), floor: 0, F: FLOORS[0], t: 0, tRun: 0, nextId: 1,
     rooms: [], cells: new Array(GRID * GRID).fill(null), sealed: [], jams: [],
     flags: new Uint8Array(GWT * GHT).fill(F_ALL), tag: new Uint8Array(GWT * GHT), tagRoom: new Uint16Array(GWT * GHT),
     distG: new Uint16Array(GWT * GHT).fill(65535), nextG: new Int32Array(GWT * GHT), distF: new Uint16Array(GWT * GHT).fill(65535), nextF: new Int32Array(GWT * GHT), flowTile: -1, flowT: -9,
@@ -97,6 +97,12 @@ function floatText(x, y, s, col) { G.texts.push({ x, y, s, col: col || '#fff8e8'
 // one-time coaching tips (remembered in the save, shown in the hint bar)
 function tip(id, text) { const seen = Save.data.tips; if (G.demo || seen[id]) return; seen[id] = 1; Save.store(); G.tipQ.push(text); }
 function part(x, y, vx, vy, life, col, size, grav) { if (G.parts.length < 560) G.parts.push({ x, y, vx, vy, life, max: life, col, size: size || 1, grav: grav || 0 }); }
+// A flash of the whole screen. No two start within a third of a second of each other, so the screen cannot flash more
+// than three times a second, whatever happens in it (#14).
+function flashScreen(d) { if (G.tRun - (G.flashAt === undefined ? -9 : G.flashAt) < 0.34) return; G.flashAt = G.tRun; G.flashT = d; }
+// The beat of a big kill: a ring, a low boom and a shake. Small kills get none of it, so the big ones stand out (#14).
+// It does not hold the game: a held frame would swallow a dash pressed in it.
+function bigKill(x, y, R) { G.fxs.push({ k: 'tide', x, y, R, t: 0, d: 0.3 + R / 180, hot: 1 }); sfx('boom'); G.shake = Math.max(G.shake, 6); }
 function burst(x, y, n, col, sp = 60) { for (let i = 0; i < n; i++) { const a = fxr() * TAU, s = sp * (0.3 + fxr() * 0.7); part(x, y, Math.cos(a) * s, Math.sin(a) * s - 20, 0.25 + fxr() * 0.3, col, fxr() < 0.4 ? 2 : 1, 160); } }
 function sparkle(x, y, n, col) { for (let i = 0; i < n; i++) { const a = fxr() * TAU, s = 10 + fxr() * 30; part(x + Math.cos(a) * 6, y + Math.sin(a) * 6, Math.cos(a) * s, Math.sin(a) * s - 12, 0.4 + fxr() * 0.5, col, 1, -10); } }
 
@@ -162,13 +168,13 @@ function heal(n) {
 }
 function addShield(max) { const P = G.P; if (P.shield >= max) return false; P.shield++; sfx('shield'); sparkle(P.x, P.y - 10, 10, PAL.b); floatText(P.x, P.y - 24, '+shield', '#9cecf2'); return true; }
 // src = the monster that touched you, if any (for the Thorned Vest); cause = what to call it in the census when
-// it was not a touch (a bullet's or a cloud's owner)
-function hurtPlayer(dmg, src, cause) {
+// it was not a touch (a bullet's or a cloud's owner); how = 'bullet' for a bullet (else a touch, or something else)
+function hurtPlayer(dmg, src, cause, how) {
   const P = G.P; if (P.inv > 0 || G.over || G.won || G.freeze > 0 || G.leaving > 0) return false;
   if (P.dodge > 0 && rand() < P.dodge) { P.inv = 0.5; floatText(P.x, P.y - 24, 'Lucky!', '#b5e85a'); sfx('shield'); return false; }
   if (src && charm('vest')) { const was = BY; BY = 'c:vest'; hurtMon(src, 12 * charm('vest') * P.mightEff, 0, 0, 0, 'room'); BY = was; }
-  G.hits.push({ by: cause || (src && src.type) || 'unknown', floor: G.floor, t: Math.round(G.t) }); if (G.hits.length > 3) G.hits.shift();
-  P.inv = 1.0 + P.invBonus; P.hurtT = 0.35; G.shake = Math.max(G.shake, 5); G.flashT = 0.3; sfx('hurt');
+  G.hits.push({ by: cause || (src && src.type) || 'unknown', how: how || (src ? 'touch' : 'other'), floor: G.floor, t: Math.round(G.t) }); if (G.hits.length > 3) G.hits.shift();
+  P.inv = 1.0 + P.invBonus; P.hurtT = 0.35; G.shake = Math.max(G.shake, 5); flashScreen(0.3); sfx('hurt');
   if (P.shield > 0) { P.shield--; burst(P.x, P.y - 6, 8, PAL.b); return true; }
   P.hp -= dmg; G.stats.hurt += dmg; burst(P.x, P.y - 6, 8, PAL.r);
   if (P.hp <= 0) {
@@ -276,7 +282,7 @@ function cornerSlide(P, axis, s, step, mask) {
 function spawnMon(type, x, y, hpMul) {
   const def = MON[type];
   const e = { def, type, id: G.nextId++, x, y, r: def.r, fr: Math.min(def.r, 5.5), hp: 1, max: 1, kx: 0, ky: 0, flash: 0, anim: rr(0, 3), wob: rr(0, TAU), face: 1,
-    emerge: 0, evx: 0, evy: 0, slow: 0, slowT: 0, stun: 0, burnT: 0, burn: 0, burnTick: 0, chill: 0, mark: 0, markT: 0, dead: false, moonT: -9, gl: -1,
+    emerge: 0, evx: 0, evy: 0, slow: 0, slowT: 0, stun: 0, burnT: 0, burn: 0, burnTick: 0, chill: 0, mark: 0, markT: 0, rootT: 0, dead: false, moonT: -9, gl: -1,
     shootT: def.shot ? rr(def.shot.cd[0], def.shot.cd[1]) : 0, st: 0, stT: 0, cx: 0, cy: 0, goal: null, life: 0, boon: null, keys: 1 };
   e.max = e.hp = Math.max(1, Math.round(def.hp * (def.boss ? 1 : CURVE.hp(G.floor, G.t / 60)) * (hpMul || 1) * (stake(5) ? 1.2 : 1)));
   G.mons.push(e); return e;
@@ -347,6 +353,7 @@ function addZone(x, y, r, d, kind, dmg, extra) { if (G.zones.length < 70) G.zone
 function killMon(e) {
   if (e.dead) return; e.dead = true; const def = e.def, P = G.P, room = roomAt(e.x, e.y); G.stats.kills++;
   burst(e.x, e.y - 4, def.elite ? 18 : 6, def.col, def.elite ? 90 : 60); sfx('kill');
+  if (def.elite && !def.mimic) bigKill(e.x, e.y - 6, 44);        // a mimic has its own moment: the loot it spills
   let gl = e.noLoot ? 0 : def.glint;      // a pack called by a knock back carries nothing
   if (room && roomLive(room)) {
     if (room.type === 'grave') gl *= 1 + roomLevel('grave');
@@ -383,13 +390,14 @@ function updateMons(dt) {
     if (e.emerge > 0) { e.emerge -= dt; e.x += e.evx * dt; e.y += e.evy * dt; continue; }
     if (e.markT > 0) e.markT -= dt;
     if (e.burnT > 0) { e.burnT -= dt; e.burnTick -= dt; if (e.burnTick <= 0) { e.burnTick = 0.5; BY = e.burnBy || null; hurtMon(e, e.burn * 0.5, 0, 0, 0, 'dot'); BY = null; if (e.dead) continue; part(e.x + (fxr() - 0.5) * 6, e.y - 6, 0, -26, 0.3, fxr() < 0.5 ? PAL.o : PAL.y, 1); } }
-    if (def.boss) { BOSS_AI[def.id](e, dt * bossFury(e, dt)); continue; }
+    if (def.boss) { const k = dt * bossFury(e, dt); if (!bossPhase(e, dt)) BOSS_AI[def.id](e, k); continue; }
     const dxp = P.x - e.x, dyp = P.y - e.y, dp = Math.hypot(dxp, dyp) || 1, room = roomAt(e.x, e.y), live = roomLive(room);
     if (live && room.type === 'glacier' && e.gl !== room.id) { e.gl = room.id; e.stun = Math.max(e.stun, 1.2 * (0.5 + 0.5 * roomMul(room))); sfx('freeze'); }
     if (def.ai === 'hex' && room) { if (room.hexT <= 0 && room.def.tier !== 'x') { sfx('hex'); tip('hex', 'A Hexer switches off the room it stands in. Get rid of it.'); } room.hexT = 0.3; }
     if (e.stun > 0) { e.stun -= dt; e.kx = e.ky = 0; if (dp < e.r + P.r + 1) hurtPlayer(def.dmg, e); continue; }
     let sp = def.spd * (e.haste || 1);
     if (e.slowT > 0) { e.slowT -= dt; sp *= 1 - e.slow; }
+    if (e.rootT > 0) { e.rootT -= dt; sp *= 0.05; }                     // rooted by a Wild room's overload: a timer of its own, so no slow field can stretch it
     if (live && room.type === 'frost') { sp *= Math.max(0.3, 1 - 0.38 * roomMul(room) * P.sealPow); e.chill = 0.2; } else if (e.chill > 0) e.chill -= dt;
     if (live && G.tag[Math.floor(e.y / T) * GWT + Math.floor(e.x / T)] === TAG_BRAMBLE && !def.fly && !def.phase) sp *= 0.72;
     if (def.mimic && e.st === 0) { if (dp < 54) { e.st = 1; sfx('breach'); G.shake = Math.max(G.shake, 3); } else continue; }
@@ -441,6 +449,39 @@ function updateMons(dt) {
         e.shootT = rr(s.cd[0], s.cd[1]); e.flash = 0.15; ring(n, off); sfx('dice'); G.shake = Math.max(G.shake, 1.5);
         if (s.twice) { e.stT = 0.4; e.cx = n; e.cy = off; }
       }
+    } else if (ai === 'cards') {            // the dealer: a wind-up, a fan of cards at you, then it waits. Step through a gap
+      const s = def.shot; e.shootT -= dt;
+      if (e.st === 1) {
+        sp = 0; e.stT -= dt; e.flash = (Math.floor(e.stT * 20) & 1) ? 0.05 : 0;
+        if (e.stT <= 0) {
+          const a0 = Math.atan2(P.y - 4 - (e.y - 4), P.x - e.x); e.st = 0; e.shootT = rr(s.cd[0], s.cd[1]);
+          for (let k = 0; k < s.fan; k++) { const a = a0 + (k - (s.fan - 1) / 2) * s.spread; fireEBullet(e.x, e.y - 4, Math.cos(a), Math.sin(a), s.sp, s.spr); }
+          sfx('cards');
+        }
+      } else if (dp < s.range) { sp *= dp < s.hold ? 0 : 0.5; if (e.shootT <= 0 && los(e.x, e.y - 4, P.x, P.y - 4)) { e.st = 1; e.stT = s.tell; } }
+    } else if (ai === 'wheel') {            // the roulette wheel: a rattle, then it turns in place and sweeps an arm of balls round. Circle it, ahead of the arm
+      const s = def.shot; e.shootT -= dt;
+      if (e.st === 1) { sp = 0; e.stT -= dt; e.flash = (Math.floor(e.stT * 20) & 1) ? 0.05 : 0; if (e.stT <= 0) { e.st = 2; e.stT = s.spin; e.cx = 0; e.way = rand() < 0.5 ? 1 : -1; e.cy = Math.atan2(dyp, dxp) - e.way * s.lead; } }   // the arm starts beside you and comes round
+      else if (e.st === 2) {
+        sp = 0; e.stT -= dt; e.cx -= dt;
+        if (e.cx <= 0) { e.cx += s.every; fireEBullet(e.x, e.y - 5, Math.cos(e.cy), Math.sin(e.cy), s.sp, s.spr); e.cy += e.way * s.turn; sfx('wheel'); }
+        if (e.stT <= 0) { e.st = 0; e.shootT = rr(s.cd[0], s.cd[1]); }
+      } else if (dp < s.range && e.shootT <= 0 && los(e.x, e.y - 4, P.x, P.y - 4)) { e.st = 1; e.stT = s.tell; sfx('windup'); }
+    } else if (ai === 'slot') {             // the slot machine: its reels roll, show three of a kind, then it pays out the attack they name
+      const s = def.shot; e.shootT -= dt;
+      if (e.st === 1) { sp = 0; e.stT -= dt; if (e.stT <= 0) { e.st = 2; e.stT = s.show; } }                    // the reels roll
+      else if (e.st === 2) {                // three of a kind stand on the reels for s.show seconds: e.pay says which
+        sp = 0; e.stT -= dt;
+        if (e.stT <= 0) {
+          e.flash = 0.15; e.st = 0; e.shootT = rr(s.cd[0], s.cd[1]);
+          if (e.pay === 0) { const off = rand() * TAU; for (let k = 0; k < s.ring; k++) fireEBullet(e.x, e.y - 5, Math.cos(off + k * TAU / s.ring), Math.sin(off + k * TAU / s.ring), 60); sfx('ebullet'); }   // cherries: a ring
+          else if (e.pay === 1) fireFan(e, 74, s.fan, 's_fire', P);                                               // bells: a fan at you
+          else { e.st = 3; e.cx = s.bolts; e.cy = 0; }                                                            // sevens: fast bolts at you, one after the other
+        }
+      } else if (e.st === 3) {
+        sp = 0; e.cy -= dt;
+        if (e.cy <= 0) { e.cy = 0.16; fireEBullet(e.x, e.y - 5, dxp / dp, (dyp - 1) / dp, 96, 's_hexbolt'); sfx('ebullet'); if (--e.cx <= 0) e.st = 0; }
+      } else if (dp < s.range && e.shootT <= 0 && los(e.x, e.y - 4, P.x, P.y - 4)) { e.st = 1; e.stT = s.roll; e.pay = Math.floor(rand() * 3); sfx('slot'); }
     } else if (ai === 'brood') {
       const s = def.shot; e.shootT -= dt; e.stT -= dt;
       if (e.shootT <= 0 && dp < s.range && los(e.x, e.y - 4, P.x, P.y - 4)) { e.shootT = rr(s.cd[0], s.cd[1]); e.flash = 0.12; fireFan(e, s.sp, s.fan, s.spr, P); }
@@ -621,7 +662,7 @@ function updateEBullets(dt) {
   for (let i = B.length - 1; i >= 0; i--) {
     const b = B[i]; b.t += dt; b.x += b.vx * dt; b.y += b.vy * dt;
     let dead = b.t > b.life || blocked(b.x, b.y, F_SHOT);
-    if (!dead && P.inv <= 0 && Math.abs(b.x - P.x) < 5 && Math.abs(b.y - (P.y - 4)) < 6) { hurtPlayer(1, null, b.by || 'a bullet'); dead = true; }
+    if (!dead && P.inv <= 0 && Math.abs(b.x - P.x) < 5 && Math.abs(b.y - (P.y - 4)) < 6) { hurtPlayer(1, null, b.by || 'a bullet', 'bullet'); dead = true; }
     if (dead) { B[i] = B[B.length - 1]; B.pop(); }
   }
 }
@@ -641,7 +682,7 @@ function updateZones(dt) {
     if (z.kind === 'fire' || z.kind === 'spore') { if (z.t > 0.35 && Math.hypot(P.x - z.x, P.y - z.y) < z.r + 2 && P.dashT <= 0) hurtPlayer(1, null, z.mby || z.kind); }
     else if (z.tick <= 0) { z.tick = 0.4; nearMons(z.x, z.y, z.r, e => {
       if (e.dead || Math.hypot(e.x - z.x, e.y - z.y) >= z.r + e.r) return;
-      if (z.sticky) { e.mark = z.sticky; e.markT = 0.7; }
+      if (z.sticky && !(e.markT > 0.7 && e.mark >= z.sticky)) { e.mark = z.sticky; e.markT = 0.7; }      // (a longer, stronger mark stays)
       if (z.slow && !e.def.boss) { e.slow = Math.max(e.slowT > 0 ? e.slow : 0, z.slow); e.slowT = 0.6; }
       hurtMon(e, z.dmg * 0.4, 0, 0, 0, 'room');
     }); }

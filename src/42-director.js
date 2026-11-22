@@ -53,8 +53,10 @@ function fireEvent(ev) {
     banner(id === 'kslime' ? 'A KING SLIME SQUEEZES IN' : id === 'eshroom' ? 'AN ELDER SHROOM LUMBERS IN' : 'A FURNACE GOLEM STOMPS IN', siegeTarget({ x: d.x, y: d.y }) ? 'It is after the room you built up most.' : '', '#b5e85a', 2.6); sfx('breach');
   }
 }
-function scatterHorde(keep) {         // the small fry flee: wardens fight alone (at first)
-  for (const m of G.mons) if (m !== keep && !m.dead && !m.def.elite) { m.dead = true; burst(m.x, m.y - 4, 4, PAL.v, 50); }
+function scatterHorde(keep) {         // the small fry flee: wardens fight alone (at first). Elites stay, but not a loaded die that a wave brought
+  for (const m of G.mons) if (m !== keep && !m.dead && (!m.def.elite || m.def.ai === 'dice' && !m.noLoot)) { m.dead = true; burst(m.x, m.y - 4, 4, PAL.v, 50); }
+  // (a monster of the house that was still behind its door for its first entrance has not come yet: it gets another one)
+  const H = HOUSE[Math.min(G.floor, HOUSE.length - 1)]; if (G.sealed.some(d => d.queue.includes(H.id)) && !G.mons.some(m => m.type === H.id)) G.dir.house = undefined;
   for (const d of G.sealed) d.queue.length = 0; G.ebullets.length = 0; G.dir.acc = -6;
 }
 // fromRoom = the Stairwell you just drafted (the warden climbs out of it); null = it came because you overstayed
@@ -76,7 +78,7 @@ function summonBoss(fromRoom) {
 }
 function bossDied(e) {
   const D = G.dir, P = G.P, last = G.floor === FLOORS.length - 1;
-  D.bossDead = true; G.bossDown = true; G.stats.floors = Math.max(G.stats.floors, G.floor + 1); Snd.music(null); sfx('win'); sfx('boom'); G.shake = 10;
+  D.bossDead = true; G.bossDown = true; G.stats.floors = Math.max(G.stats.floors, G.floor + 1); Snd.music(null); sfx('win'); bigKill(e.x, e.y - 14, 90); G.shake = 10;
   for (const m of G.mons) if (!m.dead && m !== e) { m.dead = true; burst(m.x, m.y - 4, 5, m.def.col); if (m.def.glint) dropGlint(m.x, m.y, m.def.glint); }
   G.ebullets.length = 0; for (const d of G.sealed) d.queue.length = 0; G.zones = G.zones.filter(z => z.kind === 'flame' || z.kind === 'cloud');
   for (const j of G.jams.slice()) unjam(j);
@@ -105,6 +107,13 @@ function updateDirector(dt) {
   }
   if (D.calm > 0) { D.calm -= dt; return; }
   const fight = D.boss && !D.bossDead;
+  // The floor's monster of the house comes by itself the first time: one of its kind, out of a door that is idle, with
+  // a banner that says what it does, and no new wave for three seconds. (Without a sealed door it never comes.)
+  const H = HOUSE[Math.min(G.floor, HOUSE.length - 1)];
+  if (D.house === undefined && G.t >= H.solo && !D.boss) {
+    const d = nearDoor();
+    if (d && !d.queue.length && d.st === 0) { D.house = G.t; d.queue.push(H.id); D.calm = 3; D.acc = Math.min(D.acc, 0); banner(H.name, H.sub, '#ffd95e', 3.2); sfx('breach'); return; }
+  }
   const pests = stake(2) && G.floor === 0 ? Object.assign({ sapper: [150, 85] }, F.pests) : F.pests, soon = stake(2) ? 0.7 : 1;
   for (const id in pests) {                                             // pests go for the floor plan
     const [first, every] = pests[id]; if (D.pestT[id] === undefined) D.pestT[id] = first * soon;
@@ -154,6 +163,78 @@ function bossWalk(e, dt, sp, P) {
   if (boxHits(e.x, e.y, BOSS_R, F_WALK)) { e.x += dx * sp * dt; e.y += dy * sp * dt; } else moveBox(e, dx * sp * dt, dy * sp * dt, F_WALK, BOSS_R);
   if (Math.abs(dx) > 0.25) e.face = dx > 0 ? 1 : -1;
 }
+// Where a warden's ring starts: `up` px above its feet, or lower if that spot is inside a wall (a warden that stands
+// right under a wall would otherwise fire every bullet into it).
+function shotY(e, up) { for (const d of [up, up / 2, 0, -up / 2]) if (!blocked(e.x, e.y - d, F_SHOT)) return e.y - d; return e.y - up; }
+// ---- a warden's bullet phase (#13) ----
+// Once in a fight, when its health has fallen to PHASE.at of the whole and it is between two attacks, a warden stops
+// chasing. A tell of PHASE.tell seconds, then its pattern: `n` volleys, one every `every` seconds. An enraged warden
+// (called late, or the first step of Stakes) runs the pattern PHASE.fast times as fast. Fury does not touch the phase:
+// its clock is the game's, so the way through stays walkable however long the fight has lasted. The ways through:
+//   Gatejaw       rings with one gap that turns a little with every ring: stay in the gap and walk with it
+//   Mother Morel  slow rings of spores, each one set into the gaps of the last: step from gap to gap
+//   The Unmaker   walls that cross the room you stand in, one after the other from the far side, each with a
+//                 doorway a few steps beside the last: walk through them. While it builds it is thin air (`ghost`):
+//                 it hovers wherever it was, and a doorway may lie right on it.
+// A pattern takes its aim (`start`) with its first volley, not with the tell, so it meets you where you are by then.
+// ph.shots keeps what was fired (the checks steer by it).
+const PHASE = { at: 0.6, tell: 0.9, fast: 1.3, rest: 1.2 };
+const PHASES = {
+  gatejaw: { name: 'THE GATE COMES DOWN', sub: 'Stay in the gap and walk with it.', n: 6, every: 0.85, col: PAL.r, N: 36, open: 7, turn: 0.3, sp: 60,
+    start(e, ph) { const P = G.P; ph.y = shotY(e, 12); ph.a = Math.atan2(P.y - 4 - ph.y, P.x - e.x); ph.dir = rand() < 0.5 ? 1 : -1; },
+    fire(e, ph, i) {
+      const D = PHASES.gatejaw, a = ph.a + ph.dir * i * D.turn, n = D.N - D.open;       // n bullets, centred opposite the gap
+      for (let k = 0; k < n; k++) { const b = a + Math.PI + (k - (n - 1) / 2) * TAU / D.N; fireEBullet(e.x, ph.y, Math.cos(b), Math.sin(b), D.sp); }
+      ph.shots.push({ x: e.x, y: ph.y, a, half: (D.open + 1) / D.N * Math.PI, sp: D.sp, t: 0 });
+    } },
+  morel: { name: 'SHE BLOOMS', sub: 'Step from gap to gap.', n: 7, every: 0.9, col: PAL.n, N: 10, sp: 40,
+    hold(e) { const room = roomAt(e.x, e.y); if (room && room.def.tier !== 'x') room.hexT = 0.3; },          // she smothers her room while she blooms, too
+    start(e, ph) { const P = G.P; ph.y = shotY(e, 6); ph.a = Math.atan2(P.y - 4 - ph.y, P.x - e.x) + Math.PI / PHASES.morel.N; },   // the first ring passes either side of you
+    fire(e, ph, i) {
+      const D = PHASES.morel, a = ph.a + (i & 1) * Math.PI / D.N;
+      for (let k = 0; k < D.N; k++) fireEBullet(e.x, ph.y, Math.cos(a + k * TAU / D.N), Math.sin(a + k * TAU / D.N), D.sp, 's_spore');
+      ph.shots.push({ x: e.x, y: ph.y, a, step: TAU / D.N, sp: D.sp, t: 0 });
+    } },
+  unmaker: { name: 'IT BUILDS WALLS', sub: 'Walk through the doorways.', n: 5, every: 1.3, col: PAL.P, door: 44, gap: 12, sp: 60, shift: [30, 46], ghost: 1,
+    start(e, ph) {                    // the walls cross the room you stand in, from the side that is farthest from you
+      const P = G.P, room = roomAt(P.x, P.y) || G.curRoom; if (!room) return;
+      const x0 = room.px + WALL * T + 5, x1 = room.px + (WALL + IW) * T - 5, y0 = room.py + WALL * T + 5, y1 = room.py + (WALL + IH) * T - 5;
+      const far = [P.y - y0, x1 - P.x, y1 - P.y, P.x - x0]; let side = 0; for (let i = 1; i < 4; i++) if (far[i] > far[side]) side = i;
+      ph.box = [x0, y0, x1, y1]; ph.side = side; ph.door = null;     // side 0: from the top, 1: from the right, 2: from the bottom, 3: from the left
+    },
+    fire(e, ph, i) {
+      const D = PHASES.unmaker, P = G.P; if (!ph.box) return;
+      const [x0, y0, x1, y1] = ph.box, side = ph.side, across = side & 1 ? 0 : 1, lo = across ? x0 : y0, hi = across ? x1 : y1, min = lo + D.door / 2 + 6, max = hi - D.door / 2 - 6;
+      // the first doorway a few steps beside you, each later one a few steps beside the last
+      const base = ph.door === null ? clamp(across ? P.x : P.y - 4, min, max) : ph.door, step = (rand() < 0.5 ? -1 : 1) * (D.shift[0] + rand() * (D.shift[1] - D.shift[0]));
+      const door = ph.door = base + step < min || base + step > max ? base - step : base + step;
+      const vx = side === 3 ? 1 : side === 1 ? -1 : 0, vy = side === 0 ? 1 : side === 2 ? -1 : 0, from = side === 0 ? y0 : side === 2 ? y1 : side === 3 ? x0 : x1;
+      for (let u = lo; u <= hi; u += D.gap) if (Math.abs(u - door) > D.door / 2) fireEBullet(across ? u : from, across ? from : u, vx, vy, D.sp, 's_hexbolt');
+      ph.shots.push({ side, across, door, from, vx, vy, sp: D.sp, half: D.door / 2, t: 0 });
+    } },
+};
+// true while the phase holds the warden (the tell, the pattern and the breath after it)
+function bossPhase(e, dt) {
+  const D = PHASES[e.def.id], P = G.P; if (!D) return false;
+  let ph = e.ph;
+  if (!ph) {
+    if (e.phased || e.st !== 0 || e.hp > e.max * PHASE.at) return false;
+    ph = e.ph = { st: 0, t: PHASE.tell, i: 0, shots: [] }; e.phased = true;
+    banner(D.name, D.sub, '#ff7a7a', 2.6); sfx('roar'); sfx('fuse'); G.shake = Math.max(G.shake, 5);
+  }
+  if (!(D.ghost && ph.st) && Math.hypot(P.x - e.x, P.y - e.y) < e.r + P.r) hurtPlayer(2, e);
+  if (D.hold) D.hold(e);
+  for (const s of ph.shots) s.t += dt;
+  if (ph.st === 0) {                  // the tell: it stands, flickers and draws the air in
+    ph.t -= dt; e.flash = (Math.floor(ph.t * 14) & 1) ? 0.05 : 0;
+    const a = fxr() * TAU, d = 34 + fxr() * 14; part(e.x + Math.cos(a) * d, e.y - 12 + Math.sin(a) * d, -Math.cos(a) * 70, -Math.sin(a) * 70, 0.45, D.col, 1);
+    if (ph.t <= 0) { ph.st = 1; ph.t = 0; }
+  } else if (ph.st === 1) {           // the pattern
+    ph.t -= dt * (e.rage ? PHASE.fast : 1);
+    if (ph.t <= 0) { if (!ph.i) D.start(e, ph); D.fire(e, ph, ph.i++); sfx('ebullet'); G.shake = Math.max(G.shake, 2); ph.t = D.every; if (ph.i >= D.n) { ph.st = 2; ph.t = PHASE.rest; } }
+  } else { ph.t -= dt; if (ph.t <= 0) { e.ph = null; e.st = 0; e.stT = 1.0; } }
+  return true;
+}
 function summonAdds(e, types, n, hpMul) { for (let i = 0; i < n; i++) { const a = rand() * TAU, s = spawnMon(pick(types), e.x + Math.cos(a) * 8, e.y + Math.sin(a) * 6 + 4, hpMul); s.kx = Math.cos(a) * 120; s.ky = Math.sin(a) * 120; } sfx('roar'); }
 const BOSS_AI = {
   // Gatejaw: walks you down, then picks between a charge, a bullet ring and a summon.
@@ -177,7 +258,7 @@ const BOSS_AI = {
     } else if (e.st === 3 || e.st === 6) {   // bullet ring (a second, offset ring when enraged)
       if (e.stT <= 0) {
         const n = rage ? 16 : 12, off = rand() * TAU;
-        for (let i = 0; i < n; i++) { const a = off + i / n * TAU; fireEBullet(e.x, e.y - 12, Math.cos(a), Math.sin(a), e.st === 6 ? 78 : 60); }
+        for (let i = 0, y = shotY(e, 12); i < n; i++) { const a = off + i / n * TAU; fireEBullet(e.x, y, Math.cos(a), Math.sin(a), e.st === 6 ? 78 : 60); }
         sfx('ebullet'); G.shake = Math.max(G.shake, 2);
         if (rage && e.st === 3) { e.st = 6; e.stT = 0.4; } else { e.st = 0; e.stT = rr(1.8, 2.8); }
       }
@@ -205,7 +286,7 @@ const BOSS_AI = {
       const k = 1 - Math.max(0, e.stT) / 0.7; e.x = lerp(e.sx, e.jx, k); e.y = lerp(e.sy, e.jy, k); e.z = Math.sin(k * Math.PI) * 42;
       if (e.stT <= 0) {
         e.z = 0; G.shake = Math.max(G.shake, 6); sfx('boom'); burst(e.x, e.y, 16, PAL.O, 100);
-        const n = rage ? 16 : 11, off = rand() * TAU; for (let i = 0; i < n; i++) fireEBullet(e.x, e.y - 6, Math.cos(off + i / n * TAU), Math.sin(off + i / n * TAU), 62, 's_spore');
+        const n = rage ? 16 : 11, off = rand() * TAU; for (let i = 0, y = shotY(e, 6); i < n; i++) fireEBullet(e.x, y, Math.cos(off + i / n * TAU), Math.sin(off + i / n * TAU), 62, 's_spore');
         e.st = 0; e.stT = rr(1.5, 2.3);
       }
       return;
@@ -263,6 +344,44 @@ const BOSS_AI = {
   },
 };
 
+// ---- room overloads (#15) ----
+// A room at three stars with at least two resonance links overloads on its own clock: every OVER.every seconds it lets
+// go of one burst in its element, across the whole room. It needs no button, it fires whether or not you are in the
+// room, and it never hurts you. The room shows the charge on its floor (room.over runs from 0 to 1). A warden takes
+// the damage, but it is not frozen, pinned, rooted or thrown.
+//   fire    every monster in the room is scorched and burns on
+//   frost   ... is frozen solid for three seconds
+//   steel   ... takes the heaviest blow of the eight
+//   stone   ... is thrown back and pinned where it lands for a second
+//   wild    ... is rooted for three seconds and poisoned
+//   shadow  ... is marked for six seconds: everything hits it half as hard again
+//   lore    ... is marked for four seconds, and every glint on the floor flies to you
+//   water   ... is washed back, and if you stand in the room you get a shield (when you have none)
+const OVER = { every: 20, stars: 3, links: 2, dmg: { fire: 30, frost: 12, steel: 60, stone: 26, wild: 18, shadow: 10, lore: 10, water: 14 } };
+const roomLinks = room => room.resDir[0] + room.resDir[1] + room.resDir[2] + room.resDir[3];
+const overloads = room => room.def.tier !== 'x' && roomLevel(room.type) >= OVER.stars && roomLinks(room) >= OVER.links;
+function overloadBurst(room, inRoom, here) {
+  const el = room.def.el, pow = OVER.dmg[el] * roomPow(room), cx = room.px + CWP / 2, cy = room.py + CHP / 2, P = G.P, col = ELEMENTS[el].col;
+  inRoom(room, e => {
+    const dx = e.x - cx, dy = e.y - cy, d = Math.hypot(dx, dy) || 1, boss = e.def.boss;
+    hurtMon(e, pow, dx / d, dy / d, el === 'stone' ? 300 : el === 'water' ? 260 : 0, 'room');
+    if (e.dead) return;
+    if (el === 'fire') { e.burnT = 4; e.burn = 0.2 * pow; e.burnBy = BY; }
+    else if (el === 'frost' && !boss) e.stun = Math.max(e.stun, 3);
+    else if (el === 'stone' && !boss) e.rootT = Math.max(e.rootT, 1);
+    else if (el === 'wild') { if (!boss) e.rootT = 3; e.burnT = 3; e.burn = 0.15 * pow; e.burnBy = BY; }
+    else if (el === 'shadow') { e.mark = Math.max(e.markT > 0 ? e.mark : 0, 0.5); e.markT = 6; }
+    else if (el === 'lore') { e.mark = Math.max(e.markT > 0 ? e.mark : 0, 0.5); e.markT = 4; }
+  });
+  if (el === 'lore') for (const p of G.picks) if (p.k === 'glint') p.mag = true;
+  if (el === 'water' && here && P.shield < 1) addShield(1);
+  // what it looks like: a ring in the element's colour over the whole room, sparks, and one sound (#14: no flash of the screen)
+  G.fxs.push({ k: 'tide', x: cx, y: cy, R: 150, t: 0, d: 0.7, col });
+  for (let i = 0; i < 18; i++) { const a = fxr() * TAU, r = 20 + fxr() * 90; part(cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.7, Math.cos(a) * 40, Math.sin(a) * 40 - 20, 0.5 + fxr() * 0.4, col, 2); }
+  if (!G.demo && Math.abs(P.x - cx) < CWP * 1.5 && Math.abs(P.y - cy) < CHP * 1.5) { sfx('overload'); G.shake = Math.max(G.shake, here ? 4 : 2); }      // (the title's showcase stays silent and still)
+  tip('overload', 'A room with three stars and two resonating neighbours overloads by itself, every ' + OVER.every + ' seconds.');
+}
+
 // ---- room powers ----
 function onRoomReady(room) {
   const P = G.P;
@@ -288,6 +407,7 @@ function updateRooms(dt) {
     if (room.hexT > 0) { room.hexT -= dt; if (room.hexT <= 0 && room.type === 'library') recalc(); continue; }   // hexed or besieged: switched off
     room.timer += dt;
     const here = room === cur, mul = roomMul(room);
+    if (overloads(room)) { room.over = (room.over || 0) + dt / OVER.every; if (room.over >= 1) { room.over = 0; overloadBurst(room, inRoom, here); BY = 'r:' + room.type; } } else room.over = 0;
     switch (room.type) {
       case 'fountain': {
         const f = room.fountain; room.charge = Math.min(1, room.charge + dt * mul / 24);

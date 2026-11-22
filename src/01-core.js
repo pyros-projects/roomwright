@@ -9,7 +9,7 @@ const STEP = 1 / 60;                  // fixed simulation step
 const DIRS = [{x:0,y:-1},{x:1,y:0},{x:0,y:1},{x:-1,y:0}];   // N E S W
 const F_WALK = 1, F_FLY = 2, F_SHOT = 4, F_HARD = 8, F_ALL = 15;   // tile blocking flags
 const F_PLAYER = 16, PMASK = F_WALK | F_PLAYER;                    // latched gates stop only the player
-const VERSION = '0.3';
+const VERSION = '0.4';
 const MAX_WEAPONS = 4;
 const DECK_SIZE = 10;                 // room cards in a deck
 const STAIRS_MIN = 5;                 // rooms you must draft on a floor before the Stairwell is offered
