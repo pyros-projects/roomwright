@@ -256,6 +256,8 @@
       // 3: dice roll in with the waves
       at(2); G.t = 130; const m2 = RW.floorMix().map(x => x[0]); at(3); G.t = 100; const early = RW.floorMix().map(x => x[0]); G.t = 130; const m3 = RW.floorMix().map(x => x[0]);
       ok('stakes 3: dice join the waves after two minutes on a floor', !m2.includes('die') && !early.includes('die') && m3.includes('die'), m3.join(','));
+      { const w = l => (l.find(x => x[0] === 'die') || [0, 0])[1]; at(0); RW.enterFloor(2); G.t = 200; const plain = w(RW.floorMix()); at(3); RW.enterFloor(2); G.t = 200; const raised = w(RW.floorMix());
+        ok('stakes 3: ...and there are more of them than the floor brings by itself', plain > 0 && raised > plain, plain + ' -> ' + raised); at(0); }
       // 4: hearts drop half as often (the same 5000 kills, hurt, with and without the rule)
       const hearts = n => { at(n, 473); P.hp = 1; let c = 0; for (let i = 0; i < 5000; i++) { const e = RW.spawnMon('bat', P.x + 300, P.y); RW.killMon(e); } for (const p of G.picks) if (p.k === 'heart') c++; G.mons.length = 0; return c; };
       const h0 = hearts(0), h4 = hearts(4);
@@ -350,15 +352,65 @@
       ok('census: a touch is named after the monster', G.hits.length === 1 && G.hits[0].by === 'bat', JSON.stringify(G.hits));
       RW.killMon(bat); P.inv = 0; const sh = RW.spawnMon('spore', P.x + 60, P.y); sh.shootT = 0; RW.step(120);
       ok('census: a bullet is named after who fired it', G.hits.some(h => h.by === 'spore'), JSON.stringify(G.hits.map(h => h.by)));
+      ok('census: a hit says whether it was a touch or a bullet', G.hits[0].how === 'touch' && G.hits.some(h => h.by === 'spore' && h.how === 'bullet'), JSON.stringify(G.hits.map(h => h.how)));
       RW.killMon(sh); G.hits.length = 0; for (let i = 0; i < 5; i++) { P.inv = 0; P.hp = 8; RW.hurtPlayer(1, null, 'test' + i); }
       ok('census: only the last three hits are kept, oldest first', G.hits.map(h => h.by).join() === 'test2,test3,test4', G.hits.map(h => h.by).join());
       const before = RW.Save.data.census.length; P.inv = 0; P.shield = 0; P.hp = 1; G.endless = false; RW.hurtPlayer(5, null, 'the last straw'); RW.step(140);
       const rec = RW.Save.data.census[RW.Save.data.census.length - 1];
-      ok('census: a run that ends leaves a record', RW.App.mode === 'over' && RW.Save.data.census.length === Math.min(20, before + 1) && rec && rec.floor === 1 && rec.won === false && rec.by[rec.by.length - 1] === 'the last straw' && rec.doors === G.sealed.length && /keyblade1/.test(rec.weapons), JSON.stringify(rec));
+      ok('census: a run that ends leaves a record', RW.App.mode === 'over' && RW.Save.data.census.length === Math.min(20, before + 1) && rec && rec.floor === 1 && rec.won === false && rec.by[rec.by.length - 1] === 'the last straw' && Array.isArray(rec.how) && rec.how.length === rec.by.length && rec.how[rec.how.length - 1] === 'other' && rec.doors === G.sealed.length && /keyblade1/.test(rec.weapons), JSON.stringify(rec));
       ok('census: it is in the save, and RW.census() returns it', JSON.parse(localStorage.getItem(RW.Save.KEY)).census.length === RW.Save.data.census.length && RW.census() === RW.Save.data.census);
       for (let i = 0; i < 25; i++) RW.Save.data.census.push(rec); RW.Save.store(); RW.Save.load();
       ok('census: the save keeps the last 20 runs', RW.Save.data.census.length === 20, RW.Save.data.census.length);
     }
+    /* ---- dice in ordinary waves (#11) ---- */
+    { fresh(141); const names = () => RW.floorMix().map(x => x[0]), bad = [];
+      const WHEN = [{ die: 5 }, { die: 3, bigdie: 5 }, { die: 2, bigdie: 4 }];           // the minutes docs/design.md gives
+      WHEN.forEach((D, f) => { RW.enterFloor(f); G = RW.G; P = G.P;
+        for (const id of ['die', 'bigdie']) { if (!D[id]) { G.t = 9999; if (names().includes(id)) bad.push('floor ' + (f + 1) + ': a ' + id); continue; }
+          G.t = D[id] * 60 - 2; if (names().includes(id)) bad.push('floor ' + (f + 1) + ': ' + id + ' early'); G.t = D[id] * 60 + 2; if (!names().includes(id)) bad.push('floor ' + (f + 1) + ': no ' + id); } });
+      ok('dice: a die joins the waves from minute 5, 3 and 2 on floors 1, 2 and 3, a loaded die from minute 5 and 4 on floors 2 and 3', bad.length === 0 && WHEN.length === RW.FLOORS.length, bad.join('; '));
+      const shareOn = f => { RW.enterFloor(f); G = RW.G; P = G.P; G.t = 9999; const l = RW.floorMix(), sum = l.reduce((a, x) => a + x[1], 0); return l.filter(x => /die$/.test(x[0])).reduce((a, x) => a + x[1], 0) / sum; }, share = [0, 1, 2].map(shareOn);
+      ok('dice: of 100 monsters in a wave about 1, 2 and 3 are dice', Math.abs(share[0] - 0.01) < 0.004 && Math.abs(share[1] - 0.018) < 0.006 && Math.abs(share[2] - 0.026) < 0.008, share.map(x => (x * 100).toFixed(1) + '%').join(' '));
+      // a knock back: its pack is drawn from the same mix and is larger than any wave, and from the second knock on it brings dice of its own
+      const less = []; for (let f = 0; f < 3; f++) RW.KNOCK.forEach((K, k) => { const wave = RW.CURVE.group(f, 99) * share[f], knock = K.dice + K.big + (K.n + f * Math.round(K.n / 4)) * share[f]; if (!(knock > wave * 1.25)) less.push('floor ' + (f + 1) + ', knock ' + (k + 1) + ': ' + knock.toFixed(2) + ' against ' + wave.toFixed(2)); });
+      ok('dice: on every floor each knock back calls more dice than a wave brings', less.length === 0 && RW.KNOCK[0].dice + RW.KNOCK[0].big === 0 && RW.KNOCK[1].dice === 2 && RW.KNOCK[2].dice + RW.KNOCK[2].big === 4, less.join('; ') || 'dice a wave brings on average: ' + [0, 1, 2].map(f => (RW.CURVE.group(f, 99) * share[f]).toFixed(2)).join('/') + '; a knock brings 0/2/4 of its own on top of a larger pack');
+      // a warden fights without them
+      { fresh(144); RW.enterFloor(1); G = RW.G; P = G.P; G.dir.calm = 1e9; G.t = 9999; const before = names().includes('die');
+        const wave = RW.spawnMon('bigdie', P.x + 40, P.y), called = RW.spawnMon('bigdie', P.x - 40, P.y), small = RW.spawnMon('die', P.x, P.y + 40), elite = RW.spawnMon(G.F.elite, P.x, P.y - 40); called.noLoot = true;
+        const e = RW.summonBoss(null), during = names().includes('die') || names().includes('bigdie'); G.dir.bossDead = true; const after = names().includes('die');
+        ok('dice: none join a warden\'s fight, and they are back once it is dead', before && !during && after && !!e, JSON.stringify({ before, during, after }));
+        ok('dice: when the warden comes, the dice a wave brought flee; an elite and a loaded die that a knock called stay', wave.dead && small.dead && !called.dead && !elite.dead, JSON.stringify({ wave: wave.dead, small: small.dead, called: called.dead, elite: elite.dead })); }
+      // Every kind of enemy bullet against a ground of any brightness: how many of its pixels differ from the ground in
+      // brightness by 40 of 255 or more. (40 and 8 pixels are thresholds chosen by looking at bullets on the carpets, not a standard.)
+      { const kinds = ['s_ebullet', 's_spore', 's_fire', 's_hexbolt'], used = new Set(); for (const id in RW.MON) if (RW.MON[id].shot && RW.MON[id].shot.spr) used.add(RW.MON[id].shot.spr);
+        // ...and every sprite named in a statement of the game's source that fires an enemy bullet
+        for (const st of [...document.scripts].map(x => x.textContent).join(';').split(';')) if (/fire(EBullet|Fan)\(/.test(st)) for (const m of st.matchAll(/'(s_[a-z0-9_]+)'/g)) used.add(m[1]);
+        const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)), lum = c => 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
+        const pixels = spr => { const s = RW.SPR[spr], d = s.c.getContext('2d').getImageData(0, 0, s.w, s.h).data, out = []; for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200) out.push([d[i], d[i + 1], d[i + 2]]); return out; };
+        const worst = px => { let w = [99, 0]; for (let g = 0; g < 256; g++) { const n = px.filter(c => Math.abs(lum(c) - g) >= 40).length; if (n < w[0]) w = [n, g]; } return w; };
+        const res = kinds.map(k => [k, pixels(k).length, ...worst(pixels(k))]);
+        ok('bullets: every kind an enemy fires is one of the four that are checked', used.size >= 4 && [...used].every(s => kinds.includes(s)), [...used].join(' '));
+        ok('bullets: whatever the brightness of the ground, at least 8 pixels of each bullet stand off from it', res.every(r => r[2] >= 8), res.map(r => r[0] + ': ' + r[2] + ' of ' + r[1] + ' at worst, at brightness ' + r[3]).join('; '));
+        // the rim they had before: a darker shade of their own colour, which a ground of that colour swallowed
+        const k = rgb(RW.PAL.k), R = rgb(RW.PAL.R), old = pixels('s_ebullet').map(c => c[0] === k[0] && c[1] === k[1] && c[2] === k[2] ? R : c), was = worst(old);
+        ok('bullets: ...which the red bullet with its old dark red rim does not', was[0] < 8, was[0] + ' pixels at brightness ' + was[1]);
+        // and drawn by the game: over the hearth with its carpet, on each floor
+        const cvs = document.getElementById('game'), c2 = cvs.getContext('2d'), V = RW.view(), low = []; let least = 99;
+        const shot = () => { G.shake = 0; RW.render(); return c2.getImageData(0, 0, V.VW, V.VH).data; };
+        for (const spr of kinds) for (let f = 0; f < RW.FLOORS.length; f++) { fresh(143 + f); RW.enterFloor(f); G = RW.G; P = G.P; P.inv = 1e9; RW.step(4); G.ebullets.length = 0; G.picks.length = 0; G.fxs.length = 0; G.parts.length = 0; G.texts.length = 0; G.flashT = 0; G.banner = null;
+          const room = G.rooms[0], keep = room.props; room.props = []; const plain = shot(), cam = G.view, at = [];
+          for (let j = 0; j < 5; j++) for (let i = 0; i < 7; i++) at.push([P.x - 66 + i * 22, P.y - 52 + j * 22]);
+          for (const [x, y] of at) G.ebullets.push({ x, y, vx: 0, vy: 0, t: 0, spr, life: 99, by: 'check' });
+          const drawn = shot(); room.props = keep; G.ebullets.length = 0;
+          for (const [x, y] of at) { if (Math.hypot(x - P.x, y - 8 - P.y) < 14) continue;                 // the delver stands here
+            const sp = RW.SPR[spr], x0 = Math.round(x - cam.cx) - sp.ax, y0 = Math.round(y - cam.cy) + 3 - sp.ay; let n = 0;
+            for (let j = 0; j < sp.h; j++) for (let i = 0; i < sp.w; i++) { const q = ((y0 + j) * V.VW + x0 + i) * 4; if (Math.abs(lum([drawn[q], drawn[q + 1], drawn[q + 2]]) - lum([plain[q], plain[q + 1], plain[q + 2]])) >= 40) n++; }
+            least = Math.min(least, n); if (n < 8) low.push(spr + ' on floor ' + (f + 1) + ': ' + n); } }
+        ok('bullets: drawn over the hearth and its carpet on every floor, each one keeps at least 8 such pixels', low.length === 0 && least < 99, low.slice(0, 4).join('; ') || 'fewest: ' + least); }
+      // a die's bullet that hits: the census names the die and says it was a bullet
+      { fresh(142); const d = RW.spawnMon('die', P.x + 60, P.y); d.shootT = 0.05; let n = 0; for (let i = 0; i < 400 && !n; i++) { RW.step(1); n = G.ebullets.length; }
+        RW.killMon(d); G.hits.length = 0; const b0 = G.ebullets[0]; if (b0) { b0.x = P.x - 3; b0.y = P.y - 4; b0.vx = 20; b0.vy = 0; } P.inv = 0; P.shield = 0; RW.step(3);
+        ok('dice: a die throws a ring of bullets, and one that hits is filed as a bullet from a die', n >= 8 && G.hits.length === 1 && G.hits[0].by === 'die' && G.hits[0].how === 'bullet', n + ' bullets, ' + JSON.stringify(G.hits)); } }
     /* ---- the screen's rules (#14): a top layer that nothing covers, flashes kept apart, a beat for the big moments ---- */
     { fresh(131); RW.step(20); const cvs = document.getElementById('game'), c2 = cvs.getContext('2d'), V = RW.view();
       const shot = () => { G.shake = 0; RW.render(); return c2.getImageData(0, 0, V.VW, V.VH).data; };

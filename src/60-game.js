@@ -90,7 +90,7 @@ const CENSUS_MAX = 20;
 function runRecord(win) {
   const P = G.P, S = G.stats;
   return { v: VERSION, hero: G.hero, stakes: G.stakes, seed: G.seed, won: !!win, floor: G.floor + 1, minute: Math.round(G.t / 6) / 10, time: Math.round(G.tRun),
-    by: G.hits.map(h => h.by), doors: G.sealed.length, rooms: G.fstat.rooms, drafted: S.rooms,
+    by: G.hits.map(h => h.by), how: G.hits.map(h => h.how), doors: G.sealed.length, rooms: G.fstat.rooms, drafted: S.rooms,
     weapons: P.weapons.map(w => w.id + (w.evo ? '*' : w.lv)).join(' '),
     top: tallyList().slice(0, 3).map(t => t.key + ' ' + Math.round(t.share * 100)).join(', '), roomShare: Math.round(tallyShare('r') * 100) };
 }

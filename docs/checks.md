@@ -25,7 +25,10 @@ console error, then runs five scripts:
   charm, warden and unlock does what its card says. Also: every point of damage has an owner and
   the shares add up, the census names what hit the delver, an elite besieges the room built up
   most, door pressure per floor, the knocking late in the clock, a warden's fury, each rule of
-  Stakes in force from its step on, the screen's rules (every enemy bullet, the delver and the
+  Stakes in force from its step on, dice in ordinary waves (from which minute on each floor, how
+  small their share is, that a knock back calls more, that a warden fights without them), every
+  kind of enemy bullet against a ground of any brightness (at least 8 of its pixels differ by 40 of
+  255; both numbers were chosen by looking, they are no standard), the screen's rules (every enemy bullet, the delver and the
   pickups show whole through the heaviest effects and the flash; hurt on every frame, the screen
   flashes at most three times a second; an elite's death and an evolution have their beat, and a kill
   never holds the game), what the
@@ -166,6 +169,19 @@ The bot's summary counts deaths per floor and what dealt the killing blow. Dodge
 The kiter dies mostly to the wardens; the dodger dies to ordinary monsters, most often to those that
 shoot. In a person's save, `RW.census()` prints the same record for their last 20 runs.
 
+Since 0.4 a record also says whether each hit was a touch or a bullet, and the bot's census line
+ends with the bullets' share, `by a bullet: 9 of 18 (dice: 1)`: how many deaths ended on a bullet,
+and how many on a die's bullet or touch. With dice in the ordinary waves, over the four delvers:
+
+| Bot | Deaths | Ended on a bullet | Ended on a die |
+|---|---|---|---|
+| kiter | 130 | 14 | 9 |
+| dodger | 86 | 36 | 5 |
+
+On the next 40 seeds (241 to 280) the same build gives 27 of 134 and 6 for the kiter, 49 of 87 and
+6 for the dodger. So bullets end about one death in seven for the newcomer bot and about half for
+the practised one, who gets close to nothing else; dice end one death in fifteen.
+
 ### What does the damage
 
 Every run ends with a tally of who dealt its damage. Share of all damage done by rooms, and the
@@ -224,7 +240,7 @@ Stakes, step by step, as Pip (dodger, chosen cards). Each step keeps the rules b
 | 0 | the plain game | 36 / 25 / 18 |
 | 1 | Wardens arrive enraged. | 36 / 21 / 18 |
 | 2 | Pests come from the first floor on, and sooner. | 33 / 25 / 22 |
-| 3 | Dice roll in with the waves. | 33 / 20 / 13 |
+| 3 | More dice, and from the second minute on. | 33 / 20 / 13 |
 | 4 | Hearts drop half as often. | 31 / 16 / 10 |
 | 5 | Monsters are a fifth tougher. | 26 / 9 / 4 |
 | 6 | The dread clock runs a quarter faster. | 32 / 10 / 6 |

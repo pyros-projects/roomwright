@@ -290,7 +290,8 @@ function buildArt() {
     '.KKK.....K.K.'], { ay: 4 });
   A('s_spark', ['..w..', '.wcw.', 'wcccw', '.wcw.', '..w..'], { ol: 'b', ay: 3 });
   A('s_guard', ['.cc.', 'cwwc', 'cwwc', '.cc.'], { ol: 'B', ay: 3 });
-  A('s_ebullet', ['.rr.', 'rppr', 'rpwr', '.rr.'], { ol: 'R', ay: 3 });
+  // an enemy bullet: a bright core in a near-black rim, so it stands off from light ground and from dark (#11)
+  A('s_ebullet', ['.rr.', 'rppr', 'rpwr', '.rr.'], { ol: 'k', ay: 3 });
   { const g = new CG(8, 8); g.disc(3.5, 3.5, 3.6, 'p'); g.set(2, 2, 'w').set(3, 2, 'w').set(2, 3, 'w'); g.set(5, 5, 'm').set(6, 4, 'm').set(4, 6, 'm').set(5, 6, 'm'); reg('s_orb', g.canvas('v'), 4, 5); }
   { const g = new CG(8, 8); g.disc(3.5, 3.5, 3.6, 'y'); g.disc(5.2, 2.6, 2.6, '.'); g.set(1, 3, 'w').set(1, 4, 'w'); reg('s_moon', g.canvas('O'), 4, 5); }
   A('s_bomb', [

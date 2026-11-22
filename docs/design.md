@@ -36,11 +36,42 @@ door.
 | second | 18 enraged monsters, the floor's elite, two dice | 30 seconds shorter |
 | third and later | 26 or more enraged monsters, two elites, three dice, a loaded die | 45 seconds shorter each |
 
-The dice are what you get for cheating them. A die hops after you and throws a ring of 8 to 18
-bullets, as many as it rolled. A loaded die is twice the size, throws two rings of up to 28 and
-breaks into two dice. Enraged monsters move a quarter faster. Deeper floors add to every pack.
-Nothing a knock calls carries glints or hearts, so a knock is never a way to farm. The count
+The dice are what you get for cheating them: several at once, enraged, where a wave brings one
+now and then (see Dice below). Enraged monsters move a quarter faster. Deeper floors add to every
+pack. Nothing a knock calls carries glints or hearts, so a knock is never a way to farm. The count
 starts again on each floor. A Map Room's free deals come first; `R` knocks back once they are used.
+
+## Dice
+
+A die hops after you and throws a ring of 8 to 18 bullets, as many as it rolled, and you weave
+through the gaps. A loaded die is twice the size, throws two rings of up to 28 and breaks into two
+dice. From a set minute on each floor they come with the ordinary waves, so a run that gets that
+far has moments where the screen is full and movement decides:
+
+| Floor | A die from | A loaded die from | Of 100 monsters in a wave |
+|---|---|---|---|
+| 1 | minute 5 | never | 1 |
+| 2 | minute 3 | minute 5 | about 2 |
+| 3 | minute 2 | minute 4 | about 3 |
+
+The numbers are `DICE` in `src/24-floors.js`. A knock back draws a larger pack from the same
+waves and adds dice of its own: two at the second knock, three and a loaded die at the third, more
+after that. The third step of Stakes brings dice from the second minute of every floor and two to
+six times as many.
+
+A warden fights without them. None join the waves while it lives, and the dice a wave brought flee
+with the small monsters when it comes; only a loaded die that a knock called stays, like the
+floor's elite. (At the third step of Stakes dice do come into a warden's fight, as they did
+before.) A loaded die from a wave is an elite like any other and leaves a heart and 20 glints; one
+that a knock called leaves nothing.
+
+An enemy bullet is a bright core in a near-black rim. On light ground the rim stands off, on dark
+ground the core and the colour around it, so on a ground of any brightness at least half of a
+bullet's 24 pixels differ from it clearly. Before 0.4 the rim was a darker shade of the bullet's
+own colour, and a red bullet nearly vanished on the hearth's red carpet. The price: on the darkest
+floors (Ember Room, Furnace, Altar) the rim no longer shows and a bullet reads as 4 by 4 pixels,
+where it read as 6 by 6. Bullets are also part of the top layer (see What the screen may do), so
+no effect covers them.
 
 ## Why the floor plan matters
 
@@ -158,7 +189,7 @@ step opens the next. Each step adds one rule and keeps the ones before it.
 |---|---|
 | 1 | Wardens arrive enraged. |
 | 2 | Pests come from the first floor on, and sooner. |
-| 3 | Dice roll in with the waves. |
+| 3 | More dice, and from the second minute on. |
 | 4 | Hearts drop half as often. |
 | 5 | Monsters are a fifth tougher. |
 | 6 | The dread clock runs a quarter faster. |

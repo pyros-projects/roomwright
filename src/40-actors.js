@@ -168,12 +168,12 @@ function heal(n) {
 }
 function addShield(max) { const P = G.P; if (P.shield >= max) return false; P.shield++; sfx('shield'); sparkle(P.x, P.y - 10, 10, PAL.b); floatText(P.x, P.y - 24, '+shield', '#9cecf2'); return true; }
 // src = the monster that touched you, if any (for the Thorned Vest); cause = what to call it in the census when
-// it was not a touch (a bullet's or a cloud's owner)
-function hurtPlayer(dmg, src, cause) {
+// it was not a touch (a bullet's or a cloud's owner); how = 'bullet' for a bullet (else a touch, or something else)
+function hurtPlayer(dmg, src, cause, how) {
   const P = G.P; if (P.inv > 0 || G.over || G.won || G.freeze > 0 || G.leaving > 0) return false;
   if (P.dodge > 0 && rand() < P.dodge) { P.inv = 0.5; floatText(P.x, P.y - 24, 'Lucky!', '#b5e85a'); sfx('shield'); return false; }
   if (src && charm('vest')) { const was = BY; BY = 'c:vest'; hurtMon(src, 12 * charm('vest') * P.mightEff, 0, 0, 0, 'room'); BY = was; }
-  G.hits.push({ by: cause || (src && src.type) || 'unknown', floor: G.floor, t: Math.round(G.t) }); if (G.hits.length > 3) G.hits.shift();
+  G.hits.push({ by: cause || (src && src.type) || 'unknown', how: how || (src ? 'touch' : 'other'), floor: G.floor, t: Math.round(G.t) }); if (G.hits.length > 3) G.hits.shift();
   P.inv = 1.0 + P.invBonus; P.hurtT = 0.35; G.shake = Math.max(G.shake, 5); flashScreen(0.3); sfx('hurt');
   if (P.shield > 0) { P.shield--; burst(P.x, P.y - 6, 8, PAL.b); return true; }
   P.hp -= dmg; G.stats.hurt += dmg; burst(P.x, P.y - 6, 8, PAL.r);
@@ -628,7 +628,7 @@ function updateEBullets(dt) {
   for (let i = B.length - 1; i >= 0; i--) {
     const b = B[i]; b.t += dt; b.x += b.vx * dt; b.y += b.vy * dt;
     let dead = b.t > b.life || blocked(b.x, b.y, F_SHOT);
-    if (!dead && P.inv <= 0 && Math.abs(b.x - P.x) < 5 && Math.abs(b.y - (P.y - 4)) < 6) { hurtPlayer(1, null, b.by || 'a bullet'); dead = true; }
+    if (!dead && P.inv <= 0 && Math.abs(b.x - P.x) < 5 && Math.abs(b.y - (P.y - 4)) < 6) { hurtPlayer(1, null, b.by || 'a bullet', 'bullet'); dead = true; }
     if (dead) { B[i] = B[B.length - 1]; B.pop(); }
   }
 }

@@ -241,7 +241,7 @@
       const s = RW.state(), G = RW.G, rec = RW.record(s.mode === 'win');
       return { seed, end: s.mode, floor: s.floor + 1, t: Math.round(s.tRun), ft: Math.round(G.t), hp: s.hp + '/' + s.maxHp, rooms: s.rooms, drafted: s.drafted, doors: s.sealed, forged: s.forged, keysLeft: s.keys, kills: s.kills,
         W: s.weapons, C: s.charms, L: s.roomLv, boss: s.boss, floors, evos: G.stats.evos, err,
-        by: rec.by, minute: rec.minute, roomShare: rec.roomShare, top: rec.top, tally: s.tally };
+        by: rec.by, how: rec.how || [], minute: rec.minute, roomShare: rec.roomShare, top: rec.top, tally: s.tally };
     },
     // seeds first..first+n-1 with a fresh collection each, kept in B.rows (call it in small chunks: one call blocks the page)
     batch(first, n, maxSecs, opts = {}) {
@@ -257,6 +257,7 @@
         minutes: +(rows.reduce((a, r) => a + r.t, 0) / n / 60).toFixed(1), rooms: +(rows.reduce((a, r) => a + r.drafted, 0) / n).toFixed(1), evos: +(rows.reduce((a, r) => a + r.evos, 0) / n).toFixed(1),
         roomShare: Math.round(rows.reduce((a, r) => a + (r.roomShare || 0), 0) / n), unfinished: rows.filter(r => r.end !== 'win' && r.end !== 'over').length, errors: rows.filter(r => r.err).length,
         deathsByFloor: [1, 2, 3].map(f => dead.filter(r => r.floor === f).length), killers: count(dead, r => r.by[r.by.length - 1] || 'unknown'),
+        deaths: dead.length, byBullet: dead.filter(r => r.how[r.how.length - 1] === 'bullet').length, byDice: dead.filter(r => /die$/.test(r.by[r.by.length - 1] || '')).length,
         damage: Object.entries(dmg).sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, Math.round(v / (total || 1) * 100)]) };
     },
     // one line per run, then the summary and the census, as text; clears the rows
@@ -265,7 +266,8 @@
       for (const r of rows) out.push(['seed ' + r.seed, r.end, 'floor ' + r.floor, 't=' + r.t + 's', 'hp=' + r.hp, 'rooms=' + r.drafted, 'keys=' + r.forged, 'kills=' + r.kills, 'evo=' + r.evos, 'boss=' + r.boss, '[' + r.W + ']', 'lv[' + r.L + ']', 'floors@' + r.floors.join('/'),
         r.end === 'over' ? 'died at ' + r.minute + ' min with ' + r.doors + ' doors sealed; last hits, newest first: ' + (r.by.slice().reverse().join(', ') || 'unknown') : '', 'rooms did ' + r.roomShare + '%', r.err ? 'ERR ' + r.err : ''].join('  '));
       out.push('SUMMARY ' + (label || '') + ' runs=' + st.runs + ' wins=' + st.wins + ' beatFloor1=' + st.floor1 + ' beatFloor2=' + st.floor2 + ' avgLength=' + st.minutes + 'min rooms=' + st.rooms + ' evolutions=' + st.evos + ' roomDamage=' + st.roomShare + '% unfinished=' + st.unfinished + ' errors=' + st.errors);
-      out.push('CENSUS deaths on floor 1/2/3: ' + st.deathsByFloor.join('/') + '   killing blows: ' + (st.killers.map(k => k[0] + ' ' + k[1]).join(', ') || 'none'));
+      out.push('CENSUS deaths on floor 1/2/3: ' + st.deathsByFloor.join('/') + '   killing blows: ' + (st.killers.map(k => k[0] + ' ' + k[1]).join(', ') || 'none') +
+        '   by a bullet: ' + st.byBullet + ' of ' + st.deaths + ' (dice: ' + st.byDice + ')');
       out.push('DAMAGE ' + st.damage.slice(0, 8).map(d => d[0] + ' ' + d[1] + '%').join(', '));
       return out.join('\n');
     },

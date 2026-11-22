@@ -370,9 +370,9 @@ function buildArtMore() {
     '.rrrrrrrrrrrr.'], { ol: 'R', ay: 4 });
   reg('s_mat_off', recolor(SPR.s_mat.c, [[PAL.r, PAL.G], [PAL.y, PAL.g], [PAL.R, PAL.K]]), SPR.s_mat.ax, SPR.s_mat.ay);
   two('s_moth', ['w...w', 'wyoyw', '.yyy.', '..y..'], ['.....', 'wyoyw', 'wyyyw', '..y..'], { ol: 'O', ay: 3 });
-  reg('s_spore', recolor(SPR.s_ebullet.c, [[PAL.r, PAL.n], [PAL.p, PAL.l], [PAL.R, PAL.N]]), SPR.s_ebullet.ax, SPR.s_ebullet.ay);
-  reg('s_fire', recolor(SPR.s_ebullet.c, [[PAL.r, PAL.o], [PAL.p, PAL.y], [PAL.R, PAL.O]]), SPR.s_ebullet.ax, SPR.s_ebullet.ay);
-  reg('s_hexbolt', recolor(SPR.s_ebullet.c, [[PAL.r, PAL.P], [PAL.p, PAL.c], [PAL.R, PAL.v]]), SPR.s_ebullet.ax, SPR.s_ebullet.ay);
+  reg('s_spore', recolor(SPR.s_ebullet.c, [[PAL.r, PAL.n], [PAL.p, PAL.l]]), SPR.s_ebullet.ax, SPR.s_ebullet.ay);
+  reg('s_fire', recolor(SPR.s_ebullet.c, [[PAL.r, PAL.o], [PAL.p, PAL.y]]), SPR.s_ebullet.ax, SPR.s_ebullet.ay);
+  reg('s_hexbolt', recolor(SPR.s_ebullet.c, [[PAL.r, PAL.P], [PAL.p, PAL.c]]), SPR.s_ebullet.ax, SPR.s_ebullet.ay);
   A('s_bolt', ['wwwwwwwwwW', 'WWWWWWWWWg'], { ol: 'k', ay: 1 });
 
   /* ---- latched gate across a doorway (48x14), horizontal and vertical ---- */

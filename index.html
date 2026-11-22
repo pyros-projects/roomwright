@@ -57,6 +57,8 @@ What changed for a player, newest first. The game shows the same text: CHANGELOG
 
 - You, enemy bullets and pickups are now drawn above every blast, glow, spark and number, and above the screen's flash.
 - An elite's death has a ring, a boom and a shake; a warden's a bigger ring. The screen never flashes more than three times a second.
+- Dice now roll in with ordinary waves: from minute 5 on floor 1, sooner further down, and loaded dice from floor 2. A knock back still calls far more of them, and a warden fights without them.
+- Enemy bullets have a dark rim, so they show on every floor and every carpet.
 - The music can follow the floor plan: Music grows in the pause menu. WITH THE PLAN brings a floor's piece in voice by voice as you build. BY ELEMENT adds a voice for each element among your rooms.
 - A music player on the title screen: every track, switches for its voices and for the element voices, every sound effect, and the game's creatures dancing to it.
 
@@ -933,7 +935,8 @@ function buildArt() {
     '.KKK.....K.K.'], { ay: 4 });
   A('s_spark', ['..w..', '.wcw.', 'wcccw', '.wcw.', '..w..'], { ol: 'b', ay: 3 });
   A('s_guard', ['.cc.', 'cwwc', 'cwwc', '.cc.'], { ol: 'B', ay: 3 });
-  A('s_ebullet', ['.rr.', 'rppr', 'rpwr', '.rr.'], { ol: 'R', ay: 3 });
+  // an enemy bullet: a bright core in a near-black rim, so it stands off from light ground and from dark (#11)
+  A('s_ebullet', ['.rr.', 'rppr', 'rpwr', '.rr.'], { ol: 'k', ay: 3 });
   { const g = new CG(8, 8); g.disc(3.5, 3.5, 3.6, 'p'); g.set(2, 2, 'w').set(3, 2, 'w').set(2, 3, 'w'); g.set(5, 5, 'm').set(6, 4, 'm').set(4, 6, 'm').set(5, 6, 'm'); reg('s_orb', g.canvas('v'), 4, 5); }
   { const g = new CG(8, 8); g.disc(3.5, 3.5, 3.6, 'y'); g.disc(5.2, 2.6, 2.6, '.'); g.set(1, 3, 'w').set(1, 4, 'w'); reg('s_moon', g.canvas('O'), 4, 5); }
   A('s_bomb', [
@@ -1904,9 +1907,9 @@ function buildArtMore() {
     '.rrrrrrrrrrrr.'], { ol: 'R', ay: 4 });
   reg('s_mat_off', recolor(SPR.s_mat.c, [[PAL.r, PAL.G], [PAL.y, PAL.g], [PAL.R, PAL.K]]), SPR.s_mat.ax, SPR.s_mat.ay);
   two('s_moth', ['w...w', 'wyoyw', '.yyy.', '..y..'], ['.....', 'wyoyw', 'wyyyw', '..y..'], { ol: 'O', ay: 3 });
-  reg('s_spore', recolor(SPR.s_ebullet.c, [[PAL.r, PAL.n], [PAL.p, PAL.l], [PAL.R, PAL.N]]), SPR.s_ebullet.ax, SPR.s_ebullet.ay);
-  reg('s_fire', recolor(SPR.s_ebullet.c, [[PAL.r, PAL.o], [PAL.p, PAL.y], [PAL.R, PAL.O]]), SPR.s_ebullet.ax, SPR.s_ebullet.ay);
-  reg('s_hexbolt', recolor(SPR.s_ebullet.c, [[PAL.r, PAL.P], [PAL.p, PAL.c], [PAL.R, PAL.v]]), SPR.s_ebullet.ax, SPR.s_ebullet.ay);
+  reg('s_spore', recolor(SPR.s_ebullet.c, [[PAL.r, PAL.n], [PAL.p, PAL.l]]), SPR.s_ebullet.ax, SPR.s_ebullet.ay);
+  reg('s_fire', recolor(SPR.s_ebullet.c, [[PAL.r, PAL.o], [PAL.p, PAL.y]]), SPR.s_ebullet.ax, SPR.s_ebullet.ay);
+  reg('s_hexbolt', recolor(SPR.s_ebullet.c, [[PAL.r, PAL.P], [PAL.p, PAL.c]]), SPR.s_ebullet.ax, SPR.s_ebullet.ay);
   A('s_bolt', ['wwwwwwwwwW', 'WWWWWWWWWg'], { ol: 'k', ay: 1 });
 
   /* ---- latched gate across a doorway (48x14), horizontal and vertical ---- */
@@ -2449,14 +2452,24 @@ const CURVE = {
 const STAKES = [
   'Wardens arrive enraged.',
   'Pests come from the first floor on, and sooner.',
-  'Dice roll in with the waves.',
+  'More dice, and from the second minute on.',
   'Hearts drop half as often.',
   'Monsters are a fifth tougher.',
   'The dread clock runs a quarter faster.',
 ];
 const stake = n => (G.stakes || 0) >= n;
-// the monsters a wave draws from right now: the floor's mix, plus dice from the third step of Stakes
-function floorMix() { const l = G.F.mix(G.t); if (stake(3) && G.t >= 120) l.push(['die', 0.45]); return l; }
+// Dice in ordinary waves (#11). From a set minute on each floor a wave can bring a die, and from floor 2 on a loaded
+// die: [the minute it starts, its weight in the floor's mix]. A die throws a ring of bullets to weave through.
+// A warden fights without them: none join while it lives, and those a wave brought flee when it comes.
+const DICE = [{ die: [5.0, 0.08] }, { die: [3.0, 0.15], bigdie: [5.0, 0.015] }, { die: [2.0, 0.2], bigdie: [4.0, 0.02] }];
+// the monsters a wave draws from right now: the floor's mix and its dice; the third step of Stakes brings dice
+// from the second minute, more of them, and into a warden's fight too
+function floorMix() {
+  const l = G.F.mix(G.t), m = G.t / 60, D = DICE[Math.min(G.floor, DICE.length - 1)], fight = G.dir.boss && !G.dir.bossDead;
+  if (!fight) for (const id in D) if (m >= D[id][0]) l.push([id, D[id][1]]);
+  if (stake(3) && G.t >= 120) { const die = l.find(x => x[0] === 'die'); if (die) die[1] = Math.max(die[1], 0.45); else l.push(['die', 0.45]); }
+  return l;
+}
 
 // Heroes: a starting weapon, a perk and a default deck (10 room cards). `sig` is unlocked with them.
 // Perk knobs: rooms = room power multiplier, hearts = heart drop rate multiplier (other perks are in 40-actors.js).
@@ -3352,12 +3365,12 @@ function heal(n) {
 }
 function addShield(max) { const P = G.P; if (P.shield >= max) return false; P.shield++; sfx('shield'); sparkle(P.x, P.y - 10, 10, PAL.b); floatText(P.x, P.y - 24, '+shield', '#9cecf2'); return true; }
 // src = the monster that touched you, if any (for the Thorned Vest); cause = what to call it in the census when
-// it was not a touch (a bullet's or a cloud's owner)
-function hurtPlayer(dmg, src, cause) {
+// it was not a touch (a bullet's or a cloud's owner); how = 'bullet' for a bullet (else a touch, or something else)
+function hurtPlayer(dmg, src, cause, how) {
   const P = G.P; if (P.inv > 0 || G.over || G.won || G.freeze > 0 || G.leaving > 0) return false;
   if (P.dodge > 0 && rand() < P.dodge) { P.inv = 0.5; floatText(P.x, P.y - 24, 'Lucky!', '#b5e85a'); sfx('shield'); return false; }
   if (src && charm('vest')) { const was = BY; BY = 'c:vest'; hurtMon(src, 12 * charm('vest') * P.mightEff, 0, 0, 0, 'room'); BY = was; }
-  G.hits.push({ by: cause || (src && src.type) || 'unknown', floor: G.floor, t: Math.round(G.t) }); if (G.hits.length > 3) G.hits.shift();
+  G.hits.push({ by: cause || (src && src.type) || 'unknown', how: how || (src ? 'touch' : 'other'), floor: G.floor, t: Math.round(G.t) }); if (G.hits.length > 3) G.hits.shift();
   P.inv = 1.0 + P.invBonus; P.hurtT = 0.35; G.shake = Math.max(G.shake, 5); flashScreen(0.3); sfx('hurt');
   if (P.shield > 0) { P.shield--; burst(P.x, P.y - 6, 8, PAL.b); return true; }
   P.hp -= dmg; G.stats.hurt += dmg; burst(P.x, P.y - 6, 8, PAL.r);
@@ -3812,7 +3825,7 @@ function updateEBullets(dt) {
   for (let i = B.length - 1; i >= 0; i--) {
     const b = B[i]; b.t += dt; b.x += b.vx * dt; b.y += b.vy * dt;
     let dead = b.t > b.life || blocked(b.x, b.y, F_SHOT);
-    if (!dead && P.inv <= 0 && Math.abs(b.x - P.x) < 5 && Math.abs(b.y - (P.y - 4)) < 6) { hurtPlayer(1, null, b.by || 'a bullet'); dead = true; }
+    if (!dead && P.inv <= 0 && Math.abs(b.x - P.x) < 5 && Math.abs(b.y - (P.y - 4)) < 6) { hurtPlayer(1, null, b.by || 'a bullet', 'bullet'); dead = true; }
     if (dead) { B[i] = B[B.length - 1]; B.pop(); }
   }
 }
@@ -4266,8 +4279,8 @@ function fireEvent(ev) {
     banner(id === 'kslime' ? 'A KING SLIME SQUEEZES IN' : id === 'eshroom' ? 'AN ELDER SHROOM LUMBERS IN' : 'A FURNACE GOLEM STOMPS IN', siegeTarget({ x: d.x, y: d.y }) ? 'It is after the room you built up most.' : '', '#b5e85a', 2.6); sfx('breach');
   }
 }
-function scatterHorde(keep) {         // the small fry flee: wardens fight alone (at first)
-  for (const m of G.mons) if (m !== keep && !m.dead && !m.def.elite) { m.dead = true; burst(m.x, m.y - 4, 4, PAL.v, 50); }
+function scatterHorde(keep) {         // the small fry flee: wardens fight alone (at first). Elites stay, but not a loaded die that a wave brought
+  for (const m of G.mons) if (m !== keep && !m.dead && (!m.def.elite || m.def.ai === 'dice' && !m.noLoot)) { m.dead = true; burst(m.x, m.y - 4, 4, PAL.v, 50); }
   for (const d of G.sealed) d.queue.length = 0; G.ebullets.length = 0; G.dir.acc = -6;
 }
 // fromRoom = the Stairwell you just drafted (the warden climbs out of it); null = it came because you overstayed
@@ -5807,7 +5820,7 @@ const CENSUS_MAX = 20;
 function runRecord(win) {
   const P = G.P, S = G.stats;
   return { v: VERSION, hero: G.hero, stakes: G.stakes, seed: G.seed, won: !!win, floor: G.floor + 1, minute: Math.round(G.t / 6) / 10, time: Math.round(G.tRun),
-    by: G.hits.map(h => h.by), doors: G.sealed.length, rooms: G.fstat.rooms, drafted: S.rooms,
+    by: G.hits.map(h => h.by), how: G.hits.map(h => h.how), doors: G.sealed.length, rooms: G.fstat.rooms, drafted: S.rooms,
     weapons: P.weapons.map(w => w.id + (w.evo ? '*' : w.lv)).join(' '),
     top: tallyList().slice(0, 3).map(t => t.key + ' ' + Math.round(t.share * 100)).join(', '), roomShare: Math.round(tallyShare('r') * 100) };
 }
@@ -6293,10 +6306,10 @@ window.RW = {
   coach(on) { App.coach = !!on; },                                     // false = no card lessons in drafts (the checks and the bot use this)
   coachPlan, cardPart, stairsLocked, knockBack, knockTier, KNOCK, draftLayout, pauseLayout, hintFor, view: () => ({ VW, VH, SCALE }),
   titleLayout, changesLayout, CHANGES, CHANGELOG_MD, FONT,             // the title's entries and the changelog
-  musicPlan, GROW_WAYS, Player, playerLayout, openPlayer, closePlayer, DANCERS, // what the plan gives the music, and the music player
+  DICE, PAL, musicPlan, GROW_WAYS, Player, playerLayout, openPlayer, closePlayer, DANCERS, // what the plan gives the music, and the music player
   tallyList, tallyShare, record: runRecord, endLayout, siegeTarget, dreadMul, knocking, wardenShare, swiftLeft, doorPressure,
   STAKES, stake, stakesOpen, stakeOf, prepLayout, floorMix,           // the Stakes ladder                 // the damage tally, and the census record of the run as it stands
-  census() { const c = Save.data.census; if (console.table) console.table(c.map(r => Object.assign({}, r, { by: r.by.join(' < ') }))); return c; },                                   // true = the page stops ticking itself; drive it with step()
+  census() { const c = Save.data.census; if (console.table) console.table(c.map(r => Object.assign({}, r, { by: r.by.join(' < '), how: (r.how || []).join(' < ') }))); return c; },                                   // true = the page stops ticking itself; drive it with step()
   step(n = 1) { for (let i = 0; i < n; i++) { tick(STEP); Input.endFrame(); } },
   hold(a, on) { if (on) Input.down.add(a); else Input.down.delete(a); },
   press(a) { Input.pressed.add(a); },

@@ -53,8 +53,8 @@ function fireEvent(ev) {
     banner(id === 'kslime' ? 'A KING SLIME SQUEEZES IN' : id === 'eshroom' ? 'AN ELDER SHROOM LUMBERS IN' : 'A FURNACE GOLEM STOMPS IN', siegeTarget({ x: d.x, y: d.y }) ? 'It is after the room you built up most.' : '', '#b5e85a', 2.6); sfx('breach');
   }
 }
-function scatterHorde(keep) {         // the small fry flee: wardens fight alone (at first)
-  for (const m of G.mons) if (m !== keep && !m.dead && !m.def.elite) { m.dead = true; burst(m.x, m.y - 4, 4, PAL.v, 50); }
+function scatterHorde(keep) {         // the small fry flee: wardens fight alone (at first). Elites stay, but not a loaded die that a wave brought
+  for (const m of G.mons) if (m !== keep && !m.dead && (!m.def.elite || m.def.ai === 'dice' && !m.noLoot)) { m.dead = true; burst(m.x, m.y - 4, 4, PAL.v, 50); }
   for (const d of G.sealed) d.queue.length = 0; G.ebullets.length = 0; G.dir.acc = -6;
 }
 // fromRoom = the Stairwell you just drafted (the warden climbs out of it); null = it came because you overstayed

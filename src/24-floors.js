@@ -46,14 +46,24 @@ const CURVE = {
 const STAKES = [
   'Wardens arrive enraged.',
   'Pests come from the first floor on, and sooner.',
-  'Dice roll in with the waves.',
+  'More dice, and from the second minute on.',
   'Hearts drop half as often.',
   'Monsters are a fifth tougher.',
   'The dread clock runs a quarter faster.',
 ];
 const stake = n => (G.stakes || 0) >= n;
-// the monsters a wave draws from right now: the floor's mix, plus dice from the third step of Stakes
-function floorMix() { const l = G.F.mix(G.t); if (stake(3) && G.t >= 120) l.push(['die', 0.45]); return l; }
+// Dice in ordinary waves (#11). From a set minute on each floor a wave can bring a die, and from floor 2 on a loaded
+// die: [the minute it starts, its weight in the floor's mix]. A die throws a ring of bullets to weave through.
+// A warden fights without them: none join while it lives, and those a wave brought flee when it comes.
+const DICE = [{ die: [5.0, 0.08] }, { die: [3.0, 0.15], bigdie: [5.0, 0.015] }, { die: [2.0, 0.2], bigdie: [4.0, 0.02] }];
+// the monsters a wave draws from right now: the floor's mix and its dice; the third step of Stakes brings dice
+// from the second minute, more of them, and into a warden's fight too
+function floorMix() {
+  const l = G.F.mix(G.t), m = G.t / 60, D = DICE[Math.min(G.floor, DICE.length - 1)], fight = G.dir.boss && !G.dir.bossDead;
+  if (!fight) for (const id in D) if (m >= D[id][0]) l.push([id, D[id][1]]);
+  if (stake(3) && G.t >= 120) { const die = l.find(x => x[0] === 'die'); if (die) die[1] = Math.max(die[1], 0.45); else l.push(['die', 0.45]); }
+  return l;
+}
 
 // Heroes: a starting weapon, a perk and a default deck (10 room cards). `sig` is unlocked with them.
 // Perk knobs: rooms = room power multiplier, hearts = heart drop rate multiplier (other perks are in 40-actors.js).
