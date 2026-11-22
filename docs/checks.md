@@ -277,6 +277,41 @@ No rule is best on every floor: early gets through floor 1 every time and is no 
 the end, late loses the most runs on floor 1 and wins by far the most overall. Waiting pays for
 this bot: the rooms it gains outweigh the knocking that grows late in the clock.
 
+The quiet floor: once a warden is dead, the keys in hand can still be spent on its floor, with no
+monster in the way. Both bots do that: every key goes into a door before they take the stairs
+(`QUIET=spend`, the default, so every table here already has it). After the first warden that is
+about five rooms, after the second five to eight. `QUIET=carry` picks up what lies on the floor and
+takes the stairs with its keys, which become rooms on the next floor. A batch's report ends with a
+`QUIET` line that counts it: rooms built after each warden, keys taken down, glints left lying.
+Same seeds, both bots, two Stairwell rules:
+
+| Delver | Kiter, spend | Kiter, carry | Dodger, spend | Dodger, carry |
+|---|---|---|---|---|
+| `STAIRS=mid` | | | | |
+| Pip | 94 / 37 / 30 | 94 / 30 / 18 | 105 / 65 / 50 | 105 / 61 / 23 |
+| Wick | 97 / 47 / 35 | 96 / 29 / 20 | 106 / 73 / 63 | 106 / 64 / 39 |
+| Brindle | 105 / 40 / 29 | 105 / 27 / 15 | 110 / 69 / 55 | 110 / 76 / 31 |
+| Moss | 98 / 40 / 26 | 98 / 38 / 14 | 102 / 72 / 53 | 102 / 57 / 12 |
+| `STAIRS=late` | | | | |
+| Pip | 94 / 62 / 60 | 94 / 66 / 64 | 99 / 80 / 72 | 99 / 76 / 66 |
+| Wick | 90 / 75 / 72 | 90 / 71 / 68 | 93 / 79 / 72 | 93 / 75 / 68 |
+| Brindle | 100 / 58 / 56 | 100 / 64 / 58 | 108 / 88 / 77 | 108 / 87 / 71 |
+| Moss | 80 / 55 / 41 | 79 / 51 / 43 | 97 / 79 / 59 | 97 / 58 / 28 |
+
+Floor 1 is the same in both columns to within a run, as it must be: the two differ only after the
+first warden.
+Under `mid` carrying halves the wins, and most of that is the rule, not the place: `mid` builds the
+Stairwell after eleven rooms on the floor, carried keys are rooms at once, so the eleventh comes
+sooner, the warden is called earlier and the run ends up with fewer rooms (25 a run against 31
+for the kiter and 35 for the dodger). Under `late` both call the warden by the clock, and then the
+place hardly counts: the kiter wins 229 runs of 480 spending and 233 carrying; the dodger as Pip,
+Wick and Brindle 221 of 360 against 205, each cell four to six lower, which one cell alone could
+not show. Moss with the dodger is the exception, 59 wins against 28, and there the evolutions fall
+from 1.9 a run to 0.9 (Pip, Wick and Brindle with either bot: 2.2 to 2.4 against 2.1 to 2.2; Moss
+with the kiter 1.8 against 1.6). Why Moss is not known.
+What this says for the design: spending on a quiet floor is not free power, since the same keys
+would do about as much downstairs; what decides is how much has been built when the warden is called.
+
 Stakes, step by step, as Pip (dodger, chosen cards). Each step keeps the rules before it.
 
 | Step | Rule it adds | Result |

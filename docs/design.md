@@ -158,7 +158,10 @@ of fury every 20 seconds, up to eight, and each step makes everything it does a 
 under its health bar count the steps. A build that kills slowly meets a quicker warden.
 
 Once the warden is dead the floor is quiet: no monsters, and a Greenhouse grows no more glints.
-Weapons, charms, hearts and room stars carry down; the floor plan starts again from one room.
+Weapons, charms, hearts, room stars and keys carry down; glints do not, and the floor plan starts
+again from one room. Keys still in hand can be spent here in peace: a door drafted on a quiet
+floor gives its boon and its star, and the room itself stays behind. The same key would do about
+as much on the next floor ([the bots on both](checks.md#doors-the-stairwell-and-stakes)).
 
 ### A warden's bullet phase
 

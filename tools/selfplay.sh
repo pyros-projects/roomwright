@@ -14,6 +14,8 @@
 #       PERSONA        how it moves: kiter (default, a newcomer) or dodger (a practised player)
 #       STAKES         the Stakes step to play at (default 0)
 #       STAIRS         when it takes the Stairwell: mid (default), early, late
+#       QUIET          its keys on a floor whose warden is dead: spend (default, all of them before the stairs) or
+#                      carry (picks up what lies there and takes the stairs; the keys go down with it)
 #       AGENT_BROWSER  path to the agent-browser binary (default: agent-browser on PATH)
 #       AB_FLAGS       extra global flags, e.g. AB_FLAGS='--args --no-sandbox,--disable-gpu' in a sandbox
 set -euo pipefail
@@ -26,7 +28,7 @@ ab() { "$AB" "${FLAGS[@]}" "$@"; }
 export AGENT_BROWSER_DEFAULT_TIMEOUT="${AGENT_BROWSER_DEFAULT_TIMEOUT:-120000}"   # a chunk of runs takes a few seconds; the default limit is 25
 MODE=batch; if [ "${1:-}" = "gap" ]; then MODE=gap; shift; fi
 A="${1:-1}"; N="${2:-8}"; HERO="${3:-pip}"; MAXS="${4:-1800}"
-PERSONA="${PERSONA:-kiter}"; STAKES="${STAKES:-0}"; STAIRS="${STAIRS:-mid}"
+PERSONA="${PERSONA:-kiter}"; STAKES="${STAKES:-0}"; STAIRS="${STAIRS:-mid}"; QUIET="${QUIET:-spend}"
 
 ab open "file://$DIR/index.html?intro=0&run=$(date +%s)" >/dev/null
 ab wait 300 >/dev/null
@@ -38,10 +40,10 @@ batch() {  # batch <policy> <what to print: all | summary>
   local s="$A" end=$((A + N)) n
   while [ "$s" -lt "$end" ]; do
     n=$((end - s)); [ "$n" -gt 4 ] && n=4
-    ab eval "BOT.batch($s, $n, $MAXS, { hero: '$HERO', policy: '$1', persona: '$PERSONA', stakes: $STAKES, stairs: '$STAIRS' })" >/dev/null
+    ab eval "BOT.batch($s, $n, $MAXS, { hero: '$HERO', policy: '$1', persona: '$PERSONA', stakes: $STAKES, stairs: '$STAIRS', quiet: '$QUIET' })" >/dev/null
     s=$((s + n))
   done
-  local out; out="$(ab eval "BOT.report('hero=$HERO persona=$PERSONA cards=$1 stakes=$STAKES')" | sed 's/\\n/\n/g; s/^"//; s/"$//')"
+  local out; out="$(ab eval "BOT.report('hero=$HERO persona=$PERSONA cards=$1 stakes=$STAKES$([ "$QUIET" = spend ] || echo " quiet=$QUIET")')" | sed 's/\\n/\n/g; s/^"//; s/"$//')"
   if [ "$2" = "all" ]; then printf '%s\n' "$out"; else printf '%s\n' "$out" | grep -E '^(SUMMARY|CENSUS)' ; fi
 }
 

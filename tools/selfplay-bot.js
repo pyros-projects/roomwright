@@ -1,12 +1,16 @@
 // Self-play bot for Roomwright.
 // Inject into the page (e.g. `agent-browser eval --stdin < tools/selfplay-bot.js`), then call:
 //   BOT.full(seed, maxSeconds, opts)   play one whole run in fast-forward (deterministic) -> summary object
-//                                      opts: { hero, deck, skill, policy, persona, stairs, stakes }
+//                                      opts: { hero, deck, skill, policy, persona, stairs, stakes, quiet }
 //                                      stakes: the step of Stakes to play at (default 0, whatever the save says)
 //                                      policy: how it picks a draft card. 'score' (its own reading of the card, the
 //                                      default), 'random', or 'first' (always the left card). The gap between them
 //                                      is the pick gap: how much the draft decides (docs/checks.md). 'tight' and
 //                                      'open' are 'score' with a door habit: few sealed doors, or many.
+//                                      quiet: what it does with its keys on a floor whose warden is dead.
+//                                      'spend' (the default): every key goes into a door before the stairs.
+//                                      'carry': it picks up what lies on the floor and takes the stairs; the
+//                                      keys go down with it.
 //   BOT.batch(first, n, maxSeconds, opts)   play seeds first..first+n-1 and keep the rows; BOT.report(label) prints them
 //   BOT.run(seconds)                   advance the current run by N seconds of game time   -> RW.state()
 //   BOT.tick()                         one decision; call it every frame to let the bot play in real time
@@ -84,14 +88,21 @@
       for (const w of P.weapons) if (!w.evo && w.lv >= 5) { const r = G.rooms.find(r => r.type === RW.WEAPONS[w.id].evo.room && r.reveal >= 1 && r.hexT <= 0); if (r) return { k: 'evo', x: r.px + 168, y: r.py + 150 }; }
       // 2b) an elite camps in a room and has switched it off: go and fight it there, in good health
       if (P.hp > P.maxHp * 0.5) for (const e of G.mons) if (!e.dead && e.def.siege && e.camped && e.tr && e.tr.siegeT > 0) return { k: 'siege', x: e.x, y: e.y + 26 };
-      // 3) spend keys on the nearest sealed door
-      if (P.keys > 0 && G.sealed.length) {
+      // 3) spend keys on the nearest sealed door (not on a quiet floor when it carries its keys down)
+      if (P.keys > 0 && G.sealed.length && !(B.quiet === 'carry' && G.bossDown)) {
         let best = null; bd = 1e9;
         for (const d of G.sealed) { if (d.room.reveal < 1) continue; const dd = Math.hypot(d.x - P.x, d.y - P.y) + (d.st ? 60 : 0) - (B.goal && B.goal.ref === d ? 260 : 0); if (dd < bd) { bd = dd; best = d; } }   // sticks with the door it is already walking to: the nearest door as the crow flies can flip-flop
         if (best) return { k: 'door', x: best.x + best.nx * 22, y: best.y + best.ny * 22, ref: best };
       }
-      // 4) the warden is dead and the keys are spent: take the stairs
-      if (G.stairs && G.stairs.open) return { k: 'stairs', x: G.stairs.x, y: G.stairs.y };
+      // 4) the warden is dead and the keys are spent (or kept): take the stairs
+      if (G.stairs && G.stairs.open) {
+        if (B.quiet === 'carry') {                                        // first what lies on the floor (for half a minute at most: a glint may lie where it cannot walk)
+          if (B.quietFloor !== G.floor) { B.quietFloor = G.floor; B.quietAt = G.t; }
+          let bp = null; bd = 1e9; if (G.t - B.quietAt < 30) for (const p of G.picks) { if (p.gone || (p.k === 'heart' && P.hp >= P.maxHp)) continue; const d = Math.hypot(p.x - P.x, p.y - P.y); if (d < bd) { bd = d; bp = p; } }
+          if (bp) return { k: 'pick', x: bp.x, y: bp.y, ref: bp };
+        }
+        return { k: 'stairs', x: G.stairs.x, y: G.stairs.y };
+      }
       // 5) heal at a fountain when hurt
       if (P.hp <= P.maxHp - 3) for (const r of G.rooms) if (r.type === 'fountain' && r.charge >= 1 && r.reveal >= 1) return { k: 'fountain', x: r.fountain.x, y: r.fountain.y + 14 };
       // 6) hoover glints (prefer the richest nearby)
@@ -226,21 +237,22 @@
     // play one whole run from a seed (deterministic); returns a summary row
     full(seed, maxSecs, opts = {}) {
       B.goal = null; B.goalT = 0; B.picks = []; B.rs = seed * 7 + 1; B.skill = opts.skill === undefined ? 1 : opts.skill; B.lastK = -1;
-      B.policy = opts.policy || 'score'; B.persona = opts.persona || 'kiter'; B.stairs = opts.stairs || 'mid'; B.held = 8; B.holdT = 0;
+      B.policy = opts.policy || 'score'; B.persona = opts.persona || 'kiter'; B.stairs = opts.stairs || 'mid'; B.quiet = opts.quiet || 'spend'; B.quietFloor = -1; B.held = 8; B.holdT = 0;
       RW.manual(true); RW.coach(false); RW.start(seed, Object.assign({ stakes: 0 }, opts)); RW.G.tut.step = 9;   // the step is always set here: a win in this page opens Stakes in its save, and the next run would inherit the new step
-      const n = Math.round((maxSecs || 1800) * 60); let err = null; const floors = [];
+      const n = Math.round((maxSecs || 1800) * 60); let err = null; const floors = [], quiet = [];   // quiet: per descent [rooms built after the warden, keys taken down, glints left lying in keys' worth]
       try {
-        let lastFloor = 0, f0 = 0;
+        let lastFloor = 0, f0 = 0, q0 = -1, last = [0, 0, 0];
         for (let i = 0; i < n; i++) {
           B.tick(); RW.step(1);
           const m = RW.App.mode, G = RW.G; if (m === 'over' || m === 'win') break;
-          if (G.floor !== lastFloor) { floors.push(Math.round(f0)); lastFloor = G.floor; }
-          f0 = G.t;
+          if (G.floor !== lastFloor) { floors.push(Math.round(f0)); quiet.push([last[0] - q0, last[1], last[2]]); lastFloor = G.floor; q0 = -1; }
+          if (G.bossDown && q0 < 0) q0 = G.fstat.rooms;
+          f0 = G.t; if (G.bossDown && m === 'play') { let v = 0; for (const p of G.picks) if (p.k === 'glint' && !p.gone) v += p.v; last = [G.fstat.rooms, G.P.keys, v * G.P.greed / G.P.keyCost]; }
         }
       } catch (e) { err = String(e && e.stack || e).slice(0, 500); }
       const s = RW.state(), G = RW.G, rec = RW.record(s.mode === 'win');
       return { seed, end: s.mode, floor: s.floor + 1, t: Math.round(s.tRun), ft: Math.round(G.t), hp: s.hp + '/' + s.maxHp, rooms: s.rooms, drafted: s.drafted, doors: s.sealed, forged: s.forged, keysLeft: s.keys, kills: s.kills,
-        W: s.weapons, C: s.charms, L: s.roomLv, boss: s.boss, floors, evos: G.stats.evos, err,
+        W: s.weapons, C: s.charms, L: s.roomLv, boss: s.boss, floors, quiet, evos: G.stats.evos, err,
         by: rec.by, how: rec.how || [], minute: rec.minute, roomShare: rec.roomShare, top: rec.top, tally: s.tally };
     },
     // seeds first..first+n-1 with a fresh collection each, kept in B.rows (call it in small chunks: one call blocks the page)
@@ -258,7 +270,8 @@
         roomShare: Math.round(rows.reduce((a, r) => a + (r.roomShare || 0), 0) / n), unfinished: rows.filter(r => r.end !== 'win' && r.end !== 'over').length, errors: rows.filter(r => r.err).length,
         deathsByFloor: [1, 2, 3].map(f => dead.filter(r => r.floor === f).length), killers: count(dead, r => r.by[r.by.length - 1] || 'unknown'),
         deaths: dead.length, byBullet: dead.filter(r => r.how[r.how.length - 1] === 'bullet').length, byDice: dead.filter(r => /die$/.test(r.by[r.by.length - 1] || '')).length,
-        damage: Object.entries(dmg).sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, Math.round(v / (total || 1) * 100)]) };
+        damage: Object.entries(dmg).sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, Math.round(v / (total || 1) * 100)]),
+        quiet: [0, 1].map(f => { const q = rows.filter(r => r.quiet && r.quiet[f]).map(r => r.quiet[f]), avg = i => +(q.reduce((a, x) => a + x[i], 0) / (q.length || 1)).toFixed(1); return { runs: q.length, rooms: avg(0), keys: avg(1), left: avg(2) }; }) };
     },
     // one line per run, then the summary and the census, as text; clears the rows
     report(label) {
@@ -269,6 +282,7 @@
       out.push('CENSUS deaths on floor 1/2/3: ' + st.deathsByFloor.join('/') + '   killing blows: ' + (st.killers.map(k => k[0] + ' ' + k[1]).join(', ') || 'none') +
         '   by a bullet: ' + st.byBullet + ' of ' + st.deaths + ' (dice: ' + st.byDice + ')');
       out.push('DAMAGE ' + st.damage.slice(0, 8).map(d => d[0] + ' ' + d[1] + '%').join(', '));
+      out.push('QUIET after the warden of floor 1/2 (' + st.quiet.map(q => q.runs).join('/') + ' runs): rooms built ' + st.quiet.map(q => q.rooms).join('/') + ', keys taken down ' + st.quiet.map(q => q.keys).join('/') + ', glints left lying, in keys ' + st.quiet.map(q => q.left).join('/'));
       return out.join('\n');
     },
     // run `secs` of game time; returns a compact report
