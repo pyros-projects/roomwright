@@ -382,14 +382,14 @@
         ok('dice: when the warden comes, the dice a wave brought flee; an elite and a loaded die that a knock called stay', wave.dead && small.dead && !called.dead && !elite.dead, JSON.stringify({ wave: wave.dead, small: small.dead, called: called.dead, elite: elite.dead })); }
       // Every kind of enemy bullet against a ground of any brightness: how many of its pixels differ from the ground in
       // brightness by 40 of 255 or more. (40 and 8 pixels are thresholds chosen by looking at bullets on the carpets, not a standard.)
-      { const kinds = ['s_ebullet', 's_spore', 's_fire', 's_hexbolt'], used = new Set(); for (const id in RW.MON) if (RW.MON[id].shot && RW.MON[id].shot.spr) used.add(RW.MON[id].shot.spr);
+      { const kinds = ['s_ebullet', 's_spore', 's_fire', 's_hexbolt', 's_card', 's_ball'], used = new Set(); for (const id in RW.MON) if (RW.MON[id].shot && RW.MON[id].shot.spr) used.add(RW.MON[id].shot.spr);
         // ...and every sprite named in a statement of the game's source that fires an enemy bullet
         for (const st of [...document.scripts].map(x => x.textContent).join(';').split(';')) if (/fire(EBullet|Fan)\(/.test(st)) for (const m of st.matchAll(/'(s_[a-z0-9_]+)'/g)) used.add(m[1]);
         const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)), lum = c => 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
         const pixels = spr => { const s = RW.SPR[spr], d = s.c.getContext('2d').getImageData(0, 0, s.w, s.h).data, out = []; for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200) out.push([d[i], d[i + 1], d[i + 2]]); return out; };
         const worst = px => { let w = [99, 0]; for (let g = 0; g < 256; g++) { const n = px.filter(c => Math.abs(lum(c) - g) >= 40).length; if (n < w[0]) w = [n, g]; } return w; };
         const res = kinds.map(k => [k, pixels(k).length, ...worst(pixels(k))]);
-        ok('bullets: every kind an enemy fires is one of the four that are checked', used.size >= 4 && [...used].every(s => kinds.includes(s)), [...used].join(' '));
+        ok('bullets: every kind an enemy fires is one of the six that are checked', used.size >= 6 && [...used].every(s => kinds.includes(s)), [...used].join(' '));
         ok('bullets: whatever the brightness of the ground, at least 8 pixels of each bullet stand off from it', res.every(r => r[2] >= 8), res.map(r => r[0] + ': ' + r[2] + ' of ' + r[1] + ' at worst, at brightness ' + r[3]).join('; '));
         // the rim they had before: a darker shade of their own colour, which a ground of that colour swallowed
         const k = rgb(RW.PAL.k), R = rgb(RW.PAL.R), old = pixels('s_ebullet').map(c => c[0] === k[0] && c[1] === k[1] && c[2] === k[2] ? R : c), was = worst(old);
@@ -411,6 +411,67 @@
       { fresh(142); const d = RW.spawnMon('die', P.x + 60, P.y); d.shootT = 0.05; let n = 0; for (let i = 0; i < 400 && !n; i++) { RW.step(1); n = G.ebullets.length; }
         RW.killMon(d); G.hits.length = 0; const b0 = G.ebullets[0]; if (b0) { b0.x = P.x - 3; b0.y = P.y - 4; b0.vx = 20; b0.vy = 0; } P.inv = 0; P.shield = 0; RW.step(3);
         ok('dice: a die throws a ring of bullets, and one that hits is filed as a bullet from a die', n >= 8 && G.hits.length === 1 && G.hits[0].by === 'die' && G.hits[0].how === 'bullet', n + ' bullets, ' + JSON.stringify(G.hits)); } }
+    /* ---- the house (#12): a dealer, a roulette wheel, a slot machine ---- */
+    { const HZ = 60, wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
+      const mk = (id, dist, seed) => { fresh(seed || 161); G.dir.calm = 1e9; G.rooms[0].props = []; const e = RW.spawnMon(id, P.x + dist, P.y); e.emerge = 0; e.shootT = 0.05; e.hp = e.max = 1e6; return e; };
+      // how often a delver is hit over `frames`, moving by walk(e, f) (px per frame, at most its walking speed)
+      const hitsOf = (e, frames, walk) => { let n = 0, was = G.stats.hurt; for (let f = 0; f < frames; f++) { P.inv = 0; P.shield = 0; P.hp = P.maxHp; if (walk) { const v = walk(e, f); if (v) { const d = Math.hypot(v[0], v[1]) || 1, s = Math.min(d, P.speedEff / HZ); P.x += v[0] / d * s; P.y += v[1] / d * s; } } RW.step(1); if (G.stats.hurt > was) { n++; was = G.stats.hurt; } } return n; };
+      const heardBy = fn => { const heard = [], play = RW.Snd.play; RW.Snd.play = (n, a) => { heard.push(n); return play(n, a); }; try { fn(); } finally { RW.Snd.play = play; } return heard; };
+      ok('house: each of the three has its sprites, its bullet and a sound of its own', ['dealer0', 'dealer1', 'wheel0', 'wheel1', 'slot0', 'slot1', 'sym0', 'sym1', 'sym2', 's_card', 's_ball'].every(n => RW.SPR[n]) && ['cards', 'wheel', 'slot'].every(n => RW.Snd.names.includes(n)), RW.Snd.names.length + ' effects');
+
+      // the dealer: a wind-up of half a second, then five cards in a fan with the middle one at you; then it waits
+      { let e = mk('dealer', 100), tell = 0; P.inv = 1e9; const heard = heardBy(() => { for (let f = 0; f < 240 && !G.ebullets.length; f++) { RW.step(1); if (e.st === 1) tell++; } });
+        const B = G.ebullets.slice(), a0 = Math.atan2(P.y - 4 - (e.y - 4), P.x - e.x), offs = B.map(b => wrap(Math.atan2(b.vy, b.vx) - a0)).sort((x, y) => x - y), gaps = offs.slice(1).map((a, i) => a - offs[i]);
+        let wait = 0; for (let f = 0; f < 600 && e.st !== 1; f++) { RW.step(1); wait++; }                // until it winds up again
+        const far = mk('dealer', 200); far.spd = 0; P.inv = 1e9; for (let f = 0; f < 300; f++) { far.x = P.x + 200; far.y = P.y; RW.step(1); } const farShots = G.ebullets.length;
+        ok('house: the dealer winds up for half a second, then throws five cards in a fan with the middle one at you, to its own sound', tell >= HZ * 0.45 && B.length === 5 && B.every(b => b.spr === 's_card' && b.by === 'dealer') && Math.abs(offs[2]) < 0.03 && gaps.every(g => Math.abs(g - 0.3) < 0.01) && heard.includes('cards'), 'tell ' + (tell / HZ).toFixed(2) + ' s, ' + B.length + ' cards, gaps ' + gaps.map(g => g.toFixed(2)).join(' '));
+        ok('house: the dealer then waits three to four seconds, and from 200 px away it throws nothing', wait >= HZ * 3.1 && wait <= HZ * 4.1 && farShots === 0, 'waited ' + (wait / HZ).toFixed(1) + ' s, ' + farShots + ' cards from afar');
+        e = mk('dealer', 100); const still = hitsOf(e, 200); e = mk('dealer', 100); let thrown = 0; const stepped = hitsOf(e, 200, () => { if (G.ebullets.length && thrown < 15) { thrown += P.speedEff / HZ; return [0, 99]; } return null; });
+        ok('house: the dealer asks for a step through a gap: standing is hit, half a gap to the side is not', still >= 1 && stepped === 0, 'standing ' + still + ' hits, stepping ' + stepped); }
+
+      // the roulette wheel: a rattle of half a second, then it turns in place and sweeps an arm of balls toward you and past you
+      { let e = mk('wheel', 70), tell = 0, most = 0, moved = 0, x0, y0; P.inv = 1e9; const angs = [], seen = new Set(); let balls = true;
+        const heard = heardBy(() => { for (let f = 0; f < 600; f++) { const st = e.st; RW.step(1); if (e.st === 1) tell++; let fresh1 = 0; for (const b of G.ebullets) if (!seen.has(b)) { seen.add(b); fresh1++; angs.push(Math.atan2(b.vy, b.vx)); if (b.spr !== 's_ball' || b.by !== 'wheel') balls = false; } most = Math.max(most, fresh1); if (e.st === 2 && x0 === undefined) { x0 = e.x; y0 = e.y; } if (st === 2) moved = Math.max(moved, Math.hypot(e.x - x0, e.y - y0)); if (st === 2 && e.st === 0) break; } });
+        const toP = Math.atan2(P.y - 4 - (e.y - 5), P.x - e.x), steps = angs.slice(1).map((a, i) => wrap(a - angs[i])), dir = Math.sign(steps[0] || 0), S = RW.MON.wheel.shot;
+        const first = wrap(angs[0] - toP), last = wrap(angs[angs.length - 1] - toP);
+        ok('house: the wheel rattles for half a second, then turns in place: one ball at a time, each a small step further round, from one side of you to the other, to its own sound',
+          tell >= HZ * 0.45 && most === 1 && angs.length === 15 && S.turn === 0.125 && S.spin === 2 && moved < 1 && steps.every(s => Math.abs(s - dir * S.turn) < 0.01) && Math.abs(first) > 0.9 && Math.sign(first) === -dir && Math.sign(last) === dir && heard.includes('wheel') && balls,
+          'tell ' + (tell / HZ).toFixed(2) + ' s, ' + angs.length + ' balls, from ' + first.toFixed(2) + ' to ' + last.toFixed(2) + ' rad beside you; at most ' + most + ' in a frame, moved ' + moved.toFixed(1) + ' px, steps ' + [...new Set(steps.map(x => x.toFixed(3)))].join('/') + ', sound ' + heard.includes('wheel') + ', balls ' + balls);
+        // circle it: a delver that walks round it ahead of the arm is not hit; one that stands is
+        e = mk('wheel', 70); const still = hitsOf(e, 420); e = mk('wheel', 70); let way = 0;
+        const round = hitsOf(e, 420, (e, f) => { if (e.st !== 2 && !way) return null; if (!way && G.ebullets.length >= 2) { const a = Math.atan2(G.ebullets[0].vy, G.ebullets[0].vx), b = Math.atan2(G.ebullets[1].vy, G.ebullets[1].vx); way = Math.sign(wrap(b - a)); } if (!way) return null; const ax = P.x - e.x, ay = P.y - e.y, d = Math.hypot(ax, ay), k = (70 - d) * 0.5; return [-ay / d * way * 9 + ax / d * k, ax / d * way * 9 + ay / d * k]; });
+        ok('house: the wheel asks to be circled: standing is hit, walking round it ahead of the arm is not', still >= 1 && round === 0, 'standing ' + still + ' hits, circling ' + round); }
+
+      // the slot machine: its reels roll, then three of a kind stand for over half a second, then it pays out what they name
+      { const S = RW.MON.slot.shot, pays = [0, 1, 2].map(pay => { const e = mk('slot', 110); P.inv = 1e9; let shown = 0, rolled = 0, first = -1; const kinds = new Set(), angs = [], when = []; let seen = 0;
+          const heard = heardBy(() => { for (let f = 0; f < 400; f++) { RW.step(1); if (e.st === 1) { rolled++; e.pay = pay; } if (e.st === 2 && first < 0) shown++; const n = G.ebullets.length; if (n > seen) { if (first < 0) first = f; for (let i = seen; i < n; i++) { kinds.add(G.ebullets[i].spr); angs.push(Math.atan2(G.ebullets[i].vy, G.ebullets[i].vx)); when.push(f); } seen = n; } if (first >= 0 && f > first + 60) break; } });
+          return { shown, rolled, n: angs.length, kinds: [...kinds].join(), frames: new Set(when).size, spread: Math.max(...angs.map(a => Math.abs(wrap(a - Math.atan2(P.y - 4 - (e.y - 4), P.x - e.x))))), slot: heard.includes('slot') }; });
+        ok('house: the slot machine shows three of a kind for at least half a second before it pays out', pays.every(p => p.shown >= HZ * 0.5 && p.rolled >= HZ * 0.3 && p.slot) && S.show >= 0.5, pays.map(p => (p.shown / HZ).toFixed(2) + ' s').join(' '));
+        ok('house: cherries pay a ring, bells a fan at you, sevens three fast bolts at you, one after the other', pays[0].n === 14 && pays[0].kinds === 's_ebullet' && pays[0].frames === 1 && pays[0].spread > 2.8 && pays[1].n === 5 && pays[1].kinds === 's_fire' && pays[1].frames === 1 && pays[1].spread < 0.7 && pays[2].n === 3 && pays[2].kinds === 's_hexbolt' && pays[2].frames === 3 && pays[2].spread < 0.12, JSON.stringify(pays.map(p => [p.n, p.kinds, p.frames, +p.spread.toFixed(2)])));
+        { const e = mk('slot', 110, 163); P.inv = 1e9; const seen = new Set(); for (let f = 0; f < 60 * 130 && seen.size < 3; f++) { RW.step(1); if (e.st === 2) seen.add(e.pay); G.ebullets.length = 0; }
+          // hits on a delver `dist` px from a machine that rolls `pay`: standing, or walking round it at its ordinary speed from the moment the reels roll
+          const run = (pay, dist, walk) => { const e = mk('slot', dist); let n = 0, was = G.stats.hurt; for (let f = 0; f < 330; f++) { P.inv = 0; P.shield = 0; P.hp = P.maxHp; if (e.st === 1) e.pay = pay; if (walk && (e.st >= 1 || G.ebullets.length)) { const dx = P.x - e.x, dy = P.y - e.y, d = Math.hypot(dx, dy) || 1, v = P.speedEff / HZ, k = (dist - d) * 0.3; P.x += -dy / d * v + dx / d * k; P.y += dx / d * v + dy / d * k; } RW.step(1); if (G.stats.hurt > was) { n++; was = G.stats.hurt; } if (e.st === 0 && f > 200) break; } return n; };
+          const near = run(0, 30, false), fan = [run(1, 60, false), run(1, 60, true)], bolts = [run(2, 60, false), run(2, 60, true)];
+          ok('house: the slot machine rolls all three by itself; its ring hits a delver that stands close, its fan and its bolts hit one that stands and miss one that keeps walking', seen.size === 3 && near >= 1 && fan[0] >= 1 && fan[1] === 0 && bolts[0] >= 1 && bolts[1] === 0, 'rolled ' + [...seen].sort().join('') + '; ring at 30 px: ' + near + ' hits; fan standing/walking ' + fan.join('/') + '; bolts ' + bolts.join('/')); }
+        // the reels are on the screen, and they differ with what is coming
+        const cvs = document.getElementById('game'), c2 = cvs.getContext('2d'), V = RW.view(), e = mk('slot', 60), look = (st, pay) => { e.st = st; e.pay = pay; e.stT = 9; e.anim = 0; G.shake = 0; RW.render(); const cam = G.view, x = Math.round(e.x - cam.cx) - 14, y = Math.round(e.y - cam.cy) - 30; return Array.from(c2.getImageData(x, y, 29, 14).data).join(); };
+        const none = look(0, 0), reels = [0, 1, 2].map(p => look(2, p));
+        ok('house: the reels stand above the machine and show a different picture for each of the three attacks', reels.every(r => r !== none) && new Set(reels).size === 3); }
+
+      // each comes alone the first time, then joins the waves; a warden fights without it
+      { const bad = [], H = RW.HOUSE;
+        H.forEach((h, f) => { fresh(165 + f); RW.enterFloor(f); G = RW.G; P = G.P; G.dir.calm = 1e9; G.dir.ti = 99; const D = G.dir, names = () => RW.floorMix().map(x => x[0]), queued = () => G.sealed.reduce((a, d) => a.concat(d.queue), []);
+          G.t = h.solo - 2; D.calm = 0; D.acc = -1e6; RW.updateDirector(1 / 60); if (D.house !== undefined || queued().includes(h.id) || names().includes(h.id)) bad.push(h.id + ': there before its time'); for (const d of G.sealed) d.queue.length = 0;
+          G.t = 9999; if (names().includes(h.id)) bad.push(h.id + ': in the waves before it came alone');
+          G.t = h.solo + 0.2; D.calm = 0; D.acc = -1e6; G.banner = null; for (const d of G.sealed) d.st = 2; RW.updateDirector(1 / 60); if (D.house !== undefined) bad.push(h.id + ': out of a door that is busy'); for (const d of G.sealed) { d.st = 0; d.queue.length = 0; }
+          D.calm = 0; D.acc = 0; RW.updateDirector(1 / 60); const q = queued(), t1 = D.house; D.calm = 0; RW.updateDirector(1 / 60); if (queued().filter(x => x === h.id).length !== 1 || D.house !== t1) bad.push(h.id + ': a second first entrance');
+          D.calm = 3;
+          if (q.length !== 1 || q[0] !== h.id) bad.push(h.id + ': not alone at the door (' + q.join(',') + ')'); if (!G.banner || G.banner.text !== h.name) bad.push(h.id + ': no banner'); if (!(D.calm > 2.5)) bad.push(h.id + ': the waves do not wait (' + D.calm + ')');
+          G.t = D.house + h.after - 1; if (names().includes(h.id)) bad.push(h.id + ': in the waves too early'); G.t = D.house + h.after + 1; const w = RW.floorMix().find(x => x[0] === h.id); if (!w || w[1] !== h.w) bad.push(h.id + ': not in the waves afterwards');
+          D.boss = { def: {} }; if (names().includes(h.id)) bad.push(h.id + ': joins a warden\'s fight'); D.boss = null;
+          fresh(168 + f); RW.enterFloor(f); G = RW.G; P = G.P; G.dir.calm = 1e9; G.dir.ti = 99; G.dir.boss = { def: {} }; G.t = h.solo + 5; RW.updateDirector(1 / 60); if (G.dir.house !== undefined) bad.push(h.id + ': its first entrance falls into a warden\'s fight'); G.dir.boss = null; });
+        ok('house: each comes alone the first time (one of it, a banner, the waves wait), joins the waves 50 seconds later, and stays out of a warden\'s fight', bad.length === 0 && H.length === 3 && H.map(h => h.id).join() === 'dealer,wheel,slot' && H.map(h => h.solo).join() === '180,150,120' && H.every(h => h.after === 50) && H.map(h => h.w).join() === '0.2,0.2,0.3', bad.join('; ')); }
+    }
     /* ---- a warden's bullet phase (#13) ---- */
     { const HZ = 60, T = RW.K.T, ids = ['gatejaw', 'morel', 'unmaker'];
       // One fight: the warden of `floor` in the hearth (or at o.at), the delver `dist` px from it at the angle o.ang, the

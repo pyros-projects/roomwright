@@ -55,6 +55,8 @@ function fireEvent(ev) {
 }
 function scatterHorde(keep) {         // the small fry flee: wardens fight alone (at first). Elites stay, but not a loaded die that a wave brought
   for (const m of G.mons) if (m !== keep && !m.dead && (!m.def.elite || m.def.ai === 'dice' && !m.noLoot)) { m.dead = true; burst(m.x, m.y - 4, 4, PAL.v, 50); }
+  // (a monster of the house that was still behind its door for its first entrance has not come yet: it gets another one)
+  const H = HOUSE[Math.min(G.floor, HOUSE.length - 1)]; if (G.sealed.some(d => d.queue.includes(H.id)) && !G.mons.some(m => m.type === H.id)) G.dir.house = undefined;
   for (const d of G.sealed) d.queue.length = 0; G.ebullets.length = 0; G.dir.acc = -6;
 }
 // fromRoom = the Stairwell you just drafted (the warden climbs out of it); null = it came because you overstayed
@@ -105,6 +107,13 @@ function updateDirector(dt) {
   }
   if (D.calm > 0) { D.calm -= dt; return; }
   const fight = D.boss && !D.bossDead;
+  // The floor's monster of the house comes by itself the first time: one of its kind, out of a door that is idle, with
+  // a banner that says what it does, and no new wave for three seconds. (Without a sealed door it never comes.)
+  const H = HOUSE[Math.min(G.floor, HOUSE.length - 1)];
+  if (D.house === undefined && G.t >= H.solo && !D.boss) {
+    const d = nearDoor();
+    if (d && !d.queue.length && d.st === 0) { D.house = G.t; d.queue.push(H.id); D.calm = 3; D.acc = Math.min(D.acc, 0); banner(H.name, H.sub, '#ffd95e', 3.2); sfx('breach'); return; }
+  }
   const pests = stake(2) && G.floor === 0 ? Object.assign({ sapper: [150, 85] }, F.pests) : F.pests, soon = stake(2) ? 0.7 : 1;
   for (const id in pests) {                                             // pests go for the floor plan
     const [first, every] = pests[id]; if (D.pestT[id] === undefined) D.pestT[id] = first * soon;

@@ -27,7 +27,10 @@ console error, then runs five scripts:
   most, door pressure per floor, the knocking late in the clock, a warden's fury, each warden's bullet phase (it starts at
   60% of its health, once, after a tell; a delver that only walks gets through it unhurt at three
   distances, calm and enraged; standing still is hit; enraged it is over sooner), each rule of
-  Stakes in force from its step on, dice in ordinary waves (from which minute on each floor, how
+  Stakes in force from its step on, the house (the dealer's and the wheel's tell and pattern, that standing
+  is hit and the move each asks for is not; the slot machine's reels, which show what is coming for
+  over half a second, its three payouts and that backing off beats them; each one's first entrance
+  by itself), dice in ordinary waves (from which minute on each floor, how
   small their share is, that a knock back calls more, that a warden fights without them), every
   kind of enemy bullet against a ground of any brightness (at least 8 of its pixels differ by 40 of
   255; both numbers were chosen by looking, they are no standard), the screen's rules (every enemy bullet, the delver and the

@@ -73,6 +73,26 @@ floors (Ember Room, Furnace, Altar) the rim no longer shows and a bullet reads a
 where it read as 6 by 6. Bullets are also part of the top layer (see What the screen may do), so
 no effect covers them.
 
+## The house
+
+A motif grew by itself: Dice Hall, Loaded Dice, Lucky Coin, Counting House, the dice that punish a
+knock. Three monsters extend it, one on each floor. Each shoots in its own way, and each way asks
+for a different move:
+
+| Floor | Monster | What it does | What it asks |
+|---|---|---|---|
+| 1 | The dealer | Winds up for half a second, then throws five cards in a fan with the middle one at where you stand. Then it waits three to four seconds. | Step through a gap. A delver that is already walking sideways is past the fan before it arrives. |
+| 2 | The roulette wheel | Rattles for half a second, then turns in place for two seconds: an arm of balls that starts well beside you and comes round, toward you and past you. | Circle it, ahead of the arm. The arm comes round by about a quarter turn and no further, so walking away from it is enough at any distance; walking toward it or standing is hit. |
+| 3 | The slot machine | Its reels roll, then three of a kind stand above it for seven tenths of a second. Cherries pay a ring of 14, bells a fan of five at you, sevens three fast bolts at you. | Read it and back off. The ring thins out with distance; the fan and the bolts hit a delver that stands and miss one that keeps walking. |
+
+Each comes by itself the first time: one of its kind, out of a door that is idle, with a banner
+that says what it does, and no new wave starts for three seconds. Other monsters are still about.
+That is three minutes into floor 1, two and a half into floor 2 and two into floor 3. Fifty seconds
+later it joins the waves, where of 100 monsters two to four are of the house. A warden fights
+without them, as it does without the dice. On a floor without a sealed door it never comes.
+The numbers are `HOUSE` in `src/24-floors.js` and the three rows of `MON` in
+`src/23-monsters.js`.
+
 ## Why the floor plan matters
 
 - **Stars.** Draft a room type you already own and every room of that type levels up (to three

@@ -57,6 +57,7 @@ What changed for a player, newest first. The game shows the same text: CHANGELOG
 
 - You, enemy bullets and pickups are now drawn above every blast, glow, spark and number, and above the screen's flash.
 - An elite's death has a ring, a boom and a shake; a warden's a bigger ring. The screen never flashes more than three times a second.
+- The house: three new monsters, one on each floor. The dealer fans five cards, the roulette wheel sweeps an arm of balls round, the slot machine shows three symbols and pays out the attack they name. Each comes alone the first time.
 - Going back to the title from a run is no longer deafening. The rooms that the title builds behind its logo used to sound all at once.
 - Each warden has a bullet phase at 60% of its health: Gatejaw's rings with a turning gap, Mother Morel's bloom of spores, the Unmaker's walls with doorways. A banner names it, and walking finds the way through.
 - Dice now roll in with ordinary waves: from minute 5 on floor 1, sooner further down, and loaded dice from floor 2. A knock back still calls far more of them, and a warden fights without them.
@@ -349,7 +350,7 @@ const Snd = (() => {
     src.connect(flt); flt.connect(g); g.connect(o.bus || sfxBus); src.start(t0, Math.random() * 0.5); src.stop(t0 + d + 0.05);
   }
   const GAP = { hit: 0.05, kill: 0.045, glint: 0.035, shoot: 0.07, bounce: 0.06, zap: 0.09, boom: 0.07, knock: 0.14, spike: 0.25, swing: 0.08, burn: 0.3, tick: 0.05, ebullet: 0.12,
-    freeze: 0.09, dig: 0.3, fuse: 0.25, sting: 0.12, saw: 0.3, shield: 0.2, hex: 0.5 };
+    freeze: 0.09, dig: 0.3, fuse: 0.25, sting: 0.12, saw: 0.3, shield: 0.2, hex: 0.5, cards: 0.2, wheel: 0.1, slot: 0.3 };
   const FX = {
     hit() { noise(0.05, { v: 0.1, f: 1700, ft: 'bandpass' }); tone(180, 0.05, { v: 0.05, f2: 100 }); },
     kill() { tone(500 + fxr() * 180, 0.09, { v: 0.06, f2: 900 + fxr() * 200, type: 'triangle' }); noise(0.05, { v: 0.05, f: 3200, ft: 'highpass' }); },
@@ -400,6 +401,10 @@ const Snd = (() => {
     squish() { noise(0.14, { v: 0.07, f: 500, f2: 250 }); tone(160, 0.1, { v: 0.05, f2: 90, type: 'sine' }); },
     windup() { for (let i = 0; i < 4; i++) tone(500 + i * 90, 0.04, { v: 0.04, t: i * 0.05, type: 'square' }); },
     dice() { for (let i = 0; i < 3; i++) tone(900 + fxr() * 500, 0.03, { v: 0.04, t: i * 0.04, type: 'triangle' }); },
+    // the house (#12): a riffle of cards, the ball clicking over the wheel's frets, a machine's reels and its bell
+    cards() { for (let i = 0; i < 5; i++) noise(0.03, { v: 0.09, f: 3400, ft: 'highpass', t: i * 0.035 }); },
+    wheel() { tone(1250 + fxr() * 250, 0.025, { v: 0.05, type: 'square' }); noise(0.02, { v: 0.04, f: 4200, ft: 'highpass' }); },
+    slot() { for (let i = 0; i < 6; i++) tone(520 + (i % 3) * 140, 0.035, { v: 0.045, t: i * 0.075, type: 'square' }); tone(1760, 0.2, { v: 0.06, t: 0.5, type: 'triangle' }); },
     warp() { tone(200, 0.3, { v: 0.08, f2: 1200, type: 'sine' }); tone(300, 0.3, { v: 0.05, f2: 1800, type: 'triangle', t: 0.03 }); },
     revive() { [60, 67, 72, 76, 79, 84].forEach((m, i) => tone(mtof(m), 0.25, { v: 0.1, t: i * 0.09, type: 'sine' })); },
   };
@@ -1679,6 +1684,83 @@ function buildArtMore() {
   for (const f of [0, 1]) reg('eshroom' + f, scaleCanvas(SPR['spore' + f].c, 2));
   for (const f of [0, 1]) reg('bigtin' + f, scaleCanvas(SPR['tin' + f].c, 2));
   // the dice a knock back calls: snake eyes on one frame, a five on the other, so it seems to roll as it hops
+  /* ---- the house (#12): a dealer, a roulette wheel, a slot machine, and what they throw ---- */
+  two('dealer', [
+    '...NNNNNN...',
+    '..NnnnnnnN..',
+    '.nnnnnnnnnnn',
+    '..ssssssss..',
+    '..skssssks..',
+    '..ssssssss..',
+    '...wwrrww...',
+    '..KKwwwwKK..',
+    '.sKKwwwwKKww',
+    '.sKKKwwKKKwr',
+    '..KKKKKKKK..',
+    '..KK....KK..',
+    '..KK....KK..'], [
+    '............',
+    '...NNNNNN...',
+    '..NnnnnnnN..',
+    '.nnnnnnnnnnn',
+    '..ssssssss..',
+    '..skssssks..',
+    '..ssssssss..',
+    '...wwrrww...',
+    '.sKKwwwwKKww',
+    '.sKKKwwKKKwr',
+    '..KKKKKKKK..',
+    '..KK....KK..',
+    '...KK..KK...']);
+  { const rows = [
+    '....YYYYYY....',
+    '..YYrKrKrKYY..',
+    '.YrKrKrKrKrKY.',
+    '.YKrKwwwwrKrY.',
+    'YrKrwTTTTwKrKY',
+    'YKrwTTyyTTwrKY',
+    'YrKwTyyyyTwKrY',
+    'YKrwTyyyyTwrKY',
+    'YrKwTTyyTTwKrY',
+    'YKrKwTTTTwrKrY',
+    '.YrKrwwwwKrKY.',
+    '.YKrKrKrKrKrY.',
+    '..YYKrKrKrYY..',
+    '....YYYYYY....'];
+    two('wheel', rows, rows.map(r => r.replace(/[rK]/g, c => c === 'r' ? 'K' : 'r')), { ay: 11 }); }
+  two('slot', [
+    '..YYYYYYYYYY....',
+    '.YrrrrrrrrrrY.rr',
+    '.YrwwwwwwwwrY.rr',
+    '.YrwrwwywwPrY..g',
+    '.YrwwwwwwwwrY..g',
+    '.YrrrrrrrrrrYggg',
+    '.YRRRRRRRRRRY...',
+    '.YRyyRRRRyyRY...',
+    '.YRRRRRRRRRRY...',
+    '.YRkkkkkkkkRY...',
+    '.YRyyyyyyyyRY...',
+    '.YYYYYYYYYYYY...',
+    '..KK......KK....'], [
+    '..YYYYYYYYYY....',
+    '.YrrrrrrrrrrY...',
+    '.YrwwwwwwwwrY...',
+    '.YrwywwPwwrrY.rr',
+    '.YrwwwwwwwwrY.rr',
+    '.YrrrrrrrrrrYggg',
+    '.YRRRRRRRRRRY...',
+    '.YRyyRRRRyyRY...',
+    '.YRRRRRRRRRRY...',
+    '.YRkkkkkkkkRY...',
+    '.YRyyyyyyyyRY...',
+    '.YYYYYYYYYYYY...',
+    '..KK......KK....'], { ax: 6 });
+  // what the slot machine's reels show: cherries (a ring), a bell (a fan), a seven (three fast bolts)
+  A('sym0', ['..n..', '.n.n.', 'rr.rr', 'rr.rr', '.....'], { ay: 6 });
+  A('sym1', ['..y..', '.yyy.', '.yyy.', 'yyyyy', '..Y..'], { ay: 6 });
+  A('sym2', ['PPPPP', '...PP', '..PP.', '.PP..', '.PP..'], { ay: 6 });
+  A('s_card', ['.ww.', 'wrww', 'wwrw', '.ww.'], { ol: 'k', ay: 3 });
+  A('s_ball', ['.ww.', 'wwwW', 'wwWW', '.WW.'], { ol: 'k', ay: 3 });
   A('die0', [
     '.wwwwwwwwww.',
     'wwwwwwwwwwwW',
@@ -2370,6 +2452,9 @@ function themeFor(type, f) {
 //   ai: 'shoot' (stop and fire) - 'turret' (rooted) - 'charge' - 'bomber' - 'ring' / 'brood' (elites)
 //       'latch' (locks a doorway) - 'dig' (breaches a wall) - 'hex' (switches off the room it stands in)
 //       'dice' (rolls, then throws a ring of bullets: n + roll * per of them; `twice` throws a second ring)
+//       'cards' (a wind-up, then a fan of five cards) - 'wheel' (a rattle, then it turns in place: an arm of balls that
+//       starts `lead` rad beside you and sweeps `turn` rad per ball toward you and past you; slow enough to walk ahead of)
+//       'slot' (its reels roll, show three of a kind for `show` seconds, then it pays out the attack they name)
 const MON = {
   /* floor 1: the Cellar */
   slime:   { spr: 'slime',   hp: 7,   spd: 30, r: 5,  dmg: 1, glint: 1,  col: PAL.n, sh: 'sh_s', hop: 1 },
@@ -2398,7 +2483,11 @@ const MON = {
   eshroom: { spr: 'eshroom', hp: 300, spd: 22, r: 11, dmg: 2, glint: 35, col: PAL.r, sh: 'sh_l', heavy: 1, elite: 1, crown: 1, siege: 1, name: 'Elder Shroom', ai: 'brood', shot: { cd: [3, 4], sp: 60, range: 180, fan: 5, spr: 's_spore' } },
   golem:   { spr: 'golem',   hp: 420, spd: 24, r: 11, dmg: 2, glint: 40, col: PAL.g, sh: 'sh_l', heavy: 1, elite: 1, siege: 1, name: 'Furnace Golem', ai: 'ring' },
   mimic:   { spr: 'mimic',   hp: 150, spd: 46, r: 8,  dmg: 2, glint: 20, col: PAL.T, sh: 'sh_m', hop: 1, heavy: 1, elite: 1, mimic: 1 },
-  /* called by a knock back (43-draft.js): the dice you tried to cheat. They are in no floor's mix. */
+  /* the house (#12): one per floor, each with a bullet pattern that asks for a different move (HOUSE in 24-floors.js) */
+  dealer:  { spr: 'dealer',  hp: 20,  spd: 28, r: 5,  dmg: 1, glint: 3,  col: PAL.n, sh: 'sh_s', ai: 'cards', shot: { cd: [3.2, 4.0], sp: 64, range: 130, hold: 84, tell: 0.5, fan: 5, spread: 0.3, spr: 's_card' } },
+  wheel:   { spr: 'wheel',   hp: 44,  spd: 18, r: 7,  dmg: 1, glint: 4,  col: PAL.y, sh: 'sh_m', heavy: 1, ai: 'wheel', shot: { cd: [3.6, 4.4], sp: 58, range: 140, tell: 0.5, spin: 2.0, every: 0.135, turn: 0.125, lead: 1.0, spr: 's_ball' } },
+  slot:    { spr: 'slot',    hp: 46,  spd: 16, r: 8,  dmg: 1, glint: 5,  col: PAL.r, sh: 'sh_m', heavy: 1, ai: 'slot', shot: { cd: [3.2, 4.0], range: 160, roll: 0.5, show: 0.7, ring: 14, fan: 5, bolts: 3 } },
+  /* dice: they come with the later waves (DICE in 24-floors.js), and a knock back calls more of them (43-draft.js) */
   die:     { spr: 'die',     hp: 46,  spd: 30, r: 6,  dmg: 1, glint: 2,  col: PAL.w, sh: 'sh_m', hop: 1, ai: 'dice', shot: { cd: [2.3, 3.1], sp: 58, range: 210, n: 6, per: 2, spr: 's_ebullet' } },
   bigdie:  { spr: 'bigdie',  hp: 320, spd: 22, r: 11, dmg: 2, glint: 20, col: PAL.w, sh: 'sh_l', hop: 1, heavy: 1, elite: 1, split: 2, into: 'die', ai: 'dice', shot: { cd: [2.6, 3.2], sp: 54, range: 240, n: 10, per: 3, twice: 1, spr: 's_ebullet' } },
   /* wardens (one per floor) */
@@ -2466,11 +2555,20 @@ const stake = n => (G.stakes || 0) >= n;
 // die: [the minute it starts, its weight in the floor's mix]. A die throws a ring of bullets to weave through.
 // A warden fights without them: none join while it lives, and those a wave brought flee when it comes.
 const DICE = [{ die: [5.0, 0.08] }, { die: [3.0, 0.15], bigdie: [5.0, 0.015] }, { die: [2.0, 0.2], bigdie: [4.0, 0.02] }];
+// The house (#12): one monster per floor on the gambling motif. It first comes alone (`solo` seconds into the floor,
+// with a banner that says what it does), and `after` seconds later it joins the floor's waves at weight `w`. A warden
+// fights without it, as it does without the dice.
+const HOUSE = [
+  { id: 'dealer', solo: 180, after: 50, w: 0.2,  name: 'A DEALER SITS DOWN',   sub: 'Five cards in a fan. Step through a gap.' },
+  { id: 'wheel',  solo: 150, after: 50, w: 0.2,  name: 'THE WHEEL SPINS',      sub: 'Its arm of balls comes round. Circle it.' },
+  { id: 'slot',   solo: 120, after: 50, w: 0.3,  name: 'THE MACHINE PAYS OUT', sub: 'Read its three symbols, then back off.' },
+];
 // the monsters a wave draws from right now: the floor's mix and its dice; the third step of Stakes brings dice
 // from the second minute, more of them, and into a warden's fight too
 function floorMix() {
   const l = G.F.mix(G.t), m = G.t / 60, D = DICE[Math.min(G.floor, DICE.length - 1)], fight = G.dir.boss && !G.dir.bossDead;
   if (!fight) for (const id in D) if (m >= D[id][0]) l.push([id, D[id][1]]);
+  const H = HOUSE[Math.min(G.floor, HOUSE.length - 1)]; if (!fight && G.dir.house !== undefined && G.t >= G.dir.house + H.after) l.push([H.id, H.w]);
   if (stake(3) && G.t >= 120) { const die = l.find(x => x[0] === 'die'); if (die) die[1] = Math.max(die[1], 0.45); else l.push(['die', 0.45]); }
   return l;
 }
@@ -3649,6 +3747,39 @@ function updateMons(dt) {
         e.shootT = rr(s.cd[0], s.cd[1]); e.flash = 0.15; ring(n, off); sfx('dice'); G.shake = Math.max(G.shake, 1.5);
         if (s.twice) { e.stT = 0.4; e.cx = n; e.cy = off; }
       }
+    } else if (ai === 'cards') {            // the dealer: a wind-up, a fan of cards at you, then it waits. Step through a gap
+      const s = def.shot; e.shootT -= dt;
+      if (e.st === 1) {
+        sp = 0; e.stT -= dt; e.flash = (Math.floor(e.stT * 20) & 1) ? 0.05 : 0;
+        if (e.stT <= 0) {
+          const a0 = Math.atan2(P.y - 4 - (e.y - 4), P.x - e.x); e.st = 0; e.shootT = rr(s.cd[0], s.cd[1]);
+          for (let k = 0; k < s.fan; k++) { const a = a0 + (k - (s.fan - 1) / 2) * s.spread; fireEBullet(e.x, e.y - 4, Math.cos(a), Math.sin(a), s.sp, s.spr); }
+          sfx('cards');
+        }
+      } else if (dp < s.range) { sp *= dp < s.hold ? 0 : 0.5; if (e.shootT <= 0 && los(e.x, e.y - 4, P.x, P.y - 4)) { e.st = 1; e.stT = s.tell; } }
+    } else if (ai === 'wheel') {            // the roulette wheel: a rattle, then it turns in place and sweeps an arm of balls round. Circle it, ahead of the arm
+      const s = def.shot; e.shootT -= dt;
+      if (e.st === 1) { sp = 0; e.stT -= dt; e.flash = (Math.floor(e.stT * 20) & 1) ? 0.05 : 0; if (e.stT <= 0) { e.st = 2; e.stT = s.spin; e.cx = 0; e.way = rand() < 0.5 ? 1 : -1; e.cy = Math.atan2(dyp, dxp) - e.way * s.lead; } }   // the arm starts beside you and comes round
+      else if (e.st === 2) {
+        sp = 0; e.stT -= dt; e.cx -= dt;
+        if (e.cx <= 0) { e.cx += s.every; fireEBullet(e.x, e.y - 5, Math.cos(e.cy), Math.sin(e.cy), s.sp, s.spr); e.cy += e.way * s.turn; sfx('wheel'); }
+        if (e.stT <= 0) { e.st = 0; e.shootT = rr(s.cd[0], s.cd[1]); }
+      } else if (dp < s.range && e.shootT <= 0 && los(e.x, e.y - 4, P.x, P.y - 4)) { e.st = 1; e.stT = s.tell; sfx('windup'); }
+    } else if (ai === 'slot') {             // the slot machine: its reels roll, show three of a kind, then it pays out the attack they name
+      const s = def.shot; e.shootT -= dt;
+      if (e.st === 1) { sp = 0; e.stT -= dt; if (e.stT <= 0) { e.st = 2; e.stT = s.show; } }                    // the reels roll
+      else if (e.st === 2) {                // three of a kind stand on the reels for s.show seconds: e.pay says which
+        sp = 0; e.stT -= dt;
+        if (e.stT <= 0) {
+          e.flash = 0.15; e.st = 0; e.shootT = rr(s.cd[0], s.cd[1]);
+          if (e.pay === 0) { const off = rand() * TAU; for (let k = 0; k < s.ring; k++) fireEBullet(e.x, e.y - 5, Math.cos(off + k * TAU / s.ring), Math.sin(off + k * TAU / s.ring), 60); sfx('ebullet'); }   // cherries: a ring
+          else if (e.pay === 1) fireFan(e, 74, s.fan, 's_fire', P);                                               // bells: a fan at you
+          else { e.st = 3; e.cx = s.bolts; e.cy = 0; }                                                            // sevens: fast bolts at you, one after the other
+        }
+      } else if (e.st === 3) {
+        sp = 0; e.cy -= dt;
+        if (e.cy <= 0) { e.cy = 0.16; fireEBullet(e.x, e.y - 5, dxp / dp, (dyp - 1) / dp, 96, 's_hexbolt'); sfx('ebullet'); if (--e.cx <= 0) e.st = 0; }
+      } else if (dp < s.range && e.shootT <= 0 && los(e.x, e.y - 4, P.x, P.y - 4)) { e.st = 1; e.stT = s.roll; e.pay = Math.floor(rand() * 3); sfx('slot'); }
     } else if (ai === 'brood') {
       const s = def.shot; e.shootT -= dt; e.stT -= dt;
       if (e.shootT <= 0 && dp < s.range && los(e.x, e.y - 4, P.x, P.y - 4)) { e.shootT = rr(s.cd[0], s.cd[1]); e.flash = 0.12; fireFan(e, s.sp, s.fan, s.spr, P); }
@@ -4285,6 +4416,8 @@ function fireEvent(ev) {
 }
 function scatterHorde(keep) {         // the small fry flee: wardens fight alone (at first). Elites stay, but not a loaded die that a wave brought
   for (const m of G.mons) if (m !== keep && !m.dead && (!m.def.elite || m.def.ai === 'dice' && !m.noLoot)) { m.dead = true; burst(m.x, m.y - 4, 4, PAL.v, 50); }
+  // (a monster of the house that was still behind its door for its first entrance has not come yet: it gets another one)
+  const H = HOUSE[Math.min(G.floor, HOUSE.length - 1)]; if (G.sealed.some(d => d.queue.includes(H.id)) && !G.mons.some(m => m.type === H.id)) G.dir.house = undefined;
   for (const d of G.sealed) d.queue.length = 0; G.ebullets.length = 0; G.dir.acc = -6;
 }
 // fromRoom = the Stairwell you just drafted (the warden climbs out of it); null = it came because you overstayed
@@ -4335,6 +4468,13 @@ function updateDirector(dt) {
   }
   if (D.calm > 0) { D.calm -= dt; return; }
   const fight = D.boss && !D.bossDead;
+  // The floor's monster of the house comes by itself the first time: one of its kind, out of a door that is idle, with
+  // a banner that says what it does, and no new wave for three seconds. (Without a sealed door it never comes.)
+  const H = HOUSE[Math.min(G.floor, HOUSE.length - 1)];
+  if (D.house === undefined && G.t >= H.solo && !D.boss) {
+    const d = nearDoor();
+    if (d && !d.queue.length && d.st === 0) { D.house = G.t; d.queue.push(H.id); D.calm = 3; D.acc = Math.min(D.acc, 0); banner(H.name, H.sub, '#ffd95e', 3.2); sfx('breach'); return; }
+  }
   const pests = stake(2) && G.floor === 0 ? Object.assign({ sapper: [150, 85] }, F.pests) : F.pests, soon = stake(2) ? 0.7 : 1;
   for (const id in pests) {                                             // pests go for the floor plan
     const [first, every] = pests[id]; if (D.pestT[id] === undefined) D.pestT[id] = first * soon;
@@ -5029,6 +5169,11 @@ function drawMon(g, e, x, y) {
   ds(g, s, x, y, e.face < 0, e.flash > 0);
   if (e.stun > 0 && e.flash <= 0) { g.globalAlpha = 0.5; ds(g, s, x, y, e.face < 0, true); g.fillStyle = '#9cecf2'; g.globalAlpha = 1; g.fillRect(Math.round(x) - 3, Math.round(y) - s.h - 1, 2, 2); g.fillRect(Math.round(x) + 2, Math.round(y) - s.h + 1, 2, 2); }
   g.globalAlpha = 1;
+  if (def.ai === 'slot' && (e.st === 1 || e.st === 2)) {      // its reels, large above it: they roll, then show three of what it pays out
+    const bx = Math.round(x) - 13, by = Math.round(y) - s.h - 12;
+    g.fillStyle = '#1a1426'; g.fillRect(bx, by, 27, 11); g.fillStyle = e.st === 2 ? '#fff8e8' : '#d8dbe6'; g.fillRect(bx + 1, by + 1, 25, 9);
+    for (let i = 0; i < 3; i++) ds(g, SPR['sym' + (e.st === 2 ? e.pay : (Math.floor(frameT * 16) + i) % 3)], bx + 5 + i * 8, by + 8);
+  }
   if (def.crown) ds(g, SPR.crown, x, y - s.h + 4);
   if (def.elite && e.hp < e.max) { g.fillStyle = '#1a1426'; g.fillRect(x - 9, y - s.h - 6, 18, 4); g.fillStyle = '#e8474c'; g.fillRect(x - 8, y - s.h - 5, Math.max(1, Math.round(16 * e.hp / e.max)), 2); }
   if (def.pest && e.st === 1) {       // a pest at work: show how long you have to stop it
@@ -6385,7 +6530,7 @@ window.RW = {
   coach(on) { App.coach = !!on; },                                     // false = no card lessons in drafts (the checks and the bot use this)
   coachPlan, cardPart, stairsLocked, knockBack, knockTier, KNOCK, draftLayout, pauseLayout, hintFor, view: () => ({ VW, VH, SCALE }),
   titleLayout, changesLayout, CHANGES, CHANGELOG_MD, FONT,             // the title's entries and the changelog
-  DICE, PAL, PHASE, PHASES, musicPlan, GROW_WAYS, Player, playerLayout, openPlayer, closePlayer, DANCERS, // what the plan gives the music, and the music player
+  DICE, HOUSE, PAL, PHASE, PHASES, updateDirector, musicPlan, GROW_WAYS, Player, playerLayout, openPlayer, closePlayer, DANCERS, // what the plan gives the music, and the music player
   tallyList, tallyShare, record: runRecord, endLayout, siegeTarget, dreadMul, knocking, wardenShare, swiftLeft, doorPressure,
   STAKES, stake, stakesOpen, stakeOf, prepLayout, floorMix,           // the Stakes ladder                 // the damage tally, and the census record of the run as it stands
   census() { const c = Save.data.census; if (console.table) console.table(c.map(r => Object.assign({}, r, { by: r.by.join(' < '), how: (r.how || []).join(' < ') }))); return c; },                                   // true = the page stops ticking itself; drive it with step()

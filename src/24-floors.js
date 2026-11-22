@@ -56,11 +56,20 @@ const stake = n => (G.stakes || 0) >= n;
 // die: [the minute it starts, its weight in the floor's mix]. A die throws a ring of bullets to weave through.
 // A warden fights without them: none join while it lives, and those a wave brought flee when it comes.
 const DICE = [{ die: [5.0, 0.08] }, { die: [3.0, 0.15], bigdie: [5.0, 0.015] }, { die: [2.0, 0.2], bigdie: [4.0, 0.02] }];
+// The house (#12): one monster per floor on the gambling motif. It first comes alone (`solo` seconds into the floor,
+// with a banner that says what it does), and `after` seconds later it joins the floor's waves at weight `w`. A warden
+// fights without it, as it does without the dice.
+const HOUSE = [
+  { id: 'dealer', solo: 180, after: 50, w: 0.2,  name: 'A DEALER SITS DOWN',   sub: 'Five cards in a fan. Step through a gap.' },
+  { id: 'wheel',  solo: 150, after: 50, w: 0.2,  name: 'THE WHEEL SPINS',      sub: 'Its arm of balls comes round. Circle it.' },
+  { id: 'slot',   solo: 120, after: 50, w: 0.3,  name: 'THE MACHINE PAYS OUT', sub: 'Read its three symbols, then back off.' },
+];
 // the monsters a wave draws from right now: the floor's mix and its dice; the third step of Stakes brings dice
 // from the second minute, more of them, and into a warden's fight too
 function floorMix() {
   const l = G.F.mix(G.t), m = G.t / 60, D = DICE[Math.min(G.floor, DICE.length - 1)], fight = G.dir.boss && !G.dir.bossDead;
   if (!fight) for (const id in D) if (m >= D[id][0]) l.push([id, D[id][1]]);
+  const H = HOUSE[Math.min(G.floor, HOUSE.length - 1)]; if (!fight && G.dir.house !== undefined && G.t >= G.dir.house + H.after) l.push([H.id, H.w]);
   if (stake(3) && G.t >= 120) { const die = l.find(x => x[0] === 'die'); if (die) die[1] = Math.max(die[1], 0.45); else l.push(['die', 0.45]); }
   return l;
 }

@@ -448,6 +448,39 @@ function updateMons(dt) {
         e.shootT = rr(s.cd[0], s.cd[1]); e.flash = 0.15; ring(n, off); sfx('dice'); G.shake = Math.max(G.shake, 1.5);
         if (s.twice) { e.stT = 0.4; e.cx = n; e.cy = off; }
       }
+    } else if (ai === 'cards') {            // the dealer: a wind-up, a fan of cards at you, then it waits. Step through a gap
+      const s = def.shot; e.shootT -= dt;
+      if (e.st === 1) {
+        sp = 0; e.stT -= dt; e.flash = (Math.floor(e.stT * 20) & 1) ? 0.05 : 0;
+        if (e.stT <= 0) {
+          const a0 = Math.atan2(P.y - 4 - (e.y - 4), P.x - e.x); e.st = 0; e.shootT = rr(s.cd[0], s.cd[1]);
+          for (let k = 0; k < s.fan; k++) { const a = a0 + (k - (s.fan - 1) / 2) * s.spread; fireEBullet(e.x, e.y - 4, Math.cos(a), Math.sin(a), s.sp, s.spr); }
+          sfx('cards');
+        }
+      } else if (dp < s.range) { sp *= dp < s.hold ? 0 : 0.5; if (e.shootT <= 0 && los(e.x, e.y - 4, P.x, P.y - 4)) { e.st = 1; e.stT = s.tell; } }
+    } else if (ai === 'wheel') {            // the roulette wheel: a rattle, then it turns in place and sweeps an arm of balls round. Circle it, ahead of the arm
+      const s = def.shot; e.shootT -= dt;
+      if (e.st === 1) { sp = 0; e.stT -= dt; e.flash = (Math.floor(e.stT * 20) & 1) ? 0.05 : 0; if (e.stT <= 0) { e.st = 2; e.stT = s.spin; e.cx = 0; e.way = rand() < 0.5 ? 1 : -1; e.cy = Math.atan2(dyp, dxp) - e.way * s.lead; } }   // the arm starts beside you and comes round
+      else if (e.st === 2) {
+        sp = 0; e.stT -= dt; e.cx -= dt;
+        if (e.cx <= 0) { e.cx += s.every; fireEBullet(e.x, e.y - 5, Math.cos(e.cy), Math.sin(e.cy), s.sp, s.spr); e.cy += e.way * s.turn; sfx('wheel'); }
+        if (e.stT <= 0) { e.st = 0; e.shootT = rr(s.cd[0], s.cd[1]); }
+      } else if (dp < s.range && e.shootT <= 0 && los(e.x, e.y - 4, P.x, P.y - 4)) { e.st = 1; e.stT = s.tell; sfx('windup'); }
+    } else if (ai === 'slot') {             // the slot machine: its reels roll, show three of a kind, then it pays out the attack they name
+      const s = def.shot; e.shootT -= dt;
+      if (e.st === 1) { sp = 0; e.stT -= dt; if (e.stT <= 0) { e.st = 2; e.stT = s.show; } }                    // the reels roll
+      else if (e.st === 2) {                // three of a kind stand on the reels for s.show seconds: e.pay says which
+        sp = 0; e.stT -= dt;
+        if (e.stT <= 0) {
+          e.flash = 0.15; e.st = 0; e.shootT = rr(s.cd[0], s.cd[1]);
+          if (e.pay === 0) { const off = rand() * TAU; for (let k = 0; k < s.ring; k++) fireEBullet(e.x, e.y - 5, Math.cos(off + k * TAU / s.ring), Math.sin(off + k * TAU / s.ring), 60); sfx('ebullet'); }   // cherries: a ring
+          else if (e.pay === 1) fireFan(e, 74, s.fan, 's_fire', P);                                               // bells: a fan at you
+          else { e.st = 3; e.cx = s.bolts; e.cy = 0; }                                                            // sevens: fast bolts at you, one after the other
+        }
+      } else if (e.st === 3) {
+        sp = 0; e.cy -= dt;
+        if (e.cy <= 0) { e.cy = 0.16; fireEBullet(e.x, e.y - 5, dxp / dp, (dyp - 1) / dp, 96, 's_hexbolt'); sfx('ebullet'); if (--e.cx <= 0) e.st = 0; }
+      } else if (dp < s.range && e.shootT <= 0 && los(e.x, e.y - 4, P.x, P.y - 4)) { e.st = 1; e.stT = s.roll; e.pay = Math.floor(rand() * 3); sfx('slot'); }
     } else if (ai === 'brood') {
       const s = def.shot; e.shootT -= dt; e.stT -= dt;
       if (e.shootT <= 0 && dp < s.range && los(e.x, e.y - 4, P.x, P.y - 4)) { e.shootT = rr(s.cd[0], s.cd[1]); e.flash = 0.12; fireFan(e, s.sp, s.fan, s.spr, P); }

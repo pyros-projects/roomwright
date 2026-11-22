@@ -85,6 +85,11 @@ function drawMon(g, e, x, y) {
   ds(g, s, x, y, e.face < 0, e.flash > 0);
   if (e.stun > 0 && e.flash <= 0) { g.globalAlpha = 0.5; ds(g, s, x, y, e.face < 0, true); g.fillStyle = '#9cecf2'; g.globalAlpha = 1; g.fillRect(Math.round(x) - 3, Math.round(y) - s.h - 1, 2, 2); g.fillRect(Math.round(x) + 2, Math.round(y) - s.h + 1, 2, 2); }
   g.globalAlpha = 1;
+  if (def.ai === 'slot' && (e.st === 1 || e.st === 2)) {      // its reels, large above it: they roll, then show three of what it pays out
+    const bx = Math.round(x) - 13, by = Math.round(y) - s.h - 12;
+    g.fillStyle = '#1a1426'; g.fillRect(bx, by, 27, 11); g.fillStyle = e.st === 2 ? '#fff8e8' : '#d8dbe6'; g.fillRect(bx + 1, by + 1, 25, 9);
+    for (let i = 0; i < 3; i++) ds(g, SPR['sym' + (e.st === 2 ? e.pay : (Math.floor(frameT * 16) + i) % 3)], bx + 5 + i * 8, by + 8);
+  }
   if (def.crown) ds(g, SPR.crown, x, y - s.h + 4);
   if (def.elite && e.hp < e.max) { g.fillStyle = '#1a1426'; g.fillRect(x - 9, y - s.h - 6, 18, 4); g.fillStyle = '#e8474c'; g.fillRect(x - 8, y - s.h - 5, Math.max(1, Math.round(16 * e.hp / e.max)), 2); }
   if (def.pest && e.st === 1) {       // a pest at work: show how long you have to stop it

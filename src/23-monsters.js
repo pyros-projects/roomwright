@@ -5,6 +5,9 @@
 //   ai: 'shoot' (stop and fire) - 'turret' (rooted) - 'charge' - 'bomber' - 'ring' / 'brood' (elites)
 //       'latch' (locks a doorway) - 'dig' (breaches a wall) - 'hex' (switches off the room it stands in)
 //       'dice' (rolls, then throws a ring of bullets: n + roll * per of them; `twice` throws a second ring)
+//       'cards' (a wind-up, then a fan of five cards) - 'wheel' (a rattle, then it turns in place: an arm of balls that
+//       starts `lead` rad beside you and sweeps `turn` rad per ball toward you and past you; slow enough to walk ahead of)
+//       'slot' (its reels roll, show three of a kind for `show` seconds, then it pays out the attack they name)
 const MON = {
   /* floor 1: the Cellar */
   slime:   { spr: 'slime',   hp: 7,   spd: 30, r: 5,  dmg: 1, glint: 1,  col: PAL.n, sh: 'sh_s', hop: 1 },
@@ -33,7 +36,11 @@ const MON = {
   eshroom: { spr: 'eshroom', hp: 300, spd: 22, r: 11, dmg: 2, glint: 35, col: PAL.r, sh: 'sh_l', heavy: 1, elite: 1, crown: 1, siege: 1, name: 'Elder Shroom', ai: 'brood', shot: { cd: [3, 4], sp: 60, range: 180, fan: 5, spr: 's_spore' } },
   golem:   { spr: 'golem',   hp: 420, spd: 24, r: 11, dmg: 2, glint: 40, col: PAL.g, sh: 'sh_l', heavy: 1, elite: 1, siege: 1, name: 'Furnace Golem', ai: 'ring' },
   mimic:   { spr: 'mimic',   hp: 150, spd: 46, r: 8,  dmg: 2, glint: 20, col: PAL.T, sh: 'sh_m', hop: 1, heavy: 1, elite: 1, mimic: 1 },
-  /* called by a knock back (43-draft.js): the dice you tried to cheat. They are in no floor's mix. */
+  /* the house (#12): one per floor, each with a bullet pattern that asks for a different move (HOUSE in 24-floors.js) */
+  dealer:  { spr: 'dealer',  hp: 20,  spd: 28, r: 5,  dmg: 1, glint: 3,  col: PAL.n, sh: 'sh_s', ai: 'cards', shot: { cd: [3.2, 4.0], sp: 64, range: 130, hold: 84, tell: 0.5, fan: 5, spread: 0.3, spr: 's_card' } },
+  wheel:   { spr: 'wheel',   hp: 44,  spd: 18, r: 7,  dmg: 1, glint: 4,  col: PAL.y, sh: 'sh_m', heavy: 1, ai: 'wheel', shot: { cd: [3.6, 4.4], sp: 58, range: 140, tell: 0.5, spin: 2.0, every: 0.135, turn: 0.125, lead: 1.0, spr: 's_ball' } },
+  slot:    { spr: 'slot',    hp: 46,  spd: 16, r: 8,  dmg: 1, glint: 5,  col: PAL.r, sh: 'sh_m', heavy: 1, ai: 'slot', shot: { cd: [3.2, 4.0], range: 160, roll: 0.5, show: 0.7, ring: 14, fan: 5, bolts: 3 } },
+  /* dice: they come with the later waves (DICE in 24-floors.js), and a knock back calls more of them (43-draft.js) */
   die:     { spr: 'die',     hp: 46,  spd: 30, r: 6,  dmg: 1, glint: 2,  col: PAL.w, sh: 'sh_m', hop: 1, ai: 'dice', shot: { cd: [2.3, 3.1], sp: 58, range: 210, n: 6, per: 2, spr: 's_ebullet' } },
   bigdie:  { spr: 'bigdie',  hp: 320, spd: 22, r: 11, dmg: 2, glint: 20, col: PAL.w, sh: 'sh_l', hop: 1, heavy: 1, elite: 1, split: 2, into: 'die', ai: 'dice', shot: { cd: [2.6, 3.2], sp: 54, range: 240, n: 10, per: 3, twice: 1, spr: 's_ebullet' } },
   /* wardens (one per floor) */
