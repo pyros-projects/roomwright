@@ -14,7 +14,7 @@ What changed for a player, newest first. The game shows the same text: CHANGELOG
 - The daily delve: DAILY on the title starts the same run for everyone for a day: the same floors, the same delver, the same cards behind the hearth's doors. Your first try counts; after that it is practice.
 - A share card: the end screen hands on your floor plan as a picture (R) or as text with a coloured square per room (H). It carries the game's name and address and nothing about you.
 - Phones: the game now takes two screen pixels for each of its own, so everything is twice as large. Every screen has a layout for a phone held upright and on its side, the draft shows one card at a time upright, and everything you tap is finger-sized.
-- The music can follow the floor plan: Music grows in the pause menu. WITH THE PLAN brings a floor's piece in voice by voice as you build. BY ELEMENT adds a voice for each element among your rooms.
+- The music follows the floor plan: a floor's piece comes in voice by voice as you build. Music grows in the pause menu changes it: BY ELEMENT plays the whole piece and adds a voice for each element among your rooms, NO plays the whole piece from the start.
 - A music player on the title screen: every track, switches for its voices and for the element voices, every sound effect, and the game's creatures dancing to it.
 - Going back to the title from a run is no longer deafening. The rooms that the title builds behind its logo used to sound all at once.
 

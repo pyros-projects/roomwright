@@ -71,8 +71,9 @@ console error, then runs six scripts:
   bar reads -59 or less, a bar with notes -45 or more) and on a mean level outside -48 to -35 dBFS,
   the range in which the music sits under the sound effects, and on a single sample that jumps out
   of the wave (a tick). A written piece is rendered three times: as written, in its thinnest form
-  (growing with the plan, before anything is built: every bar must still sound) and in its thickest
-  (with every element's voice, all resonating: still inside the range, and no tick). Every sound
+  (growing with the plan, before anything is built, which is how a floor starts by default: every
+  bar must still sound, inside the range) and in its thickest (with every element's voice, all
+  resonating: still inside the range, and no tick). Every sound
   effect is rendered too: each must be heard (a peak over -45 dBFS) and stay clear of full scale
   (under -6 dBFS). `--wav DIR` saves what was rendered as WAV files. Run it alone with
   `uv run --with playwright tools/check-music.py`. Like the audio check it reads levels, not
@@ -104,6 +105,10 @@ with one loudness meter (ffmpeg's `ebur128`) over those files and over the intro
 | Music: floor 3 | -39.5 LUFS | -14.6 dBFS |
 | Music: the wardens | -38.7 LUFS | -19.8 dBFS |
 | Sound effects, each alone | | from -42.2 dBFS (burn) to -17.1 dBFS (roar), half of them over -25.9 |
+
+The floors' rows are the pieces as written. With `Music grows` at its default a floor starts with
+bass, arpeggio and drums alone, and that form is a little quieter: by the check's own mean level
+0.9 dB under the whole piece on floors 1 and 2 and 0.7 dB on floor 3 (2026-11-22).
 
 The music sits under the effects, as it should: the loudest music is around 15 dB under the peak of
 a typical effect. The film is another matter: it is about 24 dB louder than the floors' music, so

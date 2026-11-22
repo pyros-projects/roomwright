@@ -10,7 +10,7 @@ const Save = {
   data: null,
   fresh() {
     const rooms = {}; for (const id of STARTER_ROOMS) rooms[id] = 1;
-    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0, mouse: 'point', grow: 'full' }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {}, census: [], daily: [],
+    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0, mouse: 'point', grow: 'plan' }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {}, census: [], daily: [],
       stakes: {}, stake: {} };          // Stakes per delver: the highest step won (0 = the plain game), and the step chosen for the next run
   },
   load() {
@@ -18,7 +18,7 @@ const Save = {
     try {
       const s = JSON.parse(localStorage.getItem(this.KEY));
       if (s && s.v === 2) {
-        const d = this.data; d.runs = s.runs | 0; d.wins = s.wins | 0; Object.assign(d.best, s.best); Object.assign(d.opts, s.opts); if (!Object.keys(GROW_WAYS).includes(d.opts.grow)) d.opts.grow = 'full';
+        const d = this.data; d.runs = s.runs | 0; d.wins = s.wins | 0; Object.assign(d.best, s.best); Object.assign(d.opts, s.opts); if (!Object.keys(GROW_WAYS).includes(d.opts.grow)) d.opts.grow = this.fresh().opts.grow;   // a save from before the option, or junk: the default
         for (const id in s.rooms || {}) if (ROOM_TYPES[id] && ROOM_TYPES[id].tier !== 'x') d.rooms[id] = 1;
         for (const id in s.heroes || {}) if (HEROES[id]) d.heroes[id] = 1;
         if (HEROES[s.hero] && d.heroes[s.hero]) d.hero = s.hero;

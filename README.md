@@ -64,8 +64,8 @@ New in 0.4: the screen burns, inside rules that keep it readable. Each warden ha
 roll in with ordinary waves, each floor has a monster of the house with its own pattern, and a room at
 three stars with two resonating neighbours overloads by itself. You, enemy bullets and pickups are always
 drawn on top. A daily delve gives everyone the same run for a day, the end screen hands on the floor plan
-as a picture or as text, the title has a music player and a changelog, and on a phone the game is twice
-as large with a layout for every screen.
+as a picture or as text, a floor's music comes in voice by voice as you build, the title has a music
+player and a changelog, and on a phone the game is twice as large with a layout for every screen.
 
 New in 0.3: the card you pick decides more. Doors cost more the deeper you are, a room with stars and
 resonance does real work, each floor's elite goes for your best room, and a warden grows faster the
@@ -96,7 +96,7 @@ it and is optional. Without it the game starts on the title screen.
 | Edit the deck (hero screen) | Q or Tab | | tap the deck |
 | Stakes (hero screen, after a win) | Up / Down, or click the Stakes lines | up / down | tap the Stakes lines |
 | Pause / options | P or Esc | Start | pause button |
-| Let the music follow the floor plan | `Music grows` in the pause menu | | |
+| Change how the music follows the floor plan | `Music grows` in the pause menu | | |
 | Mute | M | | |
 | Skip the intro | Enter, Space or Esc, or click | A or B | tap |
 | Share the floor plan (end screen): picture / text | R / H; or click a chip | Y (picture) | tap a chip |

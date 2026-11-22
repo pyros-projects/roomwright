@@ -65,7 +65,7 @@ What changed for a player, newest first. The game shows the same text: CHANGELOG
 - The daily delve: DAILY on the title starts the same run for everyone for a day: the same floors, the same delver, the same cards behind the hearth's doors. Your first try counts; after that it is practice.
 - A share card: the end screen hands on your floor plan as a picture (R) or as text with a coloured square per room (H). It carries the game's name and address and nothing about you.
 - Phones: the game now takes two screen pixels for each of its own, so everything is twice as large. Every screen has a layout for a phone held upright and on its side, the draft shows one card at a time upright, and everything you tap is finger-sized.
-- The music can follow the floor plan: Music grows in the pause menu. WITH THE PLAN brings a floor's piece in voice by voice as you build. BY ELEMENT adds a voice for each element among your rooms.
+- The music follows the floor plan: a floor's piece comes in voice by voice as you build. Music grows in the pause menu changes it: BY ELEMENT plays the whole piece and adds a voice for each element among your rooms, NO plays the whole piece from the start.
 - A music player on the title screen: every track, switches for its voices and for the element voices, every sound effect, and the game's creatures dancing to it.
 - Going back to the title from a run is no longer deafening. The rooms that the title builds behind its logo used to sound all at once.
 
@@ -5796,7 +5796,7 @@ function drawTally(g, x, y, w) {
   });
   if (rest >= 0.005) txt(g, '+' + Math.round(rest * 100) + '%', lx, y + 4, '#5d667c');
 }
-// how the music follows the floor plan (#17): not at all, its own voices entering as the plan grows, or a voice for each element built
+// how the music follows the floor plan (#17): not at all, its own voices entering as the plan grows (the default, in Save.fresh), or a voice for each element built
 const GROW_WAYS = { full: 'NO', plan: 'WITH THE PLAN', element: 'BY ELEMENT' };
 function pauseItems() { const o = Save.data.opts; return [{ label: 'Resume' }, { label: 'Music', value: o.music }, { label: 'Sound', value: o.sfx }, { label: 'Screen shake', value: o.shake ? 'ON' : 'OFF' }, { label: 'Mouse walk', value: o.mouse === 'drag' ? 'DRAG' : 'TO POINTER' },
   { label: 'Music grows', value: GROW_WAYS[o.grow] }, { label: 'Restart run' }, { label: 'Quit to title' }]; }
@@ -6140,7 +6140,7 @@ const Save = {
   data: null,
   fresh() {
     const rooms = {}; for (const id of STARTER_ROOMS) rooms[id] = 1;
-    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0, mouse: 'point', grow: 'full' }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {}, census: [], daily: [],
+    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0, mouse: 'point', grow: 'plan' }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {}, census: [], daily: [],
       stakes: {}, stake: {} };          // Stakes per delver: the highest step won (0 = the plain game), and the step chosen for the next run
   },
   load() {
@@ -6148,7 +6148,7 @@ const Save = {
     try {
       const s = JSON.parse(localStorage.getItem(this.KEY));
       if (s && s.v === 2) {
-        const d = this.data; d.runs = s.runs | 0; d.wins = s.wins | 0; Object.assign(d.best, s.best); Object.assign(d.opts, s.opts); if (!Object.keys(GROW_WAYS).includes(d.opts.grow)) d.opts.grow = 'full';
+        const d = this.data; d.runs = s.runs | 0; d.wins = s.wins | 0; Object.assign(d.best, s.best); Object.assign(d.opts, s.opts); if (!Object.keys(GROW_WAYS).includes(d.opts.grow)) d.opts.grow = this.fresh().opts.grow;   // a save from before the option, or junk: the default
         for (const id in s.rooms || {}) if (ROOM_TYPES[id] && ROOM_TYPES[id].tier !== 'x') d.rooms[id] = 1;
         for (const id in s.heroes || {}) if (HEROES[id]) d.heroes[id] = 1;
         if (HEROES[s.hero] && d.heroes[s.hero]) d.hero = s.hero;

@@ -181,7 +181,7 @@ function drawTally(g, x, y, w) {
   });
   if (rest >= 0.005) txt(g, '+' + Math.round(rest * 100) + '%', lx, y + 4, '#5d667c');
 }
-// how the music follows the floor plan (#17): not at all, its own voices entering as the plan grows, or a voice for each element built
+// how the music follows the floor plan (#17): not at all, its own voices entering as the plan grows (the default, in Save.fresh), or a voice for each element built
 const GROW_WAYS = { full: 'NO', plan: 'WITH THE PLAN', element: 'BY ELEMENT' };
 function pauseItems() { const o = Save.data.opts; return [{ label: 'Resume' }, { label: 'Music', value: o.music }, { label: 'Sound', value: o.sfx }, { label: 'Screen shake', value: o.shake ? 'ON' : 'OFF' }, { label: 'Mouse walk', value: o.mouse === 'drag' ? 'DRAG' : 'TO POINTER' },
   { label: 'Music grows', value: GROW_WAYS[o.grow] }, { label: 'Restart run' }, { label: 'Quit to title' }]; }

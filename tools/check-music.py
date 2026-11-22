@@ -158,12 +158,12 @@ def main():
             check(f"{track}: no single sample jumps out", not r["spikes"], f"{r['spikes']} of them, up to {r['spike']} dBFS" if r["spikes"] else f"the wave's own largest: {r['jut']} of {TICK}")
             if not page.evaluate("t => RW.Snd.info(t).written", track):
                 continue
-            # A written piece can follow the floor plan (the Music grows option). Its thinnest form is what always plays;
-            # its thickest is the whole piece with the voice of every element, all resonating.
+            # A written piece follows the floor plan (the Music grows option). Its thinnest form is what always plays, and
+            # what a floor starts with by default; its thickest is the whole piece with the voice of every element, all resonating.
             page.goto(args.url + f"?intro=0&track={track}&way=thin", wait_until="domcontentloaded")
             r = page.evaluate(RENDER, [track, TICK, "thin", False])
             quiet = [i + 1 for i, level in enumerate(r["levels"]) if level < QUIET]
-            check(f"{track}, growing with the plan, before anything is built: plays through and every bar sounds", not r["threw"] and not quiet,
+            check(f"{track}, growing with the plan, before anything is built: plays through, every bar sounds, in the music's range", not r["threw"] and not quiet and low < r["level"] < high,
                   r["threw"] or (f"under {QUIET} dBFS: bars {quiet}" if quiet else f"{r['level']} dBFS, quietest bar {min(r['levels'])}"))
             page.goto(args.url + f"?intro=0&track={track}&way=thick", wait_until="domcontentloaded")
             r = page.evaluate(RENDER, [track, TICK, "thick", False])

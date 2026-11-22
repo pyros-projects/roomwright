@@ -49,10 +49,19 @@
     { RW.start(77, { hero: 'pip' }); RW.step(30); press('pause'); for (let i = 0; i < 5; i++) press('down'); RW.step(30);
       const row = () => RW.pauseLayout().items[5], seq = [row().value];
       for (let i = 0; i < 3; i++) { press('ok'); seq.push(row().value + '=' + RW.Save.data.opts.grow); }
-      ok('options: Music grows goes from NO to WITH THE PLAN to BY ELEMENT and round again', row().label === 'Music grows' && seq.join(' ') === 'NO WITH THE PLAN=plan BY ELEMENT=element NO=full', seq.join(' '));
-      press('ok'); ok('options: the choice is saved', JSON.parse(localStorage.getItem(RW.Save.KEY)).opts.grow === 'plan', RW.Save.data.opts.grow);
-      press('left'); ok('options: LEFT goes back a step', RW.Save.data.opts.grow === 'full', RW.Save.data.opts.grow);
+      ok('options: Music grows goes from WITH THE PLAN to BY ELEMENT to NO and round again', row().label === 'Music grows' && seq.join(' ') === 'WITH THE PLAN BY ELEMENT=element NO=full WITH THE PLAN=plan', seq.join(' '));
+      press('ok'); ok('options: the choice is saved', JSON.parse(localStorage.getItem(RW.Save.KEY)).opts.grow === 'element', RW.Save.data.opts.grow);
+      press('left'); ok('options: LEFT goes back a step', RW.Save.data.opts.grow === 'plan', RW.Save.data.opts.grow);
       press('back'); RW.toTitle(); RW.step(30); }
+    /* ---- Music grows is on from the first start: WITH THE PLAN ---- */
+    { const K = RW.Save.KEY, keep = localStorage.getItem(K), S = RW.Snd;
+      const load = way => { const s = RW.Save.fresh(); if (way === undefined) delete s.opts.grow; else s.opts.grow = way; localStorage.setItem(K, JSON.stringify(s)); RW.Save.load(); RW.Save.apply(); return RW.Save.data.opts.grow; };
+      const got = { fresh: RW.Save.fresh().opts.grow, before: load(undefined), junk: load('loud'), no: load('full'), element: load('element') };
+      ok('options: Music grows is WITH THE PLAN on a fresh save and on a save from before the option; a choice of NO or BY ELEMENT stays', got.fresh === 'plan' && got.before === 'plan' && got.junk === 'plan' && got.no === 'full' && got.element === 'element', JSON.stringify(got));
+      load(undefined); RW.start(78, { hero: 'pip' }); RW.step(30); const bare = ['bass', 'arp', 'drum', 'lead', 'bell'].map(v => +S.sounds(v)).join('');
+      load('full'); RW.start(78, { hero: 'pip' }); RW.step(30); const whole = ['bass', 'arp', 'drum', 'lead', 'bell'].map(v => +S.sounds(v)).join('');
+      ok('options: so a first run starts its floor with bass, arpeggio and drums and the lead waits for a room; with NO the whole piece plays', bare === '11100' && whole === '11111', bare + ' ' + whole);
+      if (keep === null) localStorage.removeItem(K); else localStorage.setItem(K, keep); RW.Save.load(); RW.Save.apply(); RW.toTitle(); RW.step(30); }
     /* ---- the title's small entries, and the changelog ---- */
     { RW.step(30); const T = RW.titleLayout(), ci = T.findIndex(e => e.id === 'changes');
       ok('title: the changelog is one of its entries', ci >= 0, T.map(e => e.id).join(' '));
@@ -100,7 +109,9 @@
       const lost = []; for (const t of S.tracks) for (const v of S.info(t).voices) { const who = (RW.DANCERS[t] || {})[v]; if (!who || !(who === '@' || RW.SPR[who + '0'] || RW.SPR[who + 'D0'])) lost.push(t + ':' + v); }
       ok('music player: every voice of every track has a dancer', lost.length === 0, lost.join(' ') || 'ok');
       RW.render(); press('alt'); RW.render();
-      press('back'); ok('music player: ESC goes back to the title, its tune and every voice', RW.App.mode === 'title' && S.track === 'title' && S.sounds('lead') && !S.sounds('fire'), RW.App.mode + ' ' + S.track);
+      // the switches let go: a voice turned off by hand sounds again and one turned on by hand does not (the plan is set to a whole piece, so that only the hand could keep the lead out)
+      for (const id of ['track:cellar', 'voice:lead', 'el:fire']) { if (id === 'el:fire' && S.sounds('fire')) continue; RW.Player.sel = id; press('ok'); } S.plan({ step: 3 }); const held = !S.sounds('lead') && S.sounds('fire');   // an element stays switched on from track to track
+      press('back'); ok('music player: ESC goes back to the title, its tune and every voice', RW.App.mode === 'title' && S.track === 'title' && held && S.sounds('lead') && !S.sounds('fire'), RW.App.mode + ' ' + S.track + ', by hand before: ' + held);
       RW.step(30); }
     RW.step(30); press('ok'); ok('later runs go through the hero screen', RW.App.mode === 'prep', RW.App.mode);
     press('right'); ok('RIGHT shows the next delver', RW.App.prep.i === 1); RW.step(30); press('ok'); RW.step(30); ok('a locked delver cannot start', RW.App.mode === 'prep' && !RW.App.fade);
