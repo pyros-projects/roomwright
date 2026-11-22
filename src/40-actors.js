@@ -11,7 +11,7 @@ function newRun(seed, opts = {}) {
   let deck = (opts.deck || hero.deck).filter(id => ROOM_TYPES[id] && ROOM_TYPES[id].tier !== 'x');
   if (deck.length < 3) deck = hero.deck.slice();
   G = {
-    seed, hero: hero.id, deck, stakes: clamp(opts.stakes | 0, 0, STAKES.length), floor: 0, F: FLOORS[0], t: 0, tRun: 0, nextId: 1,
+    seed, hero: hero.id, deck, daily: opts.daily || null, stakes: clamp(opts.stakes | 0, 0, STAKES.length), floor: 0, F: FLOORS[0], t: 0, tRun: 0, nextId: 1,
     rooms: [], cells: new Array(GRID * GRID).fill(null), sealed: [], jams: [],
     flags: new Uint8Array(GWT * GHT).fill(F_ALL), tag: new Uint8Array(GWT * GHT), tagRoom: new Uint16Array(GWT * GHT),
     distG: new Uint16Array(GWT * GHT).fill(65535), nextG: new Int32Array(GWT * GHT), distF: new Uint16Array(GWT * GHT).fill(65535), nextF: new Int32Array(GWT * GHT), flowTile: -1, flowT: -9,

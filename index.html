@@ -57,6 +57,7 @@ What changed for a player, newest first. The game shows the same text: CHANGELOG
 
 - You, enemy bullets and pickups are now drawn above every blast, glow, spark and number, and above the screen's flash.
 - An elite's death has a ring, a boom and a shake; a warden's a bigger ring. The screen never flashes more than three times a second.
+- The daily delve: DAILY on the title starts the same run for everyone for a day: the same floors, the same delver, the same cards behind the hearth's doors. Your first try counts; after that it is practice.
 - Rooms overload: a room at three stars with two resonating neighbours lets go of a burst in its element every 20 seconds, by itself. Fire burns, frost freezes, water shields you if you stand in it, and so on for all eight. The draft card says OVERLOAD when a pick gets a room there.
 - The house: three new monsters, one on each floor. The dealer fans five cards, the roulette wheel sweeps an arm of balls round, the slot machine shows three symbols and pays out the attack they name. Each comes alone the first time.
 - Going back to the title from a run is no longer deafening. The rooms that the title builds behind its logo used to sound all at once.
@@ -3321,7 +3322,7 @@ function newRun(seed, opts = {}) {
   let deck = (opts.deck || hero.deck).filter(id => ROOM_TYPES[id] && ROOM_TYPES[id].tier !== 'x');
   if (deck.length < 3) deck = hero.deck.slice();
   G = {
-    seed, hero: hero.id, deck, stakes: clamp(opts.stakes | 0, 0, STAKES.length), floor: 0, F: FLOORS[0], t: 0, tRun: 0, nextId: 1,
+    seed, hero: hero.id, deck, daily: opts.daily || null, stakes: clamp(opts.stakes | 0, 0, STAKES.length), floor: 0, F: FLOORS[0], t: 0, tRun: 0, nextId: 1,
     rooms: [], cells: new Array(GRID * GRID).fill(null), sealed: [], jams: [],
     flags: new Uint8Array(GWT * GHT).fill(F_ALL), tag: new Uint8Array(GWT * GHT), tagRoom: new Uint16Array(GWT * GHT),
     distG: new Uint16Array(GWT * GHT).fill(65535), nextG: new Int32Array(GWT * GHT), distF: new Uint16Array(GWT * GHT).fill(65535), nextF: new Int32Array(GWT * GHT), flowTile: -1, flowT: -9,
@@ -4928,7 +4929,18 @@ function rollExits(type, cx, cy, entry, minAfter) {
   } while (++tries < 40 && !def.dead && !def.exits && G.sealed.length - 1 - plan.links + plan.fresh < minAfter);
   return { want, plan };
 }
-function makeCards(door) {
+// In a daily delve the cards behind a door come from the day and the door, not from how the fight went so far: for
+// the deal the generator is seeded from the run's seed, the floor, the door's place and how many new hands this door
+// has been asked for (a knock back or a Map Room's free deal; `fresh` says this is one). The game's own generator is
+// put back afterwards. A hand that is only dealt again because it has to be larger (a Map Room was built) keeps its
+// number, so it does not matter whether the door was looked behind before (#18).
+function makeCards(door, fresh) {
+  if (!G.daily) return dealCards(door);
+  const keep = rand; if (fresh) door.deals = (door.deals || 0) + 1;
+  rand = RNG((G.seed ^ Math.imul(G.floor + 1, 0x9e3779b1) ^ Math.imul(door.room.cx * 64 + door.room.cy * 4 + door.dir + 1, 0x85ebca6b) ^ Math.imul((door.deals || 0) + 1, 0xc2b2ae35)) >>> 0);
+  try { return dealCards(door); } finally { rand = keep; }
+}
+function dealCards(door) {
   const cx = door.room.cx + DIRS[door.dir].x, cy = door.room.cy + DIRS[door.dir].y, entry = (door.dir + 2) % 4;
   const first = G.stats.rooms === 0, n = draftSize(), minAfter = G.rooms.length < 4 ? 2 : 1;
   const used = new Set(), usedB = new Set(), cards = [];
@@ -4988,7 +5000,7 @@ function knockBack() {
   const D = G.draft; if (!D) return false;
   const d = D.door, k = G.fstat.knocks, K = KNOCK[knockTier()], mixl = floorMix(), more = Math.max(0, k - (KNOCK.length - 1));
   const n = K.n + G.floor * Math.round(K.n / 4) + more * 6, elites = Math.min(3, K.elites + more), big = Math.min(3, K.big + more);
-  G.fstat.knocks++; G.fstat.wrath += K.clock; d.cards = makeCards(d); d.hold = true;
+  G.fstat.knocks++; G.fstat.wrath += K.clock; d.cards = makeCards(d, true); d.hold = true;
   for (let i = 0; i < K.dice; i++) d.queue.push({ id: 'die', rage: true });
   for (let i = 0; i < big; i++) d.queue.push({ id: 'bigdie', rage: true });
   for (let i = 0; i < elites; i++) d.queue.push({ id: G.F.elite, rage: true });
@@ -5001,7 +5013,7 @@ function knockBack() {
 }
 function rerollDraft() {
   const D = G.draft; if (!D || D.rerolls <= 0) return false;
-  D.door.rerolled++; D.door.cards = makeCards(D.door); D.cards = D.door.cards; D.rerolls--; D.t = 0; D.sel = Math.min(D.sel, D.cards.length - 1);
+  D.door.rerolled++; D.door.cards = makeCards(D.door, true); D.cards = D.door.cards; D.rerolls--; D.t = 0; D.sel = Math.min(D.sel, D.cards.length - 1);
   for (const c of D.cards) refreshCard(c, D.cx, D.cy, D.entry);
   sfx('draft'); return true;
 }
@@ -5772,7 +5784,7 @@ function renderPause(g) {
   if (sk) { txt(g, 'STAKES ' + G.stakes + (G.stakes > 1 ? ': every rule up to' : ':'), VW / 2, y + L_.h - 32, '#ff9ec4', 0.5); txt(g, STAKES[G.stakes - 1], VW / 2, y + L_.h - 22, '#fff8e8', 0.5); }
   txt(g, 'M mutes everything', VW / 2, y + L_.h - 11, '#5d667c', 0.5);
 }
-function endItems() { return App.mode === 'win' ? [{ label: 'Keep delving (endless)' }, { label: 'New run' }, { label: 'Back to title' }] : [{ label: 'Try again' }, { label: 'Back to title' }]; }
+function endItems() { const again = G.daily ? 'Again, as practice' : ''; return App.mode === 'win' ? [{ label: 'Keep delving (endless)' }, { label: again || 'New run' }, { label: 'Back to title' }] : [{ label: again || 'Try again' }, { label: 'Back to title' }]; }
 function endLayout() { const items = endItems(), h = 206 + (items.length - 2) * 14, y = Math.max(2, Math.round(VH / 2 - h / 2)); return { items, h, y, rects: menuRects(items.length, y + h - items.length * 14 - 8, 170) }; }
 function drawNewCards(g, x, y, w, label) {   // cards and heroes unlocked this run
   const n = G.newCards.length + G.newHeroes.length; if (!n) return 0;
@@ -5786,7 +5798,7 @@ function renderEnd(g) {
   g.fillStyle = win ? 'rgba(40,30,10,0.55)' : 'rgba(30,6,16,0.66)'; g.fillRect(0, 0, VW, VH);
   panel(g, x, y, 270, L_.h, win ? '#ffd95e' : '#a32a3c');
   txo(g, win ? 'THE KNOCKING STOPS' : 'THE DARK GOT IN', VW / 2, y + 9, win ? '#ffd95e' : '#ff9ec4', '#1a1426', 0.5, 2);
-  txt(g, win ? 'Three floors, three wardens, one very good floor plan.' : 'Every door you opened was a choice. Choose again?', VW / 2, y + 30, '#d8dbe6', 0.5);
+  txt(g, G.daily ? dailyEndLine() : win ? 'Three floors, three wardens, one very good floor plan.' : 'Every door you opened was a choice. Choose again?', VW / 2, y + 30, G.daily ? '#ffd95e' : '#d8dbe6', 0.5);
   const rows = [['Reached', G.F.name], ['Time', fmtTime(G.tRun)], ['Rooms drafted', String(S.rooms)], ['Monsters felled', String(S.kills)], ['Weapons evolved', String(S.evos)]];
   if (G.stakes) rows.push(['Stakes', String(G.stakes)]);
   rows.forEach((r, i) => { txt(g, r[0], x + 14, y + 44 + i * 9, '#9aa3b5'); txt(g, r[1], x + 128, y + 44 + i * 9, r[0] === 'Stakes' ? '#ff9ec4' : '#fff8e8', 1); });
@@ -5907,7 +5919,7 @@ const LOGO = 'ROOMWRIGHT';
 // The title's small entries along the bottom, left to right. The big one, START, is the rest of the screen.
 // App.titleSel holds the id of the chosen one, '' for START.
 function titleLayout() {
-  const items = []; if (Intro.ok) items.push(['intro', 'INTRO']); items.push(['music', 'MUSIC'], ['changes', 'CHANGELOG']);
+  const items = []; if (Intro.ok) items.push(['intro', 'INTRO']); items.push(['daily', 'DAILY'], ['music', 'MUSIC'], ['changes', 'CHANGELOG']);
   let x = 0; return items.map(([id, label]) => { const r = { id, label, x, y: VH - 18, w: textW(label) + 12, h: 18 }; x += r.w; return r; });
 }
 function renderTitle(g) {
@@ -5942,7 +5954,8 @@ function renderTitle(g) {
   let tw = 0; for (const c of cols) tw += textW(c[0] + '  ' + c[1]) + 18; let hx = Math.round(VW / 2 - (tw - 18) / 2);
   for (const c of cols) { txo(g, c[0], hx, hy, '#ffd95e'); txo(g, c[1], hx + textW(c[0]) + 5, hy, '#d8dbe6'); hx += textW(c[0] + '  ' + c[1]) + 18; }
   const b = Save.data.best, nc = Object.keys(Save.data.rooms).length;
-  txt(g, Save.data.runs > 0 ? 'Deepest: floor ' + Math.max(1, b.floor) + '   Cards: ' + nc + '/' + DRAFTABLE.length + (Save.data.wins ? '   Wins: ' + Save.data.wins : '') : 'WASD move - SPACE dash - P pause - M mute', VW / 2, VH - 28, '#5d667c', 0.5);
+  if (sel >= 0 && T[sel].id === 'daily') txt(g, dailyTitleLine(), VW / 2, VH - 28, '#ffd95e', 0.5);
+  else txt(g, Save.data.runs > 0 ? 'Deepest: floor ' + Math.max(1, b.floor) + '   Cards: ' + nc + '/' + DRAFTABLE.length + (Save.data.wins ? '   Wins: ' + Save.data.wins : '') : 'WASD move - SPACE dash - P pause - M mute', VW / 2, VH - 28, '#5d667c', 0.5);
   txt(g, 'v' + VERSION, VW - 5, VH - 10, '#3b2d4f', 1);
   T.forEach((r, i) => {
     const on = i === sel;
@@ -6022,7 +6035,7 @@ const Save = {
   data: null,
   fresh() {
     const rooms = {}; for (const id of STARTER_ROOMS) rooms[id] = 1;
-    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0, mouse: 'point', grow: 'full' }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {}, census: [],
+    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0, mouse: 'point', grow: 'full' }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {}, census: [], daily: [],
       stakes: {}, stake: {} };          // Stakes per delver: the highest step won (0 = the plain game), and the step chosen for the next run
   },
   load() {
@@ -6037,6 +6050,7 @@ const Save = {
         for (const id in s.decks || {}) if (HEROES[id] && Array.isArray(s.decks[id])) d.decks[id] = s.decks[id].filter(r => typeof r === 'string');
         Object.assign(d.tips, s.tips);
         if (Array.isArray(s.census)) d.census = s.census.filter(r => r && typeof r === 'object').slice(-CENSUS_MAX);
+        if (Array.isArray(s.daily)) d.daily = s.daily.filter(r => r && typeof r === 'object' && Number.isInteger(r.day) && HEROES[r.hero] && (r.open === true || (Number.isFinite(r.floor) && Number.isFinite(r.time)))).slice(-DAILY_KEEP);
         for (const id in s.stakes || {}) if (HEROES[id]) d.stakes[id] = clamp(s.stakes[id] | 0, 0, STAKES.length);
         if (!s.stakes && d.wins > 0) for (const id in d.heroes) d.stakes[id] = 0;       // a save from before Stakes that has won: the first step is open
         for (const id in s.stake || {}) if (HEROES[id]) d.stake[id] = clamp(s.stake[id] | 0, 0, stakesOpen(id));
@@ -6088,6 +6102,47 @@ function makeShowcase() {
   App.mode = 'title'; App.titleRoom = 0; App.titleT = 0; App.titleSel = '';
   G.cam.x = G.rooms[0].px + CWP / 2 - VW / 2; G.cam.y = G.rooms[0].py + CHP / 2 - VH / 2;
 }
+// ---- the daily delve (#18) ----
+// Everyone gets the same run for a day. The seed comes from the date (UTC), and so do the delver and the deck: the
+// four delvers take turns, each with its own ten cards, whatever the save holds. Day 1 is 2026-11-22. The first
+// attempt of a day counts, also when it is left unfinished; later ones are practice. The save keeps the last
+// DAILY_KEEP days. Nothing leaves the browser.
+const DAILY_EPOCH = Date.UTC(2026, 10, 22) / 864e5, DAILY_KEEP = 14, DAILY_HEROES = ['pip', 'wick', 'brin', 'moss'];
+const Daily = { now: null };          // Daily.now: a fixed moment in ms for the checks; null = the clock
+const dailyInfo = ms => dailyOf(Math.floor((ms !== undefined ? ms : Daily.now !== null ? Daily.now : Date.now()) / 864e5) - DAILY_EPOCH + 1);
+function dailyOf(day) {
+  let h = Math.imul(day ^ 0x9e3779b9, 2654435761) >>> 0; h ^= h >>> 15; h = Math.imul(h, 2246822519) >>> 0; h ^= h >>> 13;
+  const hero = DAILY_HEROES[((day % DAILY_HEROES.length) + DAILY_HEROES.length) % DAILY_HEROES.length];
+  return { day, seed: (h >>> 0) % 2147483647, hero, deck: HEROES[hero].deck.slice() };
+}
+const dailyDone = day => Save.data.daily.find(r => r.day === day);
+function startDaily(day) {            // today's delve; or, with a day's number, that day's again (as practice: it is on file)
+  const d = day === undefined ? dailyInfo() : dailyOf(day), first = !dailyDone(d.day);
+  newRun(d.seed, { hero: d.hero, deck: d.deck, tutorial: false, stakes: 0, daily: { day: d.day, practice: !first } });
+  if (first) { const L = Save.data.daily; L.push({ day: d.day, hero: d.hero, won: false, floor: 1, time: 0, rooms: 0, open: true }); while (L.length > DAILY_KEEP) L.shift(); }
+  Save.store();                       // (a daily does not count as one of the first runs: the tutorial waits for an ordinary one)
+  App.mode = 'play'; App.sel = 0; App.record = false; floorMusic();
+  banner('DAILY DELVE ' + d.day, first ? 'One try counts. Everyone gets these floors today.' : 'Practice. Your first try today has counted.', '#ffd95e', 3.4);
+}
+// the counted attempt ends: by a win, a death, or by leaving the run
+function dailyClose(win) {
+  if (!G.daily || G.daily.practice) return; const r = dailyDone(G.daily.day); if (!r || !r.open) return;
+  r.won = !!win; r.floor = G.floor + 1; r.time = Math.round(G.tRun); r.rooms = G.stats.rooms; delete r.open; Save.store();
+}
+// what the end screen says about a daily run, and what the title says about today
+function dailyEndLine() {
+  const d = G.daily, r = d && dailyDone(d.day); if (!r) return '';
+  return d.practice ? 'Daily delve ' + d.day + ', practice. First try: ' + (r.open ? 'begun' : r.won ? 'won' : 'floor ' + r.floor) + '.' : dailyLine(r) + '.';
+}
+function dailyTitleLine() {
+  const d = dailyInfo(), r = dailyDone(d.day);
+  return r ? dailyLine(r) + '. Again is practice.' : 'Daily delve ' + d.day + ' as ' + HEROES[d.hero].name + '. One try counts.';
+}
+// one line for the end screen and the title: the day's number and what came of it
+function dailyLine(r) {
+  if (!r) return '';
+  return 'Daily delve ' + r.day + ': ' + (r.open ? 'begun' : r.won ? 'won in ' + fmtTime(r.time) : 'floor ' + r.floor + ' in ' + fmtTime(r.time)) + ', ' + HEROES[r.hero].name;
+}
 function toTitle() { Snd.hand(null); Snd.music('title'); makeShowcase(); }
 function floorBanner() { banner('FLOOR ' + (G.floor + 1) + ': ' + G.F.name.toUpperCase(), G.floor === 0 ? 'Draft rooms. After ' + STAIRS_MIN + ', a draft offers the Stairwell down.' : 'New monsters. New rooms. Same idea.', '#ffd95e', 3.2); }
 function startRun(seed, opts = {}) {
@@ -6110,14 +6165,17 @@ function runRecord(win) {
 }
 function endRun(win) {
   const b = Save.data.best, S = G.stats, depth = G.floor + 1, c = Save.data.census;
+  dailyClose(win);
   c.push(runRecord(win)); while (c.length > CENSUS_MAX) c.shift();
   App.record = Save.data.runs > 1 && (depth > b.floor || (depth === b.floor && Math.floor(G.tRun) > b.time));
   b.time = Math.max(b.time, Math.floor(G.tRun)); b.rooms = Math.max(b.rooms, S.rooms); b.kills = Math.max(b.kills, S.kills); b.floor = Math.max(b.floor, depth);
   App.stakesNew = 0;
   if (win) {                          // a win at a step opens the next one for this delver, and sets it for the next run
     const d = Save.data, had = stakesOpen(G.hero); d.wins++;
-    d.stakes[G.hero] = Math.max(d.stakes[G.hero] === undefined ? -1 : d.stakes[G.hero], G.stakes);
-    if (stakesOpen(G.hero) > had) { App.stakesNew = stakesOpen(G.hero); d.stake[G.hero] = App.stakesNew; }
+    if (!G.daily) {                   // (a daily delve is outside the ladder: its delver may not even be yours)
+      d.stakes[G.hero] = Math.max(d.stakes[G.hero] === undefined ? -1 : d.stakes[G.hero], G.stakes);
+      if (stakesOpen(G.hero) > had) { App.stakesNew = stakesOpen(G.hero); d.stake[G.hero] = App.stakesNew; }
+    }
   }
   Save.store(); App.mode = win ? 'win' : 'over'; App.sel = 0;
 }
@@ -6200,6 +6258,7 @@ const MODES = {
     if (act === 'intro') { Intro.begin(); return; }                      // watch the intro again
     if (act === 'changes') { Snd.ensure(); sfx('ok'); App.changes.y = 0; App.mode = 'changes'; return; }
     if (act === 'music') { Snd.ensure(); sfx('ok'); openPlayer(); return; }
+    if (act === 'daily') { Snd.ensure(); sfx('ok'); startFade(startDaily); return; }
     if (act === 'start') {
       Snd.ensure(); sfx('ok');
       if (Save.data.runs === 0) startFade(() => startRun());             // very first run: straight in, with the tutorial
@@ -6284,20 +6343,20 @@ const MODES = {
     const a = menuNav(L_.items.length, L_.rects);
     if (a === 0) { App.mode = 'play'; sfx('ok'); }
     else if (a >= 1 && a <= 5) adj(a, 1, true);
-    else if (a === 6) { sfx('ok'); startFade(() => startRun()); }
-    else if (a === 7) { sfx('back'); startFade(toTitle); }
+    else if (a === 6) { sfx('ok'); const day = G.daily && G.daily.day; dailyClose(false); startFade(() => day ? startDaily(day) : startRun()); }      // a daily delve starts again as practice
+    else if (a === 7) { sfx('back'); dailyClose(false); startFade(toTitle); }
   },
   descend() {
     if (App.modeT > 0.5 && (Input.confirm() || Input.mouse.click)) { sfx('ok'); startFade(arriveNextFloor); }
   },
   over(dt) {
     updateSmall(dt); const L_ = endLayout(), a = menuNav(L_.items.length, L_.rects);
-    if (a === 0) { sfx('ok'); startFade(() => startRun()); } else if (a === 1 || Input.hit('back')) { sfx('back'); startFade(toTitle); }
+    if (a === 0) { sfx('ok'); const day = G.daily && G.daily.day; startFade(() => day ? startDaily(day) : startRun()); } else if (a === 1 || Input.hit('back')) { sfx('back'); startFade(toTitle); }
   },
   win(dt) {
     updateSmall(dt); const L_ = endLayout(), a = menuNav(L_.items.length, L_.rects);
     if (a === 0) { sfx('ok'); G.won = false; G.endless = true; G.endT = 0; App.mode = 'play'; floorMusic(); banner('ENDLESS DELVE', 'The doors start knocking again...', '#9cecf2', 3); }
-    else if (a === 1) { sfx('ok'); startFade(() => startRun()); }
+    else if (a === 1) { sfx('ok'); const day = G.daily && G.daily.day; startFade(() => day ? startDaily(day) : startRun()); }
     else if (a === 2 || Input.hit('back')) { sfx('back'); startFade(toTitle); }
   },
 };
@@ -6590,6 +6649,7 @@ window.RW = {
   coach(on) { App.coach = !!on; },                                     // false = no card lessons in drafts (the checks and the bot use this)
   coachPlan, cardPart, stairsLocked, knockBack, knockTier, KNOCK, draftLayout, pauseLayout, hintFor, view: () => ({ VW, VH, SCALE }),
   titleLayout, changesLayout, CHANGES, CHANGELOG_MD, FONT,             // the title's entries and the changelog
+  Daily, dailyInfo, dailyOf, startDaily, endItems, dailyDone, dailyClose, dailyLine, dailyEndLine, dailyTitleLine,
   DICE, HOUSE, PAL, PHASE, PHASES, OVER, overloads, overloadBurst, roomLinks, previewOver, updateDirector, musicPlan, GROW_WAYS, Player, playerLayout, openPlayer, closePlayer, DANCERS, // what the plan gives the music, and the music player
   tallyList, tallyShare, record: runRecord, endLayout, siegeTarget, dreadMul, knocking, wardenShare, swiftLeft, doorPressure,
   STAKES, stake, stakesOpen, stakeOf, prepLayout, floorMix,           // the Stakes ladder                 // the damage tally, and the census record of the run as it stands

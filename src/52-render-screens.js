@@ -176,7 +176,7 @@ function renderPause(g) {
   if (sk) { txt(g, 'STAKES ' + G.stakes + (G.stakes > 1 ? ': every rule up to' : ':'), VW / 2, y + L_.h - 32, '#ff9ec4', 0.5); txt(g, STAKES[G.stakes - 1], VW / 2, y + L_.h - 22, '#fff8e8', 0.5); }
   txt(g, 'M mutes everything', VW / 2, y + L_.h - 11, '#5d667c', 0.5);
 }
-function endItems() { return App.mode === 'win' ? [{ label: 'Keep delving (endless)' }, { label: 'New run' }, { label: 'Back to title' }] : [{ label: 'Try again' }, { label: 'Back to title' }]; }
+function endItems() { const again = G.daily ? 'Again, as practice' : ''; return App.mode === 'win' ? [{ label: 'Keep delving (endless)' }, { label: again || 'New run' }, { label: 'Back to title' }] : [{ label: again || 'Try again' }, { label: 'Back to title' }]; }
 function endLayout() { const items = endItems(), h = 206 + (items.length - 2) * 14, y = Math.max(2, Math.round(VH / 2 - h / 2)); return { items, h, y, rects: menuRects(items.length, y + h - items.length * 14 - 8, 170) }; }
 function drawNewCards(g, x, y, w, label) {   // cards and heroes unlocked this run
   const n = G.newCards.length + G.newHeroes.length; if (!n) return 0;
@@ -190,7 +190,7 @@ function renderEnd(g) {
   g.fillStyle = win ? 'rgba(40,30,10,0.55)' : 'rgba(30,6,16,0.66)'; g.fillRect(0, 0, VW, VH);
   panel(g, x, y, 270, L_.h, win ? '#ffd95e' : '#a32a3c');
   txo(g, win ? 'THE KNOCKING STOPS' : 'THE DARK GOT IN', VW / 2, y + 9, win ? '#ffd95e' : '#ff9ec4', '#1a1426', 0.5, 2);
-  txt(g, win ? 'Three floors, three wardens, one very good floor plan.' : 'Every door you opened was a choice. Choose again?', VW / 2, y + 30, '#d8dbe6', 0.5);
+  txt(g, G.daily ? dailyEndLine() : win ? 'Three floors, three wardens, one very good floor plan.' : 'Every door you opened was a choice. Choose again?', VW / 2, y + 30, G.daily ? '#ffd95e' : '#d8dbe6', 0.5);
   const rows = [['Reached', G.F.name], ['Time', fmtTime(G.tRun)], ['Rooms drafted', String(S.rooms)], ['Monsters felled', String(S.kills)], ['Weapons evolved', String(S.evos)]];
   if (G.stakes) rows.push(['Stakes', String(G.stakes)]);
   rows.forEach((r, i) => { txt(g, r[0], x + 14, y + 44 + i * 9, '#9aa3b5'); txt(g, r[1], x + 128, y + 44 + i * 9, r[0] === 'Stakes' ? '#ff9ec4' : '#fff8e8', 1); });
@@ -311,7 +311,7 @@ const LOGO = 'ROOMWRIGHT';
 // The title's small entries along the bottom, left to right. The big one, START, is the rest of the screen.
 // App.titleSel holds the id of the chosen one, '' for START.
 function titleLayout() {
-  const items = []; if (Intro.ok) items.push(['intro', 'INTRO']); items.push(['music', 'MUSIC'], ['changes', 'CHANGELOG']);
+  const items = []; if (Intro.ok) items.push(['intro', 'INTRO']); items.push(['daily', 'DAILY'], ['music', 'MUSIC'], ['changes', 'CHANGELOG']);
   let x = 0; return items.map(([id, label]) => { const r = { id, label, x, y: VH - 18, w: textW(label) + 12, h: 18 }; x += r.w; return r; });
 }
 function renderTitle(g) {
@@ -346,7 +346,8 @@ function renderTitle(g) {
   let tw = 0; for (const c of cols) tw += textW(c[0] + '  ' + c[1]) + 18; let hx = Math.round(VW / 2 - (tw - 18) / 2);
   for (const c of cols) { txo(g, c[0], hx, hy, '#ffd95e'); txo(g, c[1], hx + textW(c[0]) + 5, hy, '#d8dbe6'); hx += textW(c[0] + '  ' + c[1]) + 18; }
   const b = Save.data.best, nc = Object.keys(Save.data.rooms).length;
-  txt(g, Save.data.runs > 0 ? 'Deepest: floor ' + Math.max(1, b.floor) + '   Cards: ' + nc + '/' + DRAFTABLE.length + (Save.data.wins ? '   Wins: ' + Save.data.wins : '') : 'WASD move - SPACE dash - P pause - M mute', VW / 2, VH - 28, '#5d667c', 0.5);
+  if (sel >= 0 && T[sel].id === 'daily') txt(g, dailyTitleLine(), VW / 2, VH - 28, '#ffd95e', 0.5);
+  else txt(g, Save.data.runs > 0 ? 'Deepest: floor ' + Math.max(1, b.floor) + '   Cards: ' + nc + '/' + DRAFTABLE.length + (Save.data.wins ? '   Wins: ' + Save.data.wins : '') : 'WASD move - SPACE dash - P pause - M mute', VW / 2, VH - 28, '#5d667c', 0.5);
   txt(g, 'v' + VERSION, VW - 5, VH - 10, '#3b2d4f', 1);
   T.forEach((r, i) => {
     const on = i === sel;

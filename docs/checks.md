@@ -27,7 +27,9 @@ console error, then runs five scripts:
   most, door pressure per floor, the knocking late in the clock, a warden's fury, each warden's bullet phase (it starts at
   60% of its health, once, after a tell; a delver that only walks gets through it unhurt at three
   distances, calm and enraged; standing still is hit; enraged it is over sooner), each rule of
-  Stakes in force from its step on, room overloads (when a room overloads and when not, the
+  Stakes in force from its step on, the daily delve (day, seed, delver and deck from a fixed date;
+  two saves and two different fights find the same cards behind the same doors; the first attempt
+  counts and a later one is practice; the last 14 days are kept), room overloads (when a room overloads and when not, the
   20 seconds, that it fires with the delver elsewhere and never hurts the delver, that a hexed room
   does not charge, each element's burst, the card's OVERLOAD and the coach's lesson), the house (the dealer's and the wheel's tell and pattern, that standing
   is hit and the move each asks for is not; the slot machine's reels, which show what is coming for
@@ -43,7 +45,8 @@ console error, then runs five scripts:
   sound in each `Music grows` setting, and the changelog: the game's version has the first entry
   and the font has every character in it.
 - `tools/check-flows.js`: first run, pause and options, drafting, the Stairwell, game over, the
-  title's entries, the changelog and the music player (keys, pad, mouse, touch), hero and deck
+  title's entries, the changelog, the music player and the daily delve (keys, pad, mouse, touch;
+  for the daily also leaving it, the end screen and trying again), hero and deck
   screens, victory, endless, the gamepad mapping driven by a simulated pad, and the card coach (the
   first-draft walkthrough, one lesson per new thing, H to explain a card again), the knock back
   (what each knock calls, the dice, no loot, the shorter clock), Stakes (a win opens a step, the

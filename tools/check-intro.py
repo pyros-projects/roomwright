@@ -166,8 +166,10 @@ def main():
         # ---- a click on the corner label, and a click to skip
         page.wait_for_timeout(500)
         box = page.evaluate("(() => { const r = document.getElementById('game').getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; })()")
-        page.mouse.move(box["x"] + 30, box["y"] + box["h"] - 20); page.wait_for_timeout(100)
-        page.mouse.click(box["x"] + 30, box["y"] + box["h"] - 20)
+        # where the title's INTRO entry is, from the game's own layout (the row has other entries too)
+        at = page.evaluate("(() => { const e = RW.titleLayout().find(t => t.id === 'intro'), r = document.getElementById('game').getBoundingClientRect(), V = RW.view(); return { x: r.left + (e.x + e.w / 2) * r.width / V.VW, y: r.top + (e.y + e.h / 2) * r.height / V.VH }; })()")
+        page.mouse.move(at["x"], at["y"]); page.wait_for_timeout(100)
+        page.mouse.click(at["x"], at["y"])
         s = until(page, lambda s: s["intro"] == "play" or s["gate"])
         if s["gate"]:
             page.mouse.click(box["x"] + 400, box["y"] + 300); s = until(page, lambda s: s["intro"] == "play")

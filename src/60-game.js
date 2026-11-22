@@ -10,7 +10,7 @@ const Save = {
   data: null,
   fresh() {
     const rooms = {}; for (const id of STARTER_ROOMS) rooms[id] = 1;
-    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0, mouse: 'point', grow: 'full' }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {}, census: [],
+    return { v: 2, runs: 0, wins: 0, best: { time: 0, rooms: 0, kills: 0, floor: 0 }, opts: { music: 0.6, sfx: 0.8, shake: 1, mute: 0, mouse: 'point', grow: 'full' }, rooms, heroes: { pip: 1 }, hero: 'pip', decks: {}, tips: {}, census: [], daily: [],
       stakes: {}, stake: {} };          // Stakes per delver: the highest step won (0 = the plain game), and the step chosen for the next run
   },
   load() {
@@ -25,6 +25,7 @@ const Save = {
         for (const id in s.decks || {}) if (HEROES[id] && Array.isArray(s.decks[id])) d.decks[id] = s.decks[id].filter(r => typeof r === 'string');
         Object.assign(d.tips, s.tips);
         if (Array.isArray(s.census)) d.census = s.census.filter(r => r && typeof r === 'object').slice(-CENSUS_MAX);
+        if (Array.isArray(s.daily)) d.daily = s.daily.filter(r => r && typeof r === 'object' && Number.isInteger(r.day) && HEROES[r.hero] && (r.open === true || (Number.isFinite(r.floor) && Number.isFinite(r.time)))).slice(-DAILY_KEEP);
         for (const id in s.stakes || {}) if (HEROES[id]) d.stakes[id] = clamp(s.stakes[id] | 0, 0, STAKES.length);
         if (!s.stakes && d.wins > 0) for (const id in d.heroes) d.stakes[id] = 0;       // a save from before Stakes that has won: the first step is open
         for (const id in s.stake || {}) if (HEROES[id]) d.stake[id] = clamp(s.stake[id] | 0, 0, stakesOpen(id));
@@ -76,6 +77,47 @@ function makeShowcase() {
   App.mode = 'title'; App.titleRoom = 0; App.titleT = 0; App.titleSel = '';
   G.cam.x = G.rooms[0].px + CWP / 2 - VW / 2; G.cam.y = G.rooms[0].py + CHP / 2 - VH / 2;
 }
+// ---- the daily delve (#18) ----
+// Everyone gets the same run for a day. The seed comes from the date (UTC), and so do the delver and the deck: the
+// four delvers take turns, each with its own ten cards, whatever the save holds. Day 1 is 2026-11-22. The first
+// attempt of a day counts, also when it is left unfinished; later ones are practice. The save keeps the last
+// DAILY_KEEP days. Nothing leaves the browser.
+const DAILY_EPOCH = Date.UTC(2026, 10, 22) / 864e5, DAILY_KEEP = 14, DAILY_HEROES = ['pip', 'wick', 'brin', 'moss'];
+const Daily = { now: null };          // Daily.now: a fixed moment in ms for the checks; null = the clock
+const dailyInfo = ms => dailyOf(Math.floor((ms !== undefined ? ms : Daily.now !== null ? Daily.now : Date.now()) / 864e5) - DAILY_EPOCH + 1);
+function dailyOf(day) {
+  let h = Math.imul(day ^ 0x9e3779b9, 2654435761) >>> 0; h ^= h >>> 15; h = Math.imul(h, 2246822519) >>> 0; h ^= h >>> 13;
+  const hero = DAILY_HEROES[((day % DAILY_HEROES.length) + DAILY_HEROES.length) % DAILY_HEROES.length];
+  return { day, seed: (h >>> 0) % 2147483647, hero, deck: HEROES[hero].deck.slice() };
+}
+const dailyDone = day => Save.data.daily.find(r => r.day === day);
+function startDaily(day) {            // today's delve; or, with a day's number, that day's again (as practice: it is on file)
+  const d = day === undefined ? dailyInfo() : dailyOf(day), first = !dailyDone(d.day);
+  newRun(d.seed, { hero: d.hero, deck: d.deck, tutorial: false, stakes: 0, daily: { day: d.day, practice: !first } });
+  if (first) { const L = Save.data.daily; L.push({ day: d.day, hero: d.hero, won: false, floor: 1, time: 0, rooms: 0, open: true }); while (L.length > DAILY_KEEP) L.shift(); }
+  Save.store();                       // (a daily does not count as one of the first runs: the tutorial waits for an ordinary one)
+  App.mode = 'play'; App.sel = 0; App.record = false; floorMusic();
+  banner('DAILY DELVE ' + d.day, first ? 'One try counts. Everyone gets these floors today.' : 'Practice. Your first try today has counted.', '#ffd95e', 3.4);
+}
+// the counted attempt ends: by a win, a death, or by leaving the run
+function dailyClose(win) {
+  if (!G.daily || G.daily.practice) return; const r = dailyDone(G.daily.day); if (!r || !r.open) return;
+  r.won = !!win; r.floor = G.floor + 1; r.time = Math.round(G.tRun); r.rooms = G.stats.rooms; delete r.open; Save.store();
+}
+// what the end screen says about a daily run, and what the title says about today
+function dailyEndLine() {
+  const d = G.daily, r = d && dailyDone(d.day); if (!r) return '';
+  return d.practice ? 'Daily delve ' + d.day + ', practice. First try: ' + (r.open ? 'begun' : r.won ? 'won' : 'floor ' + r.floor) + '.' : dailyLine(r) + '.';
+}
+function dailyTitleLine() {
+  const d = dailyInfo(), r = dailyDone(d.day);
+  return r ? dailyLine(r) + '. Again is practice.' : 'Daily delve ' + d.day + ' as ' + HEROES[d.hero].name + '. One try counts.';
+}
+// one line for the end screen and the title: the day's number and what came of it
+function dailyLine(r) {
+  if (!r) return '';
+  return 'Daily delve ' + r.day + ': ' + (r.open ? 'begun' : r.won ? 'won in ' + fmtTime(r.time) : 'floor ' + r.floor + ' in ' + fmtTime(r.time)) + ', ' + HEROES[r.hero].name;
+}
 function toTitle() { Snd.hand(null); Snd.music('title'); makeShowcase(); }
 function floorBanner() { banner('FLOOR ' + (G.floor + 1) + ': ' + G.F.name.toUpperCase(), G.floor === 0 ? 'Draft rooms. After ' + STAIRS_MIN + ', a draft offers the Stairwell down.' : 'New monsters. New rooms. Same idea.', '#ffd95e', 3.2); }
 function startRun(seed, opts = {}) {
@@ -98,14 +140,17 @@ function runRecord(win) {
 }
 function endRun(win) {
   const b = Save.data.best, S = G.stats, depth = G.floor + 1, c = Save.data.census;
+  dailyClose(win);
   c.push(runRecord(win)); while (c.length > CENSUS_MAX) c.shift();
   App.record = Save.data.runs > 1 && (depth > b.floor || (depth === b.floor && Math.floor(G.tRun) > b.time));
   b.time = Math.max(b.time, Math.floor(G.tRun)); b.rooms = Math.max(b.rooms, S.rooms); b.kills = Math.max(b.kills, S.kills); b.floor = Math.max(b.floor, depth);
   App.stakesNew = 0;
   if (win) {                          // a win at a step opens the next one for this delver, and sets it for the next run
     const d = Save.data, had = stakesOpen(G.hero); d.wins++;
-    d.stakes[G.hero] = Math.max(d.stakes[G.hero] === undefined ? -1 : d.stakes[G.hero], G.stakes);
-    if (stakesOpen(G.hero) > had) { App.stakesNew = stakesOpen(G.hero); d.stake[G.hero] = App.stakesNew; }
+    if (!G.daily) {                   // (a daily delve is outside the ladder: its delver may not even be yours)
+      d.stakes[G.hero] = Math.max(d.stakes[G.hero] === undefined ? -1 : d.stakes[G.hero], G.stakes);
+      if (stakesOpen(G.hero) > had) { App.stakesNew = stakesOpen(G.hero); d.stake[G.hero] = App.stakesNew; }
+    }
   }
   Save.store(); App.mode = win ? 'win' : 'over'; App.sel = 0;
 }
@@ -188,6 +233,7 @@ const MODES = {
     if (act === 'intro') { Intro.begin(); return; }                      // watch the intro again
     if (act === 'changes') { Snd.ensure(); sfx('ok'); App.changes.y = 0; App.mode = 'changes'; return; }
     if (act === 'music') { Snd.ensure(); sfx('ok'); openPlayer(); return; }
+    if (act === 'daily') { Snd.ensure(); sfx('ok'); startFade(startDaily); return; }
     if (act === 'start') {
       Snd.ensure(); sfx('ok');
       if (Save.data.runs === 0) startFade(() => startRun());             // very first run: straight in, with the tutorial
@@ -272,20 +318,20 @@ const MODES = {
     const a = menuNav(L_.items.length, L_.rects);
     if (a === 0) { App.mode = 'play'; sfx('ok'); }
     else if (a >= 1 && a <= 5) adj(a, 1, true);
-    else if (a === 6) { sfx('ok'); startFade(() => startRun()); }
-    else if (a === 7) { sfx('back'); startFade(toTitle); }
+    else if (a === 6) { sfx('ok'); const day = G.daily && G.daily.day; dailyClose(false); startFade(() => day ? startDaily(day) : startRun()); }      // a daily delve starts again as practice
+    else if (a === 7) { sfx('back'); dailyClose(false); startFade(toTitle); }
   },
   descend() {
     if (App.modeT > 0.5 && (Input.confirm() || Input.mouse.click)) { sfx('ok'); startFade(arriveNextFloor); }
   },
   over(dt) {
     updateSmall(dt); const L_ = endLayout(), a = menuNav(L_.items.length, L_.rects);
-    if (a === 0) { sfx('ok'); startFade(() => startRun()); } else if (a === 1 || Input.hit('back')) { sfx('back'); startFade(toTitle); }
+    if (a === 0) { sfx('ok'); const day = G.daily && G.daily.day; startFade(() => day ? startDaily(day) : startRun()); } else if (a === 1 || Input.hit('back')) { sfx('back'); startFade(toTitle); }
   },
   win(dt) {
     updateSmall(dt); const L_ = endLayout(), a = menuNav(L_.items.length, L_.rects);
     if (a === 0) { sfx('ok'); G.won = false; G.endless = true; G.endT = 0; App.mode = 'play'; floorMusic(); banner('ENDLESS DELVE', 'The doors start knocking again...', '#9cecf2', 3); }
-    else if (a === 1) { sfx('ok'); startFade(() => startRun()); }
+    else if (a === 1) { sfx('ok'); const day = G.daily && G.daily.day; startFade(() => day ? startDaily(day) : startRun()); }
     else if (a === 2 || Input.hit('back')) { sfx('back'); startFade(toTitle); }
   },
 };

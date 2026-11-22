@@ -260,6 +260,34 @@ step opens the next. Each step adds one rule and keeps the ones before it.
 
 The plain game is step 0. The pause menu and the end screen name the step you are playing.
 
+## The daily delve
+
+DAILY on the title starts the same run for everyone for a day. The seed comes from the date (UTC),
+and so do the delver and the deck: Pip, Wick, Brindle and Moss take turns, each with its own ten
+cards, whatever the save holds, without Stakes and without the first-run tutorial. Day 1 is
+22 November 2026.
+
+- **The same cards behind the same doors.** In an ordinary run the cards behind a door come from
+  the run's one generator, so they depend on how the fight went before the door was opened. In a
+  daily delve each deal has its own generator, seeded from the day, the floor, the door's place and
+  how many new hands that door has been asked for. Everyone starts with the same four hands behind
+  the hearth's four doors. Later, two players who are in the same situation when they first look
+  behind a door find the same cards: the hand is dealt at the first look and stays, and what can be
+  dealt depends on the plan and the delver at that moment (the first draft offers weapons, a dead
+  end is not dealt where it would close the floor, a boon that upgrades a weapon needs the weapon).
+  A knock back deals the door's next hand, again the same for both.
+- **One attempt counts.** The first attempt of a day counts from the moment it starts, also when
+  it is left from the pause menu or the tab is closed. Later ones are practice: the banner and the
+  end screen say so, and they do not change the day's result. "Again" on the end screen replays
+  the same day, also after midnight. A daily delve is a run like any other in what it finds: cards
+  and delvers it unlocks are kept, a win counts as a win, practice included. It stands outside the
+  Stakes ladder and does not count as one of the first runs that get the tutorial.
+- **What is kept.** The end screen names the day and the result. The save keeps the last 14 days
+  (day, delver, won or the floor reached, time, rooms). Nothing leaves the browser: there is no
+  server and no list of other players.
+
+The numbers are `dailyInfo()` in `src/60-game.js`; the deal is `makeCards()` in `src/43-draft.js`.
+
 ## The deck
 
 Drafts deal from a **deck of ten room cards** plus one room native to the floor. Drafting a native

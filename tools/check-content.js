@@ -411,6 +411,43 @@
       { fresh(142); const d = RW.spawnMon('die', P.x + 60, P.y); d.shootT = 0.05; let n = 0; for (let i = 0; i < 400 && !n; i++) { RW.step(1); n = G.ebullets.length; }
         RW.killMon(d); G.hits.length = 0; const b0 = G.ebullets[0]; if (b0) { b0.x = P.x - 3; b0.y = P.y - 4; b0.vx = 20; b0.vy = 0; } P.inv = 0; P.shield = 0; RW.step(3);
         ok('dice: a die throws a ring of bullets, and one that hits is filed as a bullet from a die', n >= 8 && G.hits.length === 1 && G.hits[0].by === 'die' && G.hits[0].how === 'bullet', n + ' bullets, ' + JSON.stringify(G.hits)); } }
+    /* ---- the daily delve (#18) ---- */
+    { const DAY = Date.UTC(2026, 11, 24, 15), NEXT = Date.UTC(2026, 11, 25, 3), a = RW.dailyInfo(DAY), a2 = RW.dailyInfo(Date.UTC(2026, 11, 24, 0, 0, 1)), b = RW.dailyInfo(NEXT), keep = localStorage.getItem(RW.Save.KEY);
+      try {
+        ok('daily: the day, the seed, the delver and the deck come from the date (UTC)', a.day === 33 && a2.day === 33 && a2.seed === a.seed && b.day === 34 && b.seed !== a.seed && a.hero !== b.hero && a.deck.join() === RW.HEROES[a.hero].deck.join() && RW.dailyInfo(Date.UTC(2026, 10, 22, 12)).day === 1 && RW.dailyInfo(Date.UTC(2026, 11, 24, 23, 59, 59)).day === 33 && RW.dailyInfo(Date.UTC(2026, 11, 25, 0, 0, 0)).day === 34 && JSON.stringify(RW.dailyOf(33)) === JSON.stringify(a), JSON.stringify([a.day, a.seed, a.hero, b.day, b.seed, b.hero]));
+        // two browsers: different saves and different fights before the doors are opened
+        const deal = (save, fight, plain) => { localStorage.removeItem(RW.Save.KEY); RW.Save.load(); save(RW.Save.data); RW.Daily.now = DAY; RW.manual(true); RW.startDaily(); G = RW.G; P = G.P; if (plain) G.daily = null; G.dir.calm = 1e9; P.inv = 1e9; P.keys = 9; fight();
+          const out = []; for (const d of G.sealed.slice().sort((p, q) => p.dir - q.dir)) { RW.openDraft(d); out.push(d.dir + ':' + G.draft.cards.map(c => c.type + '/' + c.want.join('') + '/' + c.boon.kind + c.boon.id).join(',')); RW.closeDraft(); } return out.join(' | '); };
+        const rich = d => { d.runs = 40; d.wins = 3; for (const id in RW.ROOM_TYPES) d.rooms[id] = 1; d.heroes = { pip: 1, wick: 1, brin: 1, moss: 1 }; d.hero = 'moss'; }, brawl = () => { for (let i = 0; i < 12; i++) RW.spawnMon('slime', P.x + 40 + i * 5, P.y); RW.step(600); };
+        const one = deal(d => {}, () => RW.step(30)), two = deal(rich, brawl), oneP = deal(d => {}, () => RW.step(30), true), twoP = deal(rich, brawl, true);
+        ok('daily: two browsers with different saves, after different fights, find the same cards behind the same doors', one === two && one.length > 40, one.slice(0, 140));
+        ok('daily: ...which an ordinary run with that seed does not promise', oneP !== twoP);
+        ok('daily: each of the hearth\'s four doors holds a hand of its own', new Set(one.split(' | ').map(x => x.slice(2))).size === 4, one.split(' | ').length + ' doors');
+        // a Map Room makes every hand one card larger: it does not matter whether the door was looked behind before
+        { const run = peek => { localStorage.removeItem(RW.Save.KEY); RW.Save.load(); RW.Daily.now = DAY; RW.manual(true); RW.startDaily(); G = RW.G; P = G.P; G.dir.calm = 1e9; P.inv = 1e9; P.keys = 9; const doors = G.sealed.slice().sort((p, q) => p.dir - q.dir), X = doors[1];
+            if (peek) { RW.openDraft(X); RW.closeDraft(); } build('maproom', [1, 1, 1, 1], doors[0]); RW.openDraft(X); const h = G.draft.cards.map(c => c.type + '/' + c.want.join('') + '/' + c.boon.kind + c.boon.id).join(','); RW.closeDraft(); return h; };
+          const seenBefore = run(true), firstLook = run(false); ok('daily: with a Map Room the door holds the same four cards, looked behind before or not', seenBefore === firstLook && seenBefore.split(',').length === 4, seenBefore); }
+        // a knock back deals the door's next hand, the same for both
+        { const run = fight => { localStorage.removeItem(RW.Save.KEY); RW.Save.load(); RW.Daily.now = DAY; RW.manual(true); RW.startDaily(); G = RW.G; P = G.P; G.dir.calm = 1e9; P.inv = 1e9; P.keys = 9; fight(); const X = G.sealed.slice().sort((p, q) => p.dir - q.dir)[2];
+            RW.openDraft(X); const h0 = G.draft.cards.map(c => c.type + c.boon.id).join(','); G.draft.t = 9; RW.knockBack(); const h1 = X.cards.map(c => c.type + '/' + c.want.join('') + '/' + c.boon.kind + c.boon.id).join(','); if (G.draft) RW.closeDraft(); return [h0, h1]; };
+          const k1 = run(() => RW.step(20)), k2 = run(brawl); ok('daily: a knock back deals a new hand, and the same one to both', k1[1] === k2[1] && k1[0] === k2[0] && k1[1].split(',').map(x => x.split('/')[0] + x.split('/')[2].slice(1)).join(',') !== k1[0], k1[1].slice(0, 80)); }
+        // one attempt counts
+        localStorage.removeItem(RW.Save.KEY); RW.Save.load(); RW.Daily.now = DAY; RW.startDaily(); G = RW.G; P = G.P; const began = JSON.parse(JSON.stringify(RW.Save.data.daily)), counted = !G.daily.practice;
+        G.dir.calm = 1e9; P.inv = 0; P.shield = 0; RW.hurtPlayer(99); RW.step(140); const r1 = JSON.stringify(RW.Save.data.daily[0]), line1 = RW.dailyLine(RW.Save.data.daily[0]), end1 = RW.dailyEndLine();
+        RW.startDaily(); G = RW.G; P = G.P; const practice = G.daily.practice; G.dir.calm = 1e9; P.inv = 0; P.shield = 0; RW.hurtPlayer(99); RW.step(140); const end2 = RW.dailyEndLine();
+        ok('daily: the first attempt of a day counts from its start and is filed with its result', counted && began.length === 1 && began[0].open === true && began[0].day === 33 && /"won":false/.test(r1) && !/open/.test(r1) && /^Daily delve 33: floor 1 in \d+:\d\d, /.test(line1) && end1 === line1 + '.', line1);
+        ok('daily: a later attempt on the same day is practice and changes nothing', practice && RW.Save.data.daily.length === 1 && JSON.stringify(RW.Save.data.daily[0]) === r1 && /^Daily delve 33, practice\. First try: floor 1\.$/.test(end2), end2);
+        RW.Daily.now = NEXT; RW.startDaily(); ok('daily: the next day counts again', !RW.G.daily.practice && RW.Save.data.daily.length === 2 && RW.Save.data.daily[1].day === 34);
+        for (let i = 0; i < 20; i++) { RW.Daily.now = NEXT + (i + 1) * 864e5; RW.startDaily(); }
+        ok('daily: the save keeps the last 14 days', RW.Save.data.daily.length === 14 && JSON.parse(localStorage.getItem(RW.Save.KEY)).daily.length === 14 && RW.Save.data.daily[13].day === 54, RW.Save.data.daily.map(r => r.day).join(' '));
+        RW.Save.load(); ok('daily: ...and reads them back', RW.Save.data.daily.length === 14);
+        // what a daily does not touch: the count of first runs, and the Stakes of a delver who may not even be owned
+        { localStorage.removeItem(RW.Save.KEY); RW.Save.load(); RW.Daily.now = DAY; const runs0 = RW.Save.data.runs; RW.startDaily(); G = RW.G; P = G.P; const hero = G.hero, owned = !!RW.Save.data.heroes[hero]; G.dir.calm = 1e9; P.inv = 1e9; G.won = true; G.endT = 9; RW.step(3);
+          ok('daily: it does not count as one of the first runs, and a win in it sets no Stakes', RW.App.mode === 'win' && RW.Save.data.runs === runs0 && RW.Save.data.wins === 1 && RW.Save.data.stakes[hero] === undefined && RW.Save.data.stake[hero] === undefined && !owned && RW.Save.data.daily[0].won === true && RW.endItems()[1].label === 'Again, as practice', JSON.stringify({ mode: RW.App.mode, runs: RW.Save.data.runs, wins: RW.Save.data.wins, stakes: RW.Save.data.stakes, hero, items: RW.endItems().map(i => i.label) })); }
+        // a save that holds junk
+        { const raw = JSON.parse(localStorage.getItem(RW.Save.KEY)); raw.daily = [{ day: '33', hero: 'wick', floor: 1, time: 5 }, null, { day: 5, hero: 'wick' }, { day: 6, hero: 'nobody', floor: 1, time: 3 }, { day: 7, hero: 'pip', floor: 2, time: 99, won: false, rooms: 3 }, { day: 8, hero: 'pip', open: true }, 'x'];
+          localStorage.setItem(RW.Save.KEY, JSON.stringify(raw)); RW.Save.load(); ok('daily: junk in the save is dropped on load', RW.Save.data.daily.map(r => r.day).join() === '7,8' && /^Daily delve 7: floor 2 in 1:39, Pip$/.test(RW.dailyLine(RW.Save.data.daily[0])), JSON.stringify(RW.Save.data.daily)); }
+      } finally { RW.Daily.now = null; if (keep === null) localStorage.removeItem(RW.Save.KEY); else localStorage.setItem(RW.Save.KEY, keep); RW.Save.load(); } }
     /* ---- room overloads (#15) ---- */
     { const EL = { fire: 'ember', frost: 'frost', steel: 'spikes', stone: 'hall', wild: 'garden', shadow: 'den', lore: 'library', water: 'fountain' }, O = RW.OVER;
       // a room of `type` at three stars between two rooms that resonate with it (Stone Halls resonate with everything)

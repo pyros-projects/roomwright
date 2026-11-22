@@ -118,6 +118,32 @@
     RW.step(40); press('ok'); ok('keep delving resumes play', RW.App.mode === 'play' && G.endless && !G.won);
     P.inv = 1e9; G.dir.calm = 0; RW.step(60 * 45); ok('endless keeps the doors knocking', G.mons.length > 10, G.mons.length + ' monsters');
     RW.step(10); RW.render();
+    /* ---- the daily delve (#18): from the title with keys, the mouse and a pad; leaving it; the end screen ---- */
+    { const DAY = Date.UTC(2026, 11, 24, 12), I = RW.dailyInfo(DAY); RW.Daily.now = DAY;
+      const cv0 = document.getElementById('game'), V0 = RW.view(), b0 = cv0.getBoundingClientRect(), mouse0 = (type, vx, vy, button = 0, buttons = 1) => cv0.dispatchEvent(new MouseEvent(type, { clientX: b0.left + vx * b0.width / V0.VW, clientY: b0.top + vy * b0.height / V0.VH, button, buttons, bubbles: true, cancelable: true }));
+      try {
+        localStorage.removeItem(RW.Save.KEY); RW.Save.load(); RW.Save.data.runs = 3; RW.toTitle(); RW.step(40);
+        const T = RW.titleLayout(), di = T.findIndex(e => e.id === 'daily'); ok('title: the daily delve is one of its entries', di >= 0, T.map(e => e.id).join(' '));
+        press('down'); for (let i = 0; i < di; i++) press('right'); const line0 = RW.dailyTitleLine(); press('ok'); RW.step(60);
+        ok('daily: ENTER on its entry starts today\'s delve, with the day\'s delver and seed', RW.App.mode === 'play' && RW.G.daily && RW.G.daily.day === 33 && !RW.G.daily.practice && RW.G.seed === I.seed && RW.G.hero === I.hero && RW.G.stakes === 0, RW.App.mode + ' ' + JSON.stringify(RW.G.daily) + ' ' + line0);
+        ok('daily: the title says what today holds', line0 === 'Daily delve 33 as ' + RW.HEROES[I.hero].name + '. One try counts.', line0);
+        press('pause'); for (let i = 0; i < 7; i++) press('down'); RW.step(30); press('ok'); RW.step(60);
+        ok('daily: leaving the run from the pause menu counts it', RW.App.mode === 'title' && RW.Save.data.daily.length === 1 && RW.Save.data.daily[0].open === undefined && RW.Save.data.daily[0].won === false, JSON.stringify(RW.Save.data.daily));
+        press('down'); for (let i = 0; i < di; i++) press('right'); const line1 = RW.dailyTitleLine(); press('back');
+        ok('daily: ...and the title shows the result', /^Daily delve 33: floor 1 in \d+:\d\d, .*\. Again is practice\.$/.test(line1), line1);
+        const e = RW.titleLayout().find(t => t.id === 'daily'); mouse0('mousemove', e.x + e.w / 2, e.y + 9, 0, 0); RW.step(2); mouse0('mousedown', e.x + e.w / 2, e.y + 9); RW.step(3); mouse0('mouseup', 0, 0, 0, 0); RW.step(60);
+        ok('daily: a click on the entry starts it, as practice now', RW.App.mode === 'play' && RW.G.daily && RW.G.daily.practice && RW.G.seed === I.seed, RW.App.mode);
+        mouse0('mousemove', V0.VW / 2, V0.VH / 2, 0, 0); RW.G.dir.calm = 1e9; RW.G.P.inv = 0; RW.G.P.shield = 0; RW.hurtPlayer(99); RW.step(140);
+        ok('daily: the end screen names the day', RW.App.mode === 'over' && /^Daily delve 33, practice\./.test(RW.dailyEndLine()), RW.dailyEndLine());
+        const label = RW.endItems()[0].label; RW.Daily.now = DAY + 864e5;                // midnight passes on the end screen
+        RW.step(40); press('ok'); RW.step(60); ok('daily: its retry is labelled as practice and replays the same day, also after midnight', label === 'Again, as practice' && RW.App.mode === 'play' && RW.G.daily && RW.G.daily.day === 33 && RW.G.daily.practice && RW.G.seed === I.seed, label + ' ' + RW.App.mode + ' ' + JSON.stringify(RW.G.daily));
+        press('pause'); for (let i = 0; i < 6; i++) press('down'); RW.step(30); press('ok'); RW.step(60); ok('daily: Restart in the pause menu replays the same day too', RW.App.mode === 'play' && RW.G.daily && RW.G.daily.day === 33 && RW.G.daily.practice, RW.App.mode + ' ' + JSON.stringify(RW.G.daily)); RW.Daily.now = DAY;
+        RW.toTitle(); RW.step(40); RW.Save.data.daily.length = 0; const pad = { connected: true, axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false })) }, real = navigator.getGamepads;
+        try { navigator.getGamepads = () => [pad]; const gstep = n => { for (let i = 0; i < n; i++) { RW.Input.poll(); RW.step(1); } }, tap = b => { pad.buttons[b].pressed = true; gstep(2); pad.buttons[b].pressed = false; gstep(2); };
+          gstep(5); tap(13); for (let i = 0; i < di; i++) tap(15); tap(0); gstep(60);
+          ok('daily: a pad reaches the entry and starts it', RW.App.mode === 'play' && RW.G.daily && RW.G.daily.day === 33 && !RW.G.daily.practice, RW.App.mode + ' ' + RW.App.titleSel);
+        } finally { navigator.getGamepads = real; RW.Input.poll(); }
+      } finally { RW.Daily.now = null; } }
     /* ---- gamepad: a simulated pad exercises the mapping (not real hardware) ---- */
     const pad = { connected: true, axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false })) };
     Object.defineProperty(navigator, 'getGamepads', { value: () => [pad], configurable: true });
@@ -303,6 +329,9 @@
       RW.toTitle(); RW.step(40); touch('touchstart', [[8, V.VW / 2, V.VH / 2]]); RW.step(3); touch('touchend', [[8, 0, 0]]); RW.step(40);
       { const L = RW.prepLayout('pip'), cx = V.VW / 2, cy = L.sy + 9, seq = []; for (let i = 0; i < 3; i++) { touch('touchstart', [[9, cx, cy]]); RW.step(3); touch('touchend', [[9, 0, 0]]); seq.push(RW.stakeOf('pip')); }
         ok('stakes, touch: a tap on the Stakes lines does the same', RW.App.mode === 'prep' && seq.join() === '1,2,0', RW.App.mode + ' ' + seq.join()); }
+      { RW.Daily.now = Date.UTC(2026, 11, 24, 12); try { RW.toTitle(); RW.step(40); RW.Save.data.daily.length = 0; const e = RW.titleLayout().find(t => t.id === 'daily');
+          touch('touchstart', [[21, e.x + e.w / 2, e.y + e.h / 2]]); RW.step(3); touch('touchend', [[21, 0, 0]]); RW.step(60);
+          ok('touch: a tap on the title\'s DAILY starts today\'s delve', RW.App.mode === 'play' && RW.G.daily && RW.G.daily.day === 33, RW.App.mode); } finally { RW.Daily.now = null; } }
     } else out.push('SKIP touch checks: this browser has no Touch constructor');
   } catch (e) { out.push('EXCEPTION ' + String(e && e.stack || e).slice(0, 500)); }
   try { localStorage.setItem(RW.Save.KEY, saved); RW.Save.load(); RW.toTitle(); } catch (e) { /* ignore */ }
