@@ -12,7 +12,7 @@
 
 [![Play in your browser][play-shield]][play-url]
 [![License: MIT][license-shield]][license-url]
-[![Version 0.3][version-shield]][version-url]
+[![Version 0.4][version-shield]][version-url]
 [![One HTML file][file-shield]][file-url]
 [![No libraries][libs-shield]][libs-url]
 [![Intro made with pixel-cat][film-shield]][film-url]
@@ -55,9 +55,17 @@ burning or freezing floors...), a boon (a weapon, an upgrade or a charm) and som
 So one choice decides three things at once: how your character grows, what the terrain you fight on
 does, and where the next monsters will come from.
 
-Version 0.3 has three floors, 36 room cards, 24 weapons (each with an evolution), 27 charms, four
+Version 0.4 has three floors, 36 room cards, 24 weapons (each with an evolution), 27 charms, four
 delvers and a deck you build between runs. [How it plays](docs/design.md) covers stars, elements and
-resonance, evolutions, door pressure, pests, sieges, the three floors, Stakes, the deck and the delvers.
+resonance, overloads, evolutions, door pressure, pests, sieges, dice and the house, the wardens, the three
+floors, Stakes, the daily delve, the deck and the delvers. [What changed](CHANGELOG.md) lists every version.
+
+New in 0.4: the screen burns, inside rules that keep it readable. Each warden has a bullet phase, dice
+roll in with ordinary waves, each floor has a monster of the house with its own pattern, and a room at
+three stars with two resonating neighbours overloads by itself. You, enemy bullets and pickups are always
+drawn on top. A daily delve gives everyone the same run for a day, the end screen hands on the floor plan
+as a picture or as text, the title has a music player and a changelog, and on a phone the game is twice
+as large with a layout for every screen.
 
 New in 0.3: the card you pick decides more. Doors cost more the deeper you are, a room with stars and
 resonance does real work, each floor's elite goes for your best room, and a warden grows faster the
@@ -129,7 +137,7 @@ rendered the film. [The intro film](docs/intro.md) explains how it runs in the g
 [play-url]: https://pyros-projects.github.io/roomwright/
 [license-shield]: https://img.shields.io/badge/License-MIT-green?style=flat-square
 [license-url]: LICENSE
-[version-shield]: https://img.shields.io/badge/version-0.3-30343B?style=flat-square
+[version-shield]: https://img.shields.io/badge/version-0.4-30343B?style=flat-square
 [version-url]: #the-idea
 [file-shield]: https://img.shields.io/badge/one-HTML%20file-3FC1AD?style=flat-square
 [file-url]: index.html

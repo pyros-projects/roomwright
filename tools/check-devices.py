@@ -23,6 +23,7 @@ import json
 import os
 import shutil
 import sys
+import time
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
@@ -116,7 +117,8 @@ def device(browser, url, name, w, h, shots):
     page = ctx.new_page()
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
-    page.goto(url + ("&" if "?" in url else "?") + "intro=0", wait_until="domcontentloaded")
+    # a new address on every run: a copy from before a deploy would otherwise be what is checked
+    page.goto(url + ("&" if "?" in url else "?") + f"intro=0&run={int(time.time())}", wait_until="domcontentloaded")
     until(page, "window.RW && RW.App.mode === 'title'")
     page.evaluate(PRE)
     shot = (lambda n: page.screenshot(path=str(Path(shots) / f"{name.replace(' ', '-')}-{n}.png"))) if shots else (lambda n: None)
