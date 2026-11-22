@@ -71,9 +71,9 @@ function drawProp(g, p, x, y) {
 }
 function drawMon(g, e, x, y) {
   const def = e.def, t = e.anim; let name; y += 2 - (def.lift || 0);
-  if (def.id === 'gatejaw') { const open = e.st === 2 || e.st === 3 || e.st === 4 || e.st === 6; name = 'boss' + ((open ? 2 : 0) + (e.st === 5 ? 0 : Math.floor(t * 5) & 1)); if (e.st === 1) x += (Math.floor(frameT * 40) & 1) ? 1 : -1; }
-  else if (def.id === 'morel') { const open = e.st === 1 || e.st === 4 || e.st === 5, squat = e.st === 3 || (e.st === 0 && Math.abs(Math.sin(t * 4)) < 0.45); name = 'morel' + ((open ? 2 : 0) + (squat ? 1 : 0)); y -= e.z || 0; }
-  else if (def.id === 'unmaker') { name = 'unmaker' + ((e.st ? 2 : 0) + (Math.floor(t * 3) & 1)); y += Math.round(Math.sin(t * 2) * 2); if (e.st === 2 || e.st === 3) x += (Math.floor(frameT * 40) & 1) ? 1 : -1; }
+  if (def.id === 'gatejaw') { const open = e.st === 2 || e.st === 3 || e.st === 4 || e.st === 6 || e.ph; name = 'boss' + ((open ? 2 : 0) + (e.st === 5 ? 0 : Math.floor(t * 5) & 1)); if (e.st === 1) x += (Math.floor(frameT * 40) & 1) ? 1 : -1; }
+  else if (def.id === 'morel') { const open = e.st === 1 || e.st === 4 || e.st === 5 || e.ph, squat = e.st === 3 || (e.st === 0 && Math.abs(Math.sin(t * 4)) < 0.45); name = 'morel' + ((open ? 2 : 0) + (squat ? 1 : 0)); y -= e.z || 0; }
+  else if (def.id === 'unmaker') { name = 'unmaker' + ((e.st || e.ph ? 2 : 0) + (Math.floor(t * 3) & 1)); y += Math.round(Math.sin(t * 2) * 2); if (e.st === 2 || e.st === 3) x += (Math.floor(frameT * 40) & 1) ? 1 : -1; }
   else if (def.mimic) name = e.st === 0 ? 'mimic0' : 'mimic' + (Math.floor(t * 6) & 1);
   else name = def.spr + (Math.floor(t * (def.fly ? 9 : 5)) & 1);
   if (def.hop && e.stun <= 0 && !(def.mimic && e.st === 0)) y -= Math.abs(Math.sin(t * 5 + e.wob)) * 3;
@@ -81,6 +81,7 @@ function drawMon(g, e, x, y) {
   const s = SPR[name];
   if (def.alpha) g.globalAlpha = def.alpha + Math.sin(t * 3) * 0.12;
   if (e.emerge > 0) g.globalAlpha = clamp(1.15 - e.emerge * 2, 0.25, 1);
+  if (e.ph && e.ph.st && PHASES[def.id].ghost) g.globalAlpha = 0.4 + Math.sin(t * 6) * 0.08;      // the Unmaker while it builds walls: thin air, it does not hurt to touch
   ds(g, s, x, y, e.face < 0, e.flash > 0);
   if (e.stun > 0 && e.flash <= 0) { g.globalAlpha = 0.5; ds(g, s, x, y, e.face < 0, true); g.fillStyle = '#9cecf2'; g.globalAlpha = 1; g.fillRect(Math.round(x) - 3, Math.round(y) - s.h - 1, 2, 2); g.fillRect(Math.round(x) + 2, Math.round(y) - s.h + 1, 2, 2); }
   g.globalAlpha = 1;

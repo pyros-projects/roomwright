@@ -154,6 +154,78 @@ function bossWalk(e, dt, sp, P) {
   if (boxHits(e.x, e.y, BOSS_R, F_WALK)) { e.x += dx * sp * dt; e.y += dy * sp * dt; } else moveBox(e, dx * sp * dt, dy * sp * dt, F_WALK, BOSS_R);
   if (Math.abs(dx) > 0.25) e.face = dx > 0 ? 1 : -1;
 }
+// Where a warden's ring starts: `up` px above its feet, or lower if that spot is inside a wall (a warden that stands
+// right under a wall would otherwise fire every bullet into it).
+function shotY(e, up) { for (const d of [up, up / 2, 0, -up / 2]) if (!blocked(e.x, e.y - d, F_SHOT)) return e.y - d; return e.y - up; }
+// ---- a warden's bullet phase (#13) ----
+// Once in a fight, when its health has fallen to PHASE.at of the whole and it is between two attacks, a warden stops
+// chasing. A tell of PHASE.tell seconds, then its pattern: `n` volleys, one every `every` seconds. An enraged warden
+// (called late, or the first step of Stakes) runs the pattern PHASE.fast times as fast. Fury does not touch the phase:
+// its clock is the game's, so the way through stays walkable however long the fight has lasted. The ways through:
+//   Gatejaw       rings with one gap that turns a little with every ring: stay in the gap and walk with it
+//   Mother Morel  slow rings of spores, each one set into the gaps of the last: step from gap to gap
+//   The Unmaker   walls that cross the room you stand in, one after the other from the far side, each with a
+//                 doorway a few steps beside the last: walk through them. While it builds it is thin air (`ghost`):
+//                 it hovers wherever it was, and a doorway may lie right on it.
+// A pattern takes its aim (`start`) with its first volley, not with the tell, so it meets you where you are by then.
+// ph.shots keeps what was fired (the checks steer by it).
+const PHASE = { at: 0.6, tell: 0.9, fast: 1.3, rest: 1.2 };
+const PHASES = {
+  gatejaw: { name: 'THE GATE COMES DOWN', sub: 'Stay in the gap and walk with it.', n: 6, every: 0.85, col: PAL.r, N: 36, open: 7, turn: 0.3, sp: 60,
+    start(e, ph) { const P = G.P; ph.y = shotY(e, 12); ph.a = Math.atan2(P.y - 4 - ph.y, P.x - e.x); ph.dir = rand() < 0.5 ? 1 : -1; },
+    fire(e, ph, i) {
+      const D = PHASES.gatejaw, a = ph.a + ph.dir * i * D.turn, n = D.N - D.open;       // n bullets, centred opposite the gap
+      for (let k = 0; k < n; k++) { const b = a + Math.PI + (k - (n - 1) / 2) * TAU / D.N; fireEBullet(e.x, ph.y, Math.cos(b), Math.sin(b), D.sp); }
+      ph.shots.push({ x: e.x, y: ph.y, a, half: (D.open + 1) / D.N * Math.PI, sp: D.sp, t: 0 });
+    } },
+  morel: { name: 'SHE BLOOMS', sub: 'Step from gap to gap.', n: 7, every: 0.9, col: PAL.n, N: 10, sp: 40,
+    hold(e) { const room = roomAt(e.x, e.y); if (room && room.def.tier !== 'x') room.hexT = 0.3; },          // she smothers her room while she blooms, too
+    start(e, ph) { const P = G.P; ph.y = shotY(e, 6); ph.a = Math.atan2(P.y - 4 - ph.y, P.x - e.x) + Math.PI / PHASES.morel.N; },   // the first ring passes either side of you
+    fire(e, ph, i) {
+      const D = PHASES.morel, a = ph.a + (i & 1) * Math.PI / D.N;
+      for (let k = 0; k < D.N; k++) fireEBullet(e.x, ph.y, Math.cos(a + k * TAU / D.N), Math.sin(a + k * TAU / D.N), D.sp, 's_spore');
+      ph.shots.push({ x: e.x, y: ph.y, a, step: TAU / D.N, sp: D.sp, t: 0 });
+    } },
+  unmaker: { name: 'IT BUILDS WALLS', sub: 'Walk through the doorways.', n: 5, every: 1.3, col: PAL.P, door: 44, gap: 12, sp: 60, shift: [30, 46], ghost: 1,
+    start(e, ph) {                    // the walls cross the room you stand in, from the side that is farthest from you
+      const P = G.P, room = roomAt(P.x, P.y) || G.curRoom; if (!room) return;
+      const x0 = room.px + WALL * T + 5, x1 = room.px + (WALL + IW) * T - 5, y0 = room.py + WALL * T + 5, y1 = room.py + (WALL + IH) * T - 5;
+      const far = [P.y - y0, x1 - P.x, y1 - P.y, P.x - x0]; let side = 0; for (let i = 1; i < 4; i++) if (far[i] > far[side]) side = i;
+      ph.box = [x0, y0, x1, y1]; ph.side = side; ph.door = null;     // side 0: from the top, 1: from the right, 2: from the bottom, 3: from the left
+    },
+    fire(e, ph, i) {
+      const D = PHASES.unmaker, P = G.P; if (!ph.box) return;
+      const [x0, y0, x1, y1] = ph.box, side = ph.side, across = side & 1 ? 0 : 1, lo = across ? x0 : y0, hi = across ? x1 : y1, min = lo + D.door / 2 + 6, max = hi - D.door / 2 - 6;
+      // the first doorway a few steps beside you, each later one a few steps beside the last
+      const base = ph.door === null ? clamp(across ? P.x : P.y - 4, min, max) : ph.door, step = (rand() < 0.5 ? -1 : 1) * (D.shift[0] + rand() * (D.shift[1] - D.shift[0]));
+      const door = ph.door = base + step < min || base + step > max ? base - step : base + step;
+      const vx = side === 3 ? 1 : side === 1 ? -1 : 0, vy = side === 0 ? 1 : side === 2 ? -1 : 0, from = side === 0 ? y0 : side === 2 ? y1 : side === 3 ? x0 : x1;
+      for (let u = lo; u <= hi; u += D.gap) if (Math.abs(u - door) > D.door / 2) fireEBullet(across ? u : from, across ? from : u, vx, vy, D.sp, 's_hexbolt');
+      ph.shots.push({ side, across, door, from, vx, vy, sp: D.sp, half: D.door / 2, t: 0 });
+    } },
+};
+// true while the phase holds the warden (the tell, the pattern and the breath after it)
+function bossPhase(e, dt) {
+  const D = PHASES[e.def.id], P = G.P; if (!D) return false;
+  let ph = e.ph;
+  if (!ph) {
+    if (e.phased || e.st !== 0 || e.hp > e.max * PHASE.at) return false;
+    ph = e.ph = { st: 0, t: PHASE.tell, i: 0, shots: [] }; e.phased = true;
+    banner(D.name, D.sub, '#ff7a7a', 2.6); sfx('roar'); sfx('fuse'); G.shake = Math.max(G.shake, 5);
+  }
+  if (!(D.ghost && ph.st) && Math.hypot(P.x - e.x, P.y - e.y) < e.r + P.r) hurtPlayer(2, e);
+  if (D.hold) D.hold(e);
+  for (const s of ph.shots) s.t += dt;
+  if (ph.st === 0) {                  // the tell: it stands, flickers and draws the air in
+    ph.t -= dt; e.flash = (Math.floor(ph.t * 14) & 1) ? 0.05 : 0;
+    const a = fxr() * TAU, d = 34 + fxr() * 14; part(e.x + Math.cos(a) * d, e.y - 12 + Math.sin(a) * d, -Math.cos(a) * 70, -Math.sin(a) * 70, 0.45, D.col, 1);
+    if (ph.t <= 0) { ph.st = 1; ph.t = 0; }
+  } else if (ph.st === 1) {           // the pattern
+    ph.t -= dt * (e.rage ? PHASE.fast : 1);
+    if (ph.t <= 0) { if (!ph.i) D.start(e, ph); D.fire(e, ph, ph.i++); sfx('ebullet'); G.shake = Math.max(G.shake, 2); ph.t = D.every; if (ph.i >= D.n) { ph.st = 2; ph.t = PHASE.rest; } }
+  } else { ph.t -= dt; if (ph.t <= 0) { e.ph = null; e.st = 0; e.stT = 1.0; } }
+  return true;
+}
 function summonAdds(e, types, n, hpMul) { for (let i = 0; i < n; i++) { const a = rand() * TAU, s = spawnMon(pick(types), e.x + Math.cos(a) * 8, e.y + Math.sin(a) * 6 + 4, hpMul); s.kx = Math.cos(a) * 120; s.ky = Math.sin(a) * 120; } sfx('roar'); }
 const BOSS_AI = {
   // Gatejaw: walks you down, then picks between a charge, a bullet ring and a summon.
@@ -177,7 +249,7 @@ const BOSS_AI = {
     } else if (e.st === 3 || e.st === 6) {   // bullet ring (a second, offset ring when enraged)
       if (e.stT <= 0) {
         const n = rage ? 16 : 12, off = rand() * TAU;
-        for (let i = 0; i < n; i++) { const a = off + i / n * TAU; fireEBullet(e.x, e.y - 12, Math.cos(a), Math.sin(a), e.st === 6 ? 78 : 60); }
+        for (let i = 0, y = shotY(e, 12); i < n; i++) { const a = off + i / n * TAU; fireEBullet(e.x, y, Math.cos(a), Math.sin(a), e.st === 6 ? 78 : 60); }
         sfx('ebullet'); G.shake = Math.max(G.shake, 2);
         if (rage && e.st === 3) { e.st = 6; e.stT = 0.4; } else { e.st = 0; e.stT = rr(1.8, 2.8); }
       }
@@ -205,7 +277,7 @@ const BOSS_AI = {
       const k = 1 - Math.max(0, e.stT) / 0.7; e.x = lerp(e.sx, e.jx, k); e.y = lerp(e.sy, e.jy, k); e.z = Math.sin(k * Math.PI) * 42;
       if (e.stT <= 0) {
         e.z = 0; G.shake = Math.max(G.shake, 6); sfx('boom'); burst(e.x, e.y, 16, PAL.O, 100);
-        const n = rage ? 16 : 11, off = rand() * TAU; for (let i = 0; i < n; i++) fireEBullet(e.x, e.y - 6, Math.cos(off + i / n * TAU), Math.sin(off + i / n * TAU), 62, 's_spore');
+        const n = rage ? 16 : 11, off = rand() * TAU; for (let i = 0, y = shotY(e, 6); i < n; i++) fireEBullet(e.x, y, Math.cos(off + i / n * TAU), Math.sin(off + i / n * TAU), 62, 's_spore');
         e.st = 0; e.stT = rr(1.5, 2.3);
       }
       return;

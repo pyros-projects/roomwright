@@ -411,6 +411,81 @@
       { fresh(142); const d = RW.spawnMon('die', P.x + 60, P.y); d.shootT = 0.05; let n = 0; for (let i = 0; i < 400 && !n; i++) { RW.step(1); n = G.ebullets.length; }
         RW.killMon(d); G.hits.length = 0; const b0 = G.ebullets[0]; if (b0) { b0.x = P.x - 3; b0.y = P.y - 4; b0.vx = 20; b0.vy = 0; } P.inv = 0; P.shield = 0; RW.step(3);
         ok('dice: a die throws a ring of bullets, and one that hits is filed as a bullet from a die', n >= 8 && G.hits.length === 1 && G.hits[0].by === 'die' && G.hits[0].how === 'bullet', n + ' bullets, ' + JSON.stringify(G.hits)); } }
+    /* ---- a warden's bullet phase (#13) ---- */
+    { const HZ = 60, T = RW.K.T, ids = ['gatejaw', 'morel', 'unmaker'];
+      // One fight: the warden of `floor` in the hearth (or at o.at), the delver `dist` px from it at the angle o.ang, the
+      // warden at the health where its phase starts. walk(e, ph) says where the delver wants to be; it walks there at
+      // its ordinary speed, without a dash, and it keeps walking during the tell (o.stroll: straight on, away from its start).
+      const fight = (floor, dist, walk, o) => {
+        o = o || {}; fresh(151 + floor); RW.enterFloor(floor); G = RW.G; P = G.P; G.tut.step = 9; G.dir.calm = 1e9; G.dir.ti = 99;
+        const room = G.rooms[0]; room.props = []; const e = RW.summonBoss(null); e.emerge = 0; e.evx = e.evy = 0; G.banner = null;
+        e.x = room.px + RW.K.CWP / 2; e.y = room.py + RW.K.CHP / 2 - 10; if (o.at) { e.x = room.px + o.at[0]; e.y = room.py + o.at[1]; }
+        const ang = o.ang || 0; P.x = e.x + Math.cos(ang) * dist; P.y = e.y + 4 + Math.sin(ang) * dist; if (o.P) { P.x = room.px + o.P[0]; P.y = room.py + o.P[1]; } if (o.rage) e.rage = true;
+        e.st = 0; e.stT = 99; e.hp = Math.round(e.max * 0.6) - 1; e.fightT = o.fury ? 300 : 0;
+        const out = { hits: 0, by: '', bys: [], tell: 0, frames: 0, shots: 0, bullets: 0, first: 0, name: '', moved: 0, side: -1, doors: [], hex: 0 }; let was = G.stats.hurt;
+        for (let f = 0; f < HZ * 30; f++) {
+          P.inv = 0; P.shield = 0; P.hp = P.maxHp; e.hp = Math.max(e.hp, 10); RW.step(1);
+          if (G.stats.hurt > was) { out.hits++; was = G.stats.hurt; const h = G.hits[G.hits.length - 1]; out.by = h.by + ' ' + h.how; out.bys.push(out.by); }
+          const ph = e.ph; if (!ph) { if (e.phased) break; continue; }
+          out.frames++; if (ph.st === 0) out.tell++; out.shots = ph.shots.length; out.bullets = Math.max(out.bullets, G.ebullets.length); if (ph.shots.length === 1 && !out.first) out.first = G.ebullets.length;
+          if (G.banner) out.name = G.banner.text; if (ph.side !== undefined) { out.side = ph.side; out.doors = ph.shots.map(s => s.door); out.box = ph.box; }
+          if (o.each) o.each(e, ph, out);
+          let to = walk && walk(e, ph); if (o.stroll && ph.st === 0) to = [P.x + Math.cos(ang + 1.6) * 20, P.y + Math.sin(ang + 1.6) * 20];
+          if (to) { const dx = to[0] - P.x, dy = to[1] - P.y, d = Math.hypot(dx, dy), s = Math.min(d, P.speedEff / HZ); if (d > 0.5) { P.x += dx / d * s; P.y += dy / d * s; out.moved += s; } }
+        }
+        out.ended = !e.ph && !!e.phased; return out; };
+      // the ring or the wall that reaches the delver next: all of it is on the screen
+      const next = (ph, reach) => { let best = null, bt = 1e9; for (const s of ph.shots) { const t = reach(s); if (t > -0.15 && t < bt) { bt = t; best = s; } } return best; };
+      const ringReach = s => (Math.hypot(P.x - s.x, P.y - 4 - s.y) - s.sp * s.t) / s.sp;
+      const walks = {
+        // Gatejaw: keep your distance and stand in the gap of the ring that comes next
+        gatejaw: (e, ph) => { const s = next(ph, ringReach) || ph.shots[ph.shots.length - 1]; if (!s) return null; const d = Math.hypot(P.x - s.x, P.y - 4 - s.y); return [s.x + Math.cos(s.a) * d, s.y + 4 + Math.sin(s.a) * d]; },
+        // Mother Morel: the nearest gap of the ring that comes next
+        morel: (e, ph) => { const s = next(ph, ringReach); if (!s) return null; const d = Math.hypot(P.x - s.x, P.y - 4 - s.y), me = Math.atan2(P.y - 4 - s.y, P.x - s.x), k = Math.round((me - s.a) / s.step - 0.5) + 0.5, a = s.a + k * s.step; return [s.x + Math.cos(a) * d, s.y + 4 + Math.sin(a) * d]; },
+        // The Unmaker: the doorway of the wall that comes next
+        unmaker: (e, ph) => { const s = next(ph, s => { const at = s.from + (s.across ? s.vy : s.vx) * s.sp * s.t, me = s.across ? P.y - 4 : P.x; return (me - at) * (s.across ? s.vy : s.vx) / s.sp; }); if (!s) return null; return s.across ? [s.door, P.y] : [P.x, s.door + 4]; },
+      };
+      const bad = [], notes = [], N = [6, 7, 5];
+      ok('wardens: the phase is at 60% of health, with a tell of nine tenths of a second, as the docs say', RW.PHASE.at === 0.6 && RW.PHASE.tell === 0.9 && RW.PHASE.fast === 1.3 && ids.every((id, f) => RW.PHASES[id].n === N[f]), JSON.stringify(RW.PHASE));
+      ids.forEach((id, f) => {
+        const still = fight(f, 60, null), plain = fight(f, 100, walks[id]), furious = fight(f, 100, walks[id], { fury: 1 });
+        const calm = [], angry = []; for (const d of [70, 100, 130]) for (const ang of [0, 2.2, 4.3]) { calm.push(fight(f, d, walks[id], { ang })); angry.push(fight(f, d, walks[id], { ang, rage: 1 })); }
+        const strolls = [0, 2.2, 4.3].map(ang => fight(f, 100, walks[id], { ang, stroll: 1 }));
+        if (!still.ended || still.shots !== N[f]) bad.push(id + ': the phase did not run through (' + still.shots + ' volleys)');
+        if (still.tell < HZ * 0.5) bad.push(id + ': a tell of ' + (still.tell / HZ).toFixed(2) + ' s');
+        if (still.name !== RW.PHASES[id].name) bad.push(id + ': no announcement (' + still.name + ')');
+        if (still.hits < 1) bad.push(id + ': standing still costs nothing');
+        if (calm.some(r => r.hits) || angry.some(r => r.hits)) bad.push(id + ': the way through was hit, calm ' + calm.map(r => r.hits).join('') + ', enraged ' + angry.map(r => r.hits).join(''));
+        if (strolls.some(r => r.hits)) bad.push(id + ': hit after walking on during the tell, ' + strolls.map(r => r.hits + (r.by ? ' ' + r.by : '')).join('/'));
+        const enraged = fight(f, 100, walks[id], { rage: 1 });
+        if (!(enraged.frames < plain.frames * 0.92)) bad.push(id + ': enraged it is not faster (' + enraged.frames + ' against ' + plain.frames + ' frames)');
+        if (Math.abs(furious.frames - plain.frames) > 2) bad.push(id + ': fury changes the phase (' + furious.frames + ' against ' + plain.frames + ' frames)');
+        notes.push(id + ': tell ' + (still.tell / HZ).toFixed(2) + ' s, ' + still.shots + ' volleys, up to ' + still.bullets + ' bullets, ' + (plain.frames / HZ).toFixed(1) + ' s (enraged ' + (enraged.frames / HZ).toFixed(1) + ' s), standing still ' + still.hits + ' hits, walking ' + Math.round(plain.moved) + ' px');
+      });
+      ok('wardens: each has a bullet phase with a tell and an announcement; a delver that only walks gets through unhurt from three sides at three distances, calm and enraged, also when it walked on during the tell; standing still is hit; enraged it is faster and fury leaves it alone', bad.length === 0, bad.join('; ') || notes.join(' | '));
+      // a warden that stands right under the upper wall still fires its rings into the room
+      { const top = 2 * T + 5, a = fight(0, 80, null, { at: [RW.K.CWP / 2, top], ang: 1.57 }), m = fight(1, 80, null, { at: [RW.K.CWP / 2, top], ang: 1.57 });
+        ok('wardens: right under a wall, Gatejaw and Mother Morel still fill the room', a.first >= 10 && m.first >= 4, 'bullets alive after the first ring: ' + a.first + ' and ' + m.first); }
+      // touching: Gatejaw hurts during its phase, the Unmaker is thin air while it builds (and solid during the tell)
+      { const on = (f, when) => fight(f, 90, null, { each: (e, ph, out) => { if (ph.st === when && !out.done) { P.x = e.x; P.y = e.y; if (ph.st) out.done = 1; } if (out.done && ph.shots.length > 1 && ph.shots[0].t > 0.4) { P.x = e.x + 400; P.y = e.y; } } });
+        const g = on(0, 1), u = on(2, 1), ut = on(2, 0);
+        ok('wardens: Gatejaw hurts to touch during its phase; the Unmaker does not while it builds, but does during the tell', g.bys[0] === 'gatejaw touch' && u.hits === 0 && ut.bys[0] === 'unmaker touch', JSON.stringify({ gatejaw: g.bys[0], building: u.hits, tell: ut.bys[0] })); }
+      // Mother Morel keeps smothering the room she stands in
+      { fresh(157); RW.enterFloor(1); G = RW.G; P = G.P; const room = build('hall'); G.dir.calm = 1e9; const e = RW.summonBoss(null); e.emerge = 0; e.evx = e.evy = 0; e.x = room.px + RW.K.CWP / 2; e.y = room.py + RW.K.CHP / 2; P.x = G.rooms[0].px + 60; P.y = G.rooms[0].py + 60;
+        e.st = 0; e.stT = 99; e.hp = Math.round(e.max * 0.6) - 1; RW.step(50); room.hexT = 0; RW.step(40); const during = !!e.ph && e.ph.st === 1 && room.hexT > 0;
+        ok('wardens: Mother Morel smothers her room while she blooms', during, 'in her phase: ' + !!e.ph + ', the room is smothered for ' + room.hexT.toFixed(2) + ' s'); }
+      // the Unmaker's walls: from the side farthest from the delver, whichever that is, each doorway inside the room and 30 to 46 px beside the last
+      { const W = RW.K.CWP, H = RW.K.CHP, spots = [[W / 2, 2 * T + 20, 2], [W - 2 * T - 20, H / 2, 3], [W / 2, H - 2 * T - 20, 0], [2 * T + 20, H / 2, 1]], wrong = [];
+        for (const [x, y, side] of spots) { const r = fight(2, 0, walks.unmaker, { at: [W / 2, H / 2], P: [x, y] }), d = r.doors, lo = r.box ? (side & 1 ? r.box[1] : r.box[0]) : 0, hi = r.box ? (side & 1 ? r.box[3] : r.box[2]) : 0;
+          if (r.side !== side) wrong.push('from side ' + r.side + ', not ' + side); if (r.hits) wrong.push('side ' + side + ': ' + r.hits + ' hits (' + r.by + ')'); if (d.length !== 5) wrong.push('side ' + side + ': ' + d.length + ' walls');
+          for (let i = 0; i < d.length; i++) { if (d[i] < lo + 22 || d[i] > hi - 22) wrong.push('side ' + side + ': a doorway at the edge'); if (i && (Math.abs(d[i] - d[i - 1]) < 29.9 || Math.abs(d[i] - d[i - 1]) > 46.1)) wrong.push('side ' + side + ': doorways ' + Math.abs(d[i] - d[i - 1]).toFixed(0) + ' px apart'); } }
+        ok('wardens: the Unmaker\'s walls come from the side farthest from the delver, each with a doorway in the room, 30 to 46 px beside the last; walking gets through from every side', wrong.length === 0, wrong.join('; ')); }
+      // it starts at a fixed share of health, once, and only between two attacks
+      { const busy = [1, 4, 1], res = ids.map((id, f) => { fresh(155 + f); RW.enterFloor(f); G = RW.G; P = G.P; const e = RW.summonBoss(null); e.emerge = 0; G.dir.calm = 1e9; P.x = e.x + 150; e.st = 0; e.stT = 99; e.hp = Math.round(e.max * 0.6) + 5; RW.step(30); const before = !!e.ph;
+          e.hp = Math.round(e.max * 0.6) - 1; e.st = busy[f]; e.stT = 0.3; e.shootT = 9; RW.step(5); const mid = !!e.ph; e.st = 0; e.stT = 99; RW.step(2); const now = !!e.ph;
+          for (let i = 0; i < 60 * 30 && e.ph; i++) { e.hp = Math.max(e.hp, 10); RW.step(1); } e.st = 0; e.stT = 99; RW.step(60); return { before, mid, now, again: !!e.ph, phased: !!e.phased }; });
+        ok('wardens: the phase starts at 60% of its health, between two attacks, and once in a fight', res.every(r => !r.before && !r.mid && r.now && !r.again && r.phased), JSON.stringify(res)); }
+    }
     /* ---- the screen's rules (#14): a top layer that nothing covers, flashes kept apart, a beat for the big moments ---- */
     { fresh(131); RW.step(20); const cvs = document.getElementById('game'), c2 = cvs.getContext('2d'), V = RW.view();
       const shot = () => { G.shake = 0; RW.render(); return c2.getImageData(0, 0, V.VW, V.VH).data; };

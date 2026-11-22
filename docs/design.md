@@ -111,11 +111,33 @@ would wake right now ("warden at 62%") and how many keys a fast kill would still
 Waiting has a price before the clock runs out. Past 60% of the dread clock (the bar under the clock
 turns orange) the knocking grows, up to 60% more at the end. Wait until it runs out and the warden
 comes for you, enraged. And a warden's fight cannot be waited out: after 50 seconds it gains a step
-of fury every 20 seconds, up to eight, and each step makes everything it does a tenth faster. Pips
+of fury every 20 seconds, up to eight, and each step makes everything it does a tenth faster
+(except its bullet phase, below). Pips
 under its health bar count the steps. A build that kills slowly meets a quicker warden.
 
 Once the warden is dead the floor is quiet: no monsters, and a Greenhouse grows no more glints.
 Weapons, charms, hearts and room stars carry down; the floor plan starts again from one room.
+
+### A warden's bullet phase
+
+Once in its fight, when a warden is down to 60% of its health and between two attacks, it stops
+chasing. For nine tenths of a second it stands, flickers and draws the air in, and a banner names
+what comes. Then it fills the room with a pattern, in the character of its floor, and each pattern
+has a way through that plain walking finds:
+
+| Warden | The pattern | The way through |
+|---|---|---|
+| Gatejaw | THE GATE COMES DOWN: six rings of bullets, each with one gap. The first gap points at where you are when the ring is thrown, and it turns a little with every ring. | Stay in the gap and walk with it. |
+| Mother Morel | SHE BLOOMS: seven slow rings of ten spores, each ring set into the gaps of the one before. | Step from gap to gap. |
+| The Unmaker | IT BUILDS WALLS: five walls cross the room you stand in, one after the other from the side farthest from you. Each has a doorway a few steps beside the last. | Walk through the doorways. |
+
+Gatejaw and Mother Morel still hurt to touch while they do this, and Mother Morel keeps smothering
+her room. The Unmaker turns to thin air while it builds: it stays where it hovered, a doorway may
+lie right on it, and walking through it costs nothing. It can still be hit. An
+enraged warden (one that came because you overstayed, or the first step of Stakes) runs its
+pattern 1.3 times as fast. Fury does not touch the phase: its clock is the game's, so the way
+through stays walkable however long the fight has lasted. The numbers are `PHASE` and `PHASES` in
+`src/42-director.js`.
 
 ## What the screen may do
 

@@ -6,6 +6,7 @@ What changed for a player, newest first. The game shows the same text: CHANGELOG
 
 - You, enemy bullets and pickups are now drawn above every blast, glow, spark and number, and above the screen's flash.
 - An elite's death has a ring, a boom and a shake; a warden's a bigger ring. The screen never flashes more than three times a second.
+- Each warden has a bullet phase at 60% of its health: Gatejaw's rings with a turning gap, Mother Morel's bloom of spores, the Unmaker's walls with doorways. A banner names it, and walking finds the way through.
 - Dice now roll in with ordinary waves: from minute 5 on floor 1, sooner further down, and loaded dice from floor 2. A knock back still calls far more of them, and a warden fights without them.
 - Enemy bullets have a dark rim, so they show on every floor and every carpet.
 - The music can follow the floor plan: Music grows in the pause menu. WITH THE PLAN brings a floor's piece in voice by voice as you build. BY ELEMENT adds a voice for each element among your rooms.

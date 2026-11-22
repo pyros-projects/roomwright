@@ -24,7 +24,9 @@ console error, then runs five scripts:
 - `tools/check-content.js`: every room power, star level, resonance, pest, weapon, evolution,
   charm, warden and unlock does what its card says. Also: every point of damage has an owner and
   the shares add up, the census names what hit the delver, an elite besieges the room built up
-  most, door pressure per floor, the knocking late in the clock, a warden's fury, each rule of
+  most, door pressure per floor, the knocking late in the clock, a warden's fury, each warden's bullet phase (it starts at
+  60% of its health, once, after a tell; a delver that only walks gets through it unhurt at three
+  distances, calm and enraged; standing still is hit; enraged it is over sooner), each rule of
   Stakes in force from its step on, dice in ordinary waves (from which minute on each floor, how
   small their share is, that a knock back calls more, that a warden fights without them), every
   kind of enemy bullet against a ground of any brightness (at least 8 of its pixels differ by 40 of

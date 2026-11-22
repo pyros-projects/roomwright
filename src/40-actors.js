@@ -390,7 +390,7 @@ function updateMons(dt) {
     if (e.emerge > 0) { e.emerge -= dt; e.x += e.evx * dt; e.y += e.evy * dt; continue; }
     if (e.markT > 0) e.markT -= dt;
     if (e.burnT > 0) { e.burnT -= dt; e.burnTick -= dt; if (e.burnTick <= 0) { e.burnTick = 0.5; BY = e.burnBy || null; hurtMon(e, e.burn * 0.5, 0, 0, 0, 'dot'); BY = null; if (e.dead) continue; part(e.x + (fxr() - 0.5) * 6, e.y - 6, 0, -26, 0.3, fxr() < 0.5 ? PAL.o : PAL.y, 1); } }
-    if (def.boss) { BOSS_AI[def.id](e, dt * bossFury(e, dt)); continue; }
+    if (def.boss) { const k = dt * bossFury(e, dt); if (!bossPhase(e, dt)) BOSS_AI[def.id](e, k); continue; }
     const dxp = P.x - e.x, dyp = P.y - e.y, dp = Math.hypot(dxp, dyp) || 1, room = roomAt(e.x, e.y), live = roomLive(room);
     if (live && room.type === 'glacier' && e.gl !== room.id) { e.gl = room.id; e.stun = Math.max(e.stun, 1.2 * (0.5 + 0.5 * roomMul(room))); sfx('freeze'); }
     if (def.ai === 'hex' && room) { if (room.hexT <= 0 && room.def.tier !== 'x') { sfx('hex'); tip('hex', 'A Hexer switches off the room it stands in. Get rid of it.'); } room.hexT = 0.3; }
