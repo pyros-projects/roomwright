@@ -57,9 +57,18 @@ function grantBossUnlocks(f) {
   if (G.newHeroes.length || G.newCards.length) sfx('unlock');
 }
 
+// A phone (a coarse pointer) gets at least two CSS pixels for each game pixel, at a whole-number scale, and so a
+// smaller view: about 190 to 210 wide held upright, about 200 tall when turned (#20). A desk keeps at least 400 by 225.
+// narrow() and short() are what the layouts ask: is this view narrower, or lower, than the smallest one on a desk?
+const PHONE_W = 180, PHONE_H = 180;
+const onPhone = () => !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
+const narrow = () => VW < 320, short = () => VH < 225;
+const TAP = () => onPhone() || Input.touch ? 20 : 0;          // the smallest side of anything to tap, in game pixels: 40 CSS px at scale 2
 function resize() {
-  const ww = innerWidth, wh = innerHeight; let s = Math.min(ww / 400, wh / 225); s = s >= 1 ? Math.floor(s) : Math.max(0.2, s);
-  VW = clamp(Math.ceil(ww / s), 400, 640); VH = clamp(Math.ceil(wh / s), 225, wh > ww ? 600 : 360); SCALE = s;   // portrait phones get a tall view
+  const ww = innerWidth, wh = innerHeight; let s;
+  if (onPhone()) { s = Math.max(2, Math.floor(Math.min(ww / 320, wh / 180))); VW = clamp(Math.ceil(ww / s), PHONE_W, 640); VH = clamp(Math.ceil(wh / s), PHONE_H, 600); }
+  else { s = Math.min(ww / 400, wh / 225); s = s >= 1 ? Math.floor(s) : Math.max(0.2, s); VW = clamp(Math.ceil(ww / s), 400, 640); VH = clamp(Math.ceil(wh / s), 225, wh > ww ? 600 : 360); }
+  SCALE = s;
   cv.width = VW; cv.height = VH; cv.style.width = Math.round(VW * s) + 'px'; cv.style.height = Math.round(VH * s) + 'px';
   ctx.imageSmoothingEnabled = false; Intro.layout();
 }
@@ -256,8 +265,8 @@ const MODES = {
     let go = Input.hit('ok') || (App.modeT > 0.4 && Input.hit('dash')), edit = Input.hit('alt'), step = (Input.hit('right') ? 1 : 0) - (Input.hit('left') ? 1 : 0);
     const L_ = prepLayout(id), top = stakesOpen(id); let turn = top && own ? (Input.hit('up') ? 1 : 0) - (Input.hit('down') ? 1 : 0) : 0;
     if (m.click && App.modeT > 0.3) {
-      if (m.y < L_.sy && m.x < VW / 2 - 40) step = 1; else if (L_.sk && m.y >= L_.sy && m.y < L_.sy + L_.sk) turn = stakeOf(id) >= top ? -top : 1;   // a tap goes up a step, and from the top back to none
-      else if (m.y >= L_.dy - 6 && m.y < L_.dy + 44) edit = true; else go = true;
+      if (Input.inRect(L_.next)) step = 1; else if (L_.sk && Input.inRect(L_.stakes)) turn = stakeOf(id) >= top ? -top : 1;   // a tap goes up a step, and from the top back to none
+      else if (Input.inRect(L_.deck)) edit = true; else go = true;
     }
     if (turn && own) { Save.data.stake[id] = clamp(stakeOf(id) + turn, 0, top); Save.store(); sfx('tick'); }
     if (step) { P_.i = (P_.i + step + n) % n; sfx('tick'); }
@@ -269,7 +278,7 @@ const MODES = {
     const D_ = App.deck, L_ = deckLayout(), hid = HERO_ORDER[App.prep.i], n = DECK_LIST.length, m = Input.mouse; let tog = Input.hit('ok') || Input.hit('dash');
     if (D_.msgT > 0) D_.msgT -= dt;
     const move = d => { const c = D_.cur + d; if (c >= 0 && c < n) { D_.cur = c; sfx('tick'); } };
-    if (Input.hit('left')) move(-1); if (Input.hit('right')) move(1); if (Input.hit('up')) move(-DECK_COLS); if (Input.hit('down')) move(DECK_COLS);
+    if (Input.hit('left')) move(-1); if (Input.hit('right')) move(1); if (Input.hit('up')) move(-L_.cols); if (Input.hit('down')) move(L_.cols);
     let onCell = false; L_.cells.forEach((c, i) => { if (Input.inRect(c)) { onCell = true; if (m.moved && D_.cur !== i) { D_.cur = i; sfx('tick'); } if (m.click) { D_.cur = i; tog = true; } } });
     if (tog) {
       const id = DECK_LIST[D_.cur], deck = deckFor(hid), at = deck.indexOf(id);
@@ -282,7 +291,7 @@ const MODES = {
     if (Input.hit('back') || Input.hit('alt') || (Input.touch && m.click && !onCell && App.modeT > 0.3)) { Save.data.decks[hid] = fullDeck(hid); Save.store(); App.mode = 'prep'; sfx('back'); }
   },
   play(dt) {
-    const tapPause = Input.touch && Input.mouse.click && Input.inRect({ x: VW / 2 + 40, y: 0, w: 22, h: 22 });
+    const tapPause = Input.touch && Input.mouse.click && Input.inRect(pauseMark());
     if ((Input.hit('pause') || Input.hit('back') || tapPause) && !G.over && !G.won && G.leaving <= 0) { App.mode = 'pause'; App.sel = 0; sfx('tick'); return; }
     updatePlay(dt);
     if (App.mode === 'play') { if (G.over && G.endT > 1.7) endRun(false); else if (G.won && G.endT > 4.2) endRun(true); }
@@ -295,7 +304,9 @@ const MODES = {
     if (L_.bar) { if (Input.hit('down') && !D.onStairs) { D.onStairs = true; sfx('tick'); } else if (Input.hit('up') && D.onStairs) { D.onStairs = false; sfx('tick'); } }
     for (let i = 0; i < n; i++) {
       if (Input.hit('c' + (i + 1))) go = i;
-      if (Input.inRect(rects[i])) { onCard = true; if (Input.mouse.moved && (D.sel !== i || D.onStairs)) { D.sel = i; D.onStairs = false; sfx('tick'); } if (Input.mouse.click) go = i; }
+      if (Input.inRect(rects[i])) { onCard = true;
+        if (L_.narrow && i !== D.sel) { if (Input.mouse.click) { D.sel = i; D.onStairs = false; sfx('tick'); break; } }      // one card at a time: a tap on a neighbour brings it to the middle
+        else { if (Input.mouse.moved && (D.sel !== i || D.onStairs)) { D.sel = i; D.onStairs = false; sfx('tick'); } if (Input.mouse.click) go = i; } }
     }
     if (L_.bar && Input.inRect(L_.bar)) { onCard = true; if (Input.mouse.moved && !D.onStairs) { D.onStairs = true; sfx('tick'); } if (Input.mouse.click) st = true; }
     if (Input.hit('ok') || (D.t > 0.6 && Input.hit('dash'))) { if (D.onStairs) st = true; else go = D.sel; }   // space is dash, so it only confirms after a beat

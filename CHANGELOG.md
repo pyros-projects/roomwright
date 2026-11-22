@@ -6,6 +6,7 @@ What changed for a player, newest first. The game shows the same text: CHANGELOG
 
 - You, enemy bullets and pickups are now drawn above every blast, glow, spark and number, and above the screen's flash.
 - An elite's death has a ring, a boom and a shake; a warden's a bigger ring. The screen never flashes more than three times a second.
+- Phones: the game now takes two screen pixels for each of its own, so everything is twice as large. Every screen has a layout for a phone held upright and on its side, the draft shows one card at a time upright, and everything you tap is finger-sized.
 - A share card: the end screen hands on your floor plan as a picture (R) or as text with a coloured square per room (H). It carries the game's name and address and nothing about you.
 - The daily delve: DAILY on the title starts the same run for everyone for a day: the same floors, the same delver, the same cards behind the hearth's doors. Your first try counts; after that it is practice.
 - Rooms overload: a room at three stars with two resonating neighbours lets go of a burst in its element every 20 seconds, by itself. Fire burns, frost freezes, water shields you if you stand in it, and so on for all eight. The draft card says OVERLOAD when a pick gets a room there.

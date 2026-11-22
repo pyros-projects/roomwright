@@ -311,6 +311,53 @@ sent anywhere by the game; the picture and the text go where the player puts the
 cannot reach: the share sheet, the clipboard and the download themselves. They need a hand on a
 real browser; the checks cover the picture, the text, which way is chosen and the chips.
 
+## On a phone
+
+On a desk one game pixel is three or four screen pixels. On a phone it used to be one, and on a
+small phone less than one, which softened the pixels and made capitals five CSS pixels high. Now a
+device with a coarse pointer gets a whole-number scale of at least two CSS pixels per game pixel,
+and so a smaller view:
+
+| Device | View upright | View turned |
+|---|---|---|
+| iPhone 15 | 197 by 426 at 2 | 426 by 197 at 2 |
+| Pixel 7 | 206 by 458 at 2 | 458 by 206 at 2 |
+| iPhone SE | 188 by 334 at 2 | 334 by 188 at 2 |
+| iPad Mini | 384 by 512 at 2 | 342 by 256 at 3 |
+| most Android phones (360 by 800) | 180 by 400 at 2 | 400 by 180 at 2 |
+
+A desk keeps its view of at least 400 by 225, and what it draws there is unchanged: fifteen screens
+at three window sizes were compared pixel for pixel with the build before. Every screen has a
+layout for a narrow view (under 320 wide: a phone held upright) and for a low one (under 225 high:
+a phone on its side). A screen under 360 CSS pixels wide is cut at its right edge: the layouts stop
+at a view of 180.
+
+- **The HUD.** Narrow: the clock, the dread bar and the Stairwell pips sit a row lower, under the
+  hearts; the map is smaller and says only the doors and the knocking; a warden's bar takes the
+  clock's place. The pause mark stands in the free middle of the top row.
+- **The draft.** Where the cards would be too narrow side by side (a phone held upright; four
+  cards on a small tablet), one card is shown at a time, whole and at its full size, with its
+  neighbours looking in from the sides. A tap on a neighbour brings it to the middle, a tap on the
+  middle one builds it. On a low view the cards are lower: the plan gets less room and the boon
+  one line of text; they stay side by side unless four of them would be under 93 wide.
+- **Menus and panels.** No panel is wider than the view. Where there is no room beside the end
+  panel (a view under 382 wide) the share chips take its top corners and the headline is smaller.
+  Narrow: the end screen is one column with the share chips inside it, the hero screen puts the delver's words beside the portrait and the
+  rest below, the deck builder has six columns and the card's text under them, the music player
+  stacks its three lists, the title stacks its three hints. Low: the pause menu is its rows and
+  nothing else, the end screen leaves out the tally and the loadout, the hero screen the row of
+  evolutions, and the sound effects come in pages.
+- **A finger's size.** On a phone, and on any device once a touch was seen, what is tapped is at
+  least 20 game pixels in its smaller dimension, 40 CSS pixels at scale 2: menu rows, the draft's
+  chips and the Stairwell bar, the visible part of a neighbouring card, the title's entries, the
+  share chips, the music player's rows, the deck builder's cells. Where a tap anywhere will do (the
+  coach's next step, the screen between floors, the changelog's halves) there is nothing to miss.
+- **Turning the phone** changes the view and nothing else: the run goes on.
+
+`resize()`, `narrow()`, `short()` and `TAP()` are in `src/60-game.js`; the layouts are the
+`...Layout()` functions in `src/52-render-screens.js` and `src/62-music-player.js`. What no check
+reaches: how it feels in a hand (see docs/checks.md).
+
 ## The deck
 
 Drafts deal from a **deck of ten room cards** plus one room native to the floor. Drafting a native

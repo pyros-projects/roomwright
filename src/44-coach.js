@@ -59,10 +59,10 @@ function coachInput(D) {              // while a lesson is up, input only turns 
 }
 // the screen box of one section of a draft card; the selected card sits 3px higher (see drawCard)
 function cardPart(r, part) {
-  const y = r.y - 3, by = y + r.h - (r.w < 112 ? 75 : 72), fy = y + r.h - 13;
+  const Q = cardGeo(r.w, r.h), y = r.y - 3, by = y + Q.by, fy = y + r.h - 13;
   if (part === 'room') return { x: r.x + 2, y: y + 2, w: r.w - 4, h: by - y - 4 };
-  if (part === 'plan') return { x: r.x + 4, y: y + 18, w: r.w - 8, h: 44 };
-  if (part === 'stars') return { x: r.x + 2, y: y + 62, w: r.w - 4, h: by - y - 64 };
+  if (part === 'plan') return { x: r.x + 4, y: y + 18, w: r.w - 8, h: Q.ph + 2 };
+  if (part === 'stars') return { x: r.x + 2, y: y + 62 - Q.up, w: r.w - 4, h: by - y - 64 + Q.up };
   if (part === 'boon') return { x: r.x + 2, y: by - 1, w: r.w - 4, h: fy - 4 - by };
   return { x: r.x + 2, y: fy - 5, w: r.w - 4, h: y + r.h - fy + 3 };   // doors
 }
@@ -79,8 +79,9 @@ function renderCoach(g, D, L_) {
   const foot = (Input.touch ? 'TAP' : 'ENTER') + (last ? '  got it' : '  next') + (C.steps.length > 1 ? '   ' + (C.i + 1) + '/' + C.steps.length : '');
   let px = Math.round(VW / 2 - pw / 2), py = box.y - ph - 5;
   if (r) {
-    if (r.x + r.w + 4 + pw <= VW - 2) px = r.x + r.w + 4; else if (r.x - pw - 4 >= 2) px = r.x - pw - 4;
-    py = clamp(Math.round(box.y + box.h / 2 - ph / 2), 3, VH - ph - 3);
+    const beside = r.x + r.w + 4 + pw <= VW - 2 ? r.x + r.w + 4 : r.x - pw - 4 >= 2 ? r.x - pw - 4 : null;
+    if (beside !== null) { px = beside; py = clamp(Math.round(box.y + box.h / 2 - ph / 2), 3, VH - ph - 3); }
+    else py = box.y - ph - 5 >= 3 ? box.y - ph - 5 : Math.min(VH - ph - 3, box.y + box.h + 5);       // no room beside the card (a narrow view): above the part, or under it
   } else if (s.part === 'chip') { px = clamp(box.x + box.w - pw, 2, VW - pw - 2); py = box.y + box.h + 5; }   // a chip sits at the top: the note hangs under it
   panel(g, px, py, pw, ph, '#ffd95e', '#241d3a');
   txt(g, s.title, px + 6, py + 5, '#ffd95e');

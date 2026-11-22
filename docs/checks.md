@@ -19,7 +19,7 @@ example `--args --no-sandbox,--disable-gpu` inside a sandbox or CI container).
 
 `tools/check.sh` is the regression pass (about two minutes). Against the local file it first makes
 sure `index.html` is what `src/` and `CHANGELOG.md` build. It boots the page and fails on any
-console error, then runs five scripts:
+console error, then runs six scripts:
 
 - `tools/check-content.js`: every room power, star level, resonance, pest, weapon, evolution,
   charm, warden and unlock does what its card says. Also: every point of damage has an owner and
@@ -77,6 +77,17 @@ console error, then runs five scripts:
   (under -6 dBFS). `--wav DIR` saves what was rendered as WAV files. Run it alone with
   `uv run --with playwright tools/check-music.py`. Like the audio check it reads levels, not
   whether a piece sounds good.
+- `tools/check-devices.py`: the game on ten emulated devices (iPhone 15, Pixel 7, iPhone SE, iPad
+  Mini and the 360 by 800 of most Android phones, each upright and turned), each a touch screen
+  with a coarse pointer in the size the phone reports to a page. For each: the scale is a whole number of at least two and the view fills the
+  screen; on every screen what a finger taps lies inside the view and is at least 40 CSS pixels in
+  its smaller dimension (title, hero screen, deck builder, play, draft, pause, both end screens,
+  changelog, music player and its sounds); the draft's card is whole and at least 93 by 124 game
+  pixels, with three cards and with four; and a run is played by touch: title, hero screen, a drag to walk, a card
+  built by a tap, pause and resume, the phone turned while the run goes on, the end screen and
+  back. Run it alone with `uv run --with playwright tools/check-devices.py`; `--shots DIR` saves a
+  picture of every screen on every device. An emulated phone is not a hand on a real one: it shows
+  that the layouts fit and the taps land, not how it feels or whether a thumb covers what matters.
 
 ### How loud things are
 

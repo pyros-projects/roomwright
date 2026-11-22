@@ -31,18 +31,36 @@ function playerPlay(id) { Player.track = id; Player.off = {}; Snd.music(null); S
 // Everything that can be chosen on the current page, each with its place on screen and in a grid the arrows walk:
 // { id, x, y, w, h, gx, gy, label, on, col }. The top row (BACK and the two tabs) is gy -1.
 function playerLayout() {
-  const W = Math.min(VW - 16, 464), x0 = Math.round(VW / 2 - W / 2), top = 22, row = 12, items = [];
+  // On a phone every row is TAP() high. A narrow view (held upright) puts the three lists under each other, two
+  // columns each, without headings; a phone's view has no legend line; and the sounds come in pages where they do not
+  // fit, with `more` as the last cell.
+  const N = narrow(), tap = TAP(), row = Math.max(12, tap), th = Math.max(18, tap), W = Math.min(VW - (N ? 8 : 16), 464), x0 = Math.round(VW / 2 - W / 2), top = th + 4, items = [], hint = !tap;
   const add = (id, gx, gy, x, y, w, h, label, more) => items.push(Object.assign({ id, gx, gy, x: Math.round(x), y, w: Math.floor(w), h, label }, more));
-  add('back', 0, -1, 0, 0, textW('BACK') + 12, 18, 'BACK');
-  let tx = x0 + W; for (const [i, name] of [[1, 'SOUNDS'], [0, 'MUSIC']]) { const w = textW(name) + 12; tx -= w; add('tab:' + i, 1 + i, -1, tx, 0, w, 18, name, { on: Player.page === i }); }
-  const L_ = { W, x0, top, row, items, floor: { x: x0, y: 126, w: W, h: Math.max(40, VH - 126 - 18) } };
+  add('back', 0, -1, 0, 0, textW('BACK') + 12, th, 'BACK');
+  let tx = x0 + W; for (const [i, name] of [[1, 'SOUNDS'], [0, 'MUSIC']]) { const w = textW(name) + 12; tx -= w; add('tab:' + i, 1 + i, -1, tx, 0, w, th, name, { on: Player.page === i }); }
+  const L_ = { W, x0, top, row, items, narrow: N, hint, floor: { x: x0, y: 126, w: W, h: Math.max(40, VH - 126 - 18) } };
   if (Player.page === 1) {                                   // every sound effect, in columns
-    const names = Snd.names, cols = Math.max(2, Math.floor(W / 92)), cw = W / cols, rows = Math.ceil(names.length / cols);
-    names.forEach((n, i) => add('fx:' + n, Math.floor(i / rows), i % rows, x0 + Math.floor(i / rows) * cw, top + (i % rows) * 11, cw - 1, 11, n));
+    const all = Snd.names, fr = Math.max(11, tap), cols = N ? 3 : Math.max(2, Math.floor(W / 92)), cw = W / cols, fit = Math.max(3, Math.floor((VH - top - (hint ? 16 : 3)) / fr));
+    const per = all.length <= cols * fit ? all.length : cols * fit - 1, pages = Math.ceil(all.length / per), pg = (Player.fxPage || 0) % pages, names = all.slice(pg * per, (pg + 1) * per);
+    const rows = pages > 1 ? fit : Math.ceil(names.length / cols), cell = (i, id, label) => add(id, Math.floor(i / rows), i % rows, x0 + Math.floor(i / rows) * cw, top + (i % rows) * fr, cw - 1, fr, label);
+    names.forEach((n, i) => cell(i, 'fx:' + n, n));
+    if (pages > 1) cell(cols * rows - 1, 'more', 'more ' + (pg + 1) + '/' + pages);
     return L_;
   }
-  const info = Snd.info(Player.track), cw = Math.round(W * 0.27), vw = Math.floor((W - cw - 12) / 2), vx = x0 + cw + 6, ex = vx + vw + 6, y1 = top + 14;
-  L_.cols = [[x0, cw, 'TRACKS'], [vx, vw, 'VOICES'], [ex, vw, 'ELEMENTS']]; L_.info = info; L_.panelH = 14 + 5 * row + 6;
+  const info = Snd.info(Player.track); L_.info = info;
+  if (N) {
+    const half = W / 2, tracks = playerTracks(), tr = Math.ceil(tracks.length / 2), y1 = top, y2 = y1 + tr * row + 4, y3 = y2 + 4 * row + 4, els = info.elements.length;
+    tracks.forEach(([id, name], i) => add('track:' + id, i % 2, i >> 1, x0 + (i % 2) * half, y1 + (i >> 1) * row, half - 2, row, name, { on: Player.track === id }));
+    VOICE_ORDER.filter(v => info.voices.includes(v)).forEach((v, i) => add('voice:' + v, i >> 2, tr + (i & 3), x0 + (i >> 2) * half, y2 + (i & 3) * row, half - 2, row, VOICE_NAMES[v], { on: !Player.off[v], box: 1 }));
+    info.elements.forEach((el, i) => add('el:' + el, i >> 2, tr + 4 + (i & 3), x0 + (i >> 2) * half, y3 + (i & 3) * row, half - 2, row, ELEMENTS[el].name, { on: !!Player.els[el], box: 1, col: ELEMENTS[el].col }));
+    if (els) add('full', 0, tr + 8, x0, y3 + 4 * row, W - 2, row, 'resonating', { on: Player.full, box: 1 });
+    const fy = y3 + (els ? 5 * row : 12) + 18;
+    L_.lines = [y2 - 3, y3 - 3]; L_.none = els ? 0 : y3 + 2; L_.barY = fy - 15; L_.floor = { x: x0, y: fy, w: W, h: Math.max(0, VH - fy - 4) };
+    return L_;
+  }
+  const cw = Math.round(W * 0.27), vw = Math.floor((W - cw - 12) / 2), vx = x0 + cw + 6, ex = vx + vw + 6, y1 = top + 14;
+  L_.cols = [[x0, cw, 'TRACKS'], [vx, vw, 'VOICES'], [ex, vw, 'ELEMENTS']]; L_.panelH = 14 + 5 * row + 6;
+  L_.barY = top + L_.panelH + 5; L_.floor = { x: x0, y: L_.barY + 19, w: W, h: tap ? Math.max(0, VH - (L_.barY + 19) - 3) : Math.max(40, VH - (L_.barY + 19) - 18) };      // (a phone on its side may have no room for the dance floor)
   playerTracks().forEach(([id, name], i) => add('track:' + id, 0, i, x0 + 2, y1 + i * row, cw - 4, row, name, { on: Player.track === id }));
   VOICE_ORDER.filter(v => info.voices.includes(v)).forEach((v, i) => add('voice:' + v, 1 + (i >> 2), i & 3, vx + 2 + (i >> 2) * (vw / 2), y1 + (i & 3) * row, vw / 2 - 2, row, VOICE_NAMES[v], { on: !Player.off[v], box: 1 }));
   info.elements.forEach((el, i) => add('el:' + el, 3 + (i >> 2), i & 3, ex + 2 + (i >> 2) * (vw / 2), y1 + (i & 3) * row, vw / 2 - 2, row, ELEMENTS[el].name, { on: !!Player.els[el], box: 1, col: ELEMENTS[el].col }));
@@ -76,6 +94,7 @@ function playerUse(it) {
   else if (kind === 'el') { Player.els[id] = !Player.els[id]; playerHand(); sfx('tick'); }
   else if (kind === 'full') { Player.full = !Player.full; playerHand(); sfx('tick'); }
   else if (kind === 'fx') Snd.play(id, 3);
+  else if (kind === 'more') { Player.fxPage = (Player.fxPage || 0) + 1; sfx('tick'); }      // the sounds' next page
 }
 MODES.music = function (dt) {
   G.t += dt; updateDoors(dt); updateRooms(dt); updateAllies(dt); updateSmall(dt);        // the title's rooms live on behind it
@@ -95,28 +114,29 @@ function renderMusic(g) {
   renderWorld(g);
   g.fillStyle = 'rgba(13,10,26,0.84)'; g.fillRect(0, 0, VW, VH);
   const L_ = playerLayout(), { W, x0, top, items } = L_, sel = Player.sel;
-  txs(g, 'MUSIC PLAYER', VW / 2, 6, '#ffd95e', 0.5);
+  if (!L_.narrow) txs(g, 'MUSIC PLAYER', VW / 2, 6, '#ffd95e', 0.5);
   if (L_.cols) for (const [x, w, head] of L_.cols) { panel(g, x, top, w, L_.panelH); txt(g, head, x + 5, top + 4, '#9aa3b5'); }
   if (L_.cols && !L_.info.elements.length) txt(g, 'none in this one', L_.cols[2][0] + 5, top + 18, '#5d667c');
+  if (L_.lines) { g.fillStyle = '#3b2d4f'; for (const y of L_.lines) g.fillRect(x0, y, W, 1); if (L_.none) txt(g, 'no element voices in this one', x0 + 3, L_.none, '#5d667c'); }
   for (const it of items) {
     const on = it.id === sel, kind = it.id.split(':')[0], small = kind === 'back' || kind === 'tab';
     if (on) { g.fillStyle = 'rgba(255,217,94,0.16)'; g.fillRect(it.x, it.y, it.w, it.h - 1); }
-    let x = it.x + (small ? 5 : 3); const y = it.y + (small ? 8 : 2);
+    let x = it.x + (small ? 5 : 3); const y = small ? it.y + it.h - 10 : it.y + (it.h >= 16 ? Math.round((it.h - 8) / 2) : 2);
     if (it.box) { g.fillStyle = it.on ? (it.col || '#9cecf2') : '#3b2d4f'; g.fillRect(x, y + 1, 6, 6); if (!it.on) { g.fillStyle = '#1f1a36'; g.fillRect(x + 1, y + 2, 4, 4); } x += 9; }
-    const col = on ? '#ffd95e' : small ? (it.on ? '#fff8e8' : '#9aa3b5') : kind === 'track' && it.on ? '#fff8e8' : it.box && !it.on ? '#5d667c' : '#d8dbe6';
+    const col = on ? '#ffd95e' : small ? (it.on ? '#fff8e8' : '#9aa3b5') : kind === 'more' ? '#9cecf2' : kind === 'track' && it.on ? '#fff8e8' : it.box && !it.on ? '#5d667c' : '#d8dbe6';
     txt(g, it.label, x, y, col);
     if (kind === 'track' && it.on) txt(g, '>', it.x + it.w - 8, y, '#9cecf2');
-    if (kind === 'tab' && it.on) { g.fillStyle = '#ffd95e'; g.fillRect(it.x + 5, it.y + 17, it.w - 12, 1); }
+    if (kind === 'tab' && it.on) { g.fillStyle = '#ffd95e'; g.fillRect(it.x + 5, it.y + it.h - 1, it.w - 12, 1); }
   }
   if (Player.page === 0) {
-    const info = L_.info, pos = Snd.track === Player.track ? Snd.pos() : null, bar = pos ? Math.floor(pos.step / 16) % info.bars + 1 : 0, y = top + L_.panelH + 5;
+    const info = L_.info, pos = Snd.track === Player.track ? Snd.pos() : null, bar = pos ? Math.floor(pos.step / 16) % info.bars + 1 : 0, y = L_.barY;
     const name = info.title || playerTracks().find(t => t[0] === Player.track)[1], part = bar && info.parts.length ? info.parts[Math.floor((bar - 1) / 8)] : '';
-    const state = !Snd.on ? 'press a key or tap to start the sound' : Snd.vol.music <= 0 ? 'silent: the music volume is at 0' : bar ? 'bar ' + bar + ' of ' + info.bars + (part ? '  -  ' + part : '') : '';
-    txt(g, name, x0, y, '#fff8e8'); txt(g, state, x0 + W, y, '#9aa3b5', 1);
+    const state = !Snd.on ? (L_.narrow ? 'tap for sound' : 'press a key or tap to start the sound') : Snd.vol.music <= 0 ? (L_.narrow ? 'music is off' : 'silent: the music volume is at 0') : bar ? 'bar ' + bar + (L_.narrow ? '/' : ' of ') + info.bars + (part && !L_.narrow ? '  -  ' + part : '') : '';
+    txt(g, L_.narrow && textW(name) + textW(state) + 8 > W ? name.replace(/^What the /, '').replace(/^The /, '') : name, x0, y, '#fff8e8'); txt(g, state, x0 + W, y, '#9aa3b5', 1);
     g.fillStyle = '#3b2d4f'; g.fillRect(x0, y + 11, W, 2); if (pos) { g.fillStyle = '#ffd95e'; g.fillRect(x0, y + 11, Math.round(W * (pos.step % pos.steps) / pos.steps), 2); }
-    drawDancers(g, L_.floor, info, pos);
+    if (L_.floor.h >= 24) drawDancers(g, L_.floor, info, pos);
   }
-  txt(g, Input.touch ? 'tap a track, a switch or a sound' : 'ARROWS choose - ENTER plays or switches - Q turns the page - ESC goes back', VW / 2, VH - 10, '#5d667c', 0.5);
+  if (L_.hint) txt(g, Input.touch ? 'tap a track, a switch or a sound' : 'ARROWS choose - ENTER plays or switches - Q turns the page - ESC goes back', VW / 2, VH - 10, '#5d667c', 0.5);
 }
 // The dance floor: the floor's colours, tiles that light on the beat, an icon for each element voice and a dancer for
 // each voice of the piece. A dancer hops when its voice starts a note and stands dimmed while its voice is off.

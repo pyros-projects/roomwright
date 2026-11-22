@@ -34,8 +34,11 @@ function drawLoadout(g, x, y, P, slots) {   // weapons (with level) then charms;
   }
   return x;
 }
+// The pause mark on a touch screen: where a tap pauses. In a narrow view the clock moves down a row and the mark
+// takes the free middle of the top row, between the hearts and the map.
+const pauseMark = () => narrow() ? { x: Math.round(VW / 2) - 3, y: 0, w: 24, h: 24 } : { x: VW / 2 + 40, y: 0, w: 22, h: 22 };
 function renderHUD(g) {
-  const P = G.P, t = frameT, D = G.dir;
+  const P = G.P, t = frameT, D = G.dir, N = narrow(), cy0 = N ? 28 : 0;      // narrow: the clock's block sits a row lower, under the hearts and the map
   // hearts, then shield hearts
   let hx = 4;
   for (let i = 0, n = P.maxHp / 2; i < n; i++, hx += 11) {
@@ -54,35 +57,36 @@ function renderHUD(g) {
   // top centre: the warden's health, or this floor's dread clock
   const boss = D.boss;
   if (boss && !boss.dead) {
-    const bw = Math.min(170, VW - 220), bx = Math.round(VW / 2 - bw / 2), f = clamp(boss.hp / boss.max, 0, 1);
-    txo(g, boss.def.name, VW / 2, 4, '#ff9ec4', '#1a1426', 0.5);
-    g.fillStyle = '#1a1426'; g.fillRect(bx - 1, 14, bw + 2, 6); g.fillStyle = '#5a2030'; g.fillRect(bx, 15, bw, 4);
-    g.fillStyle = '#e8474c'; g.fillRect(bx, 15, Math.round(bw * f), 4); g.fillStyle = '#ff9ec4'; g.fillRect(bx, 15, Math.round(bw * f), 1);
-    for (let i = 0; i < (boss.fury || 0); i++) { g.fillStyle = '#1a1426'; g.fillRect(bx + i * 5 - 1, 21, 5, 4); g.fillStyle = (Math.floor(t * 4) & 1) ? '#ffd95e' : '#ff6a6a'; g.fillRect(bx + i * 5, 22, 3, 2); }   // steps of fury
+    const bw = N ? VW - 76 : Math.min(170, VW - 220), bx = N ? 8 : Math.round(VW / 2 - bw / 2), f = clamp(boss.hp / boss.max, 0, 1);
+    txo(g, boss.def.name, N ? bx + bw / 2 : VW / 2, 4 + cy0, '#ff9ec4', '#1a1426', 0.5);
+    g.fillStyle = '#1a1426'; g.fillRect(bx - 1, 14 + cy0, bw + 2, 6); g.fillStyle = '#5a2030'; g.fillRect(bx, 15 + cy0, bw, 4);
+    g.fillStyle = '#e8474c'; g.fillRect(bx, 15 + cy0, Math.round(bw * f), 4); g.fillStyle = '#ff9ec4'; g.fillRect(bx, 15 + cy0, Math.round(bw * f), 1);
+    for (let i = 0; i < (boss.fury || 0); i++) { g.fillStyle = '#1a1426'; g.fillRect(bx + i * 5 - 1, 21 + cy0, 5, 4); g.fillStyle = (Math.floor(t * 4) & 1) ? '#ffd95e' : '#ff6a6a'; g.fillRect(bx + i * 5, 22 + cy0, 3, 2); }   // steps of fury
   } else {
-    txo(g, fmtTime(G.t), VW / 2, 4, '#fff8e8', '#1a1426', 0.5);
-    for (let i = 0; i < FLOORS.length; i++) { g.fillStyle = '#1a1426'; g.fillRect(VW / 2 + 19 + i * 6, 5, 5, 5); g.fillStyle = i < G.floor ? '#ffd95e' : i === G.floor ? '#fff8e8' : '#3b2d4f'; g.fillRect(VW / 2 + 20 + i * 6, 6, 3, 3); }
-    if (G.endless) txo(g, 'ENDLESS', VW / 2, 14, '#9cecf2', '#1a1426', 0.5);
-    else if (G.bossDown) txo(g, 'FLOOR CLEAR: TAKE THE STAIRS', VW / 2, 14, (Math.floor(t * 2) & 1) ? '#ffd95e' : '#fff8e8', '#1a1426', 0.5);
+    const mx0 = N ? 52 : VW / 2;      // narrow: the block stands left of the middle, clear of the map's two lines
+    txo(g, fmtTime(G.t), mx0, 4 + cy0, '#fff8e8', '#1a1426', 0.5);
+    for (let i = 0; i < FLOORS.length; i++) { g.fillStyle = '#1a1426'; g.fillRect(mx0 + 19 + i * 6, 5 + cy0, 5, 5); g.fillStyle = i < G.floor ? '#ffd95e' : i === G.floor ? '#fff8e8' : '#3b2d4f'; g.fillRect(mx0 + 20 + i * 6, 6 + cy0, 3, 3); }
+    if (G.endless) txo(g, 'ENDLESS', mx0, 14 + cy0, '#9cecf2', '#1a1426', 0.5);
+    else if (G.bossDown) txo(g, N ? 'TAKE THE STAIRS' : 'FLOOR CLEAR: TAKE THE STAIRS', mx0, 14 + cy0, (Math.floor(t * 2) & 1) ? '#ffd95e' : '#fff8e8', '#1a1426', 0.5);
     else {
-      const bw = 72, bx = Math.round(VW / 2 - bw / 2), lim = clockLimit(), f = clamp(G.t / lim, 0, 1), ready = stairsReady();
-      g.fillStyle = '#1a1426'; g.fillRect(bx - 1, 14, bw + 2, 4); g.fillStyle = '#3b2d4f'; g.fillRect(bx, 15, bw, 2);
-      g.fillStyle = f > 0.85 ? '#ff6a6a' : f > 0.6 ? '#f6923a' : '#9a62d6'; g.fillRect(bx, 15, Math.round(bw * f), 2);   // orange: the knocking is growing
-      for (const ev of G.F.timeline) { g.fillStyle = '#1a1426'; g.fillRect(bx + Math.round(bw * ev.t / lim), 15, 1, 2); }
-      g.drawImage(SPR.door_icon.c, bx + bw + 2, 10);
+      const bw = 72, bx = Math.round(mx0 - bw / 2), lim = clockLimit(), f = clamp(G.t / lim, 0, 1), ready = stairsReady();
+      g.fillStyle = '#1a1426'; g.fillRect(bx - 1, 14 + cy0, bw + 2, 4); g.fillStyle = '#3b2d4f'; g.fillRect(bx, 15 + cy0, bw, 2);
+      g.fillStyle = f > 0.85 ? '#ff6a6a' : f > 0.6 ? '#f6923a' : '#9a62d6'; g.fillRect(bx, 15 + cy0, Math.round(bw * f), 2);   // orange: the knocking is growing
+      for (const ev of G.F.timeline) { g.fillStyle = '#1a1426'; g.fillRect(bx + Math.round(bw * ev.t / lim), 15 + cy0, 1, 2); }
+      g.drawImage(SPR.door_icon.c, bx + bw + 2, 10 + cy0);
       // five pips: rooms drafted on this floor; full = the Stairwell is on offer
-      for (let i = 0; i < STAIRS_MIN; i++) { g.fillStyle = '#1a1426'; g.fillRect(bx - 2 + i * 5, 20, 4, 4); g.fillStyle = D.stairsBuilt || i < G.fstat.rooms ? '#ffd95e' : '#3b2d4f'; g.fillRect(bx - 1 + i * 5, 21, 2, 2); }
-      if (ready) { if (Math.floor(t * 2) & 1) txo(g, 'STAIRS', bx + 27, 19, '#ffd95e', '#1a1426'); }
-      else if (!D.stairsBuilt && !D.boss) txo(g, 'STAIRS ' + Math.min(G.fstat.rooms, STAIRS_MIN) + '/' + STAIRS_MIN, bx + 27, 19, '#9aa3b5', '#1a1426');   // what the pips count
+      for (let i = 0; i < STAIRS_MIN; i++) { g.fillStyle = '#1a1426'; g.fillRect(bx - 2 + i * 5, 20 + cy0, 4, 4); g.fillStyle = D.stairsBuilt || i < G.fstat.rooms ? '#ffd95e' : '#3b2d4f'; g.fillRect(bx - 1 + i * 5, 21 + cy0, 2, 2); }
+      if (ready) { if (Math.floor(t * 2) & 1) txo(g, 'STAIRS', bx + 27, 19 + cy0, '#ffd95e', '#1a1426'); }
+      else if (!D.stairsBuilt && !D.boss) txo(g, 'STAIRS ' + Math.min(G.fstat.rooms, STAIRS_MIN) + '/' + STAIRS_MIN, bx + 27, 19 + cy0, '#9aa3b5', '#1a1426');   // what the pips count
     }
   }
-  if (G.roomLabel) { const L_ = G.roomLabel; g.globalAlpha = clamp(Math.min(L_.t * 4, (2.4 - L_.t) * 2), 0, 1); txo(g, '~ ' + L_.text + ' ~', VW / 2, 30, '#ffd95e', '#1a1426', 0.5); g.globalAlpha = 1; }
+  if (G.roomLabel) { const L_ = G.roomLabel; g.globalAlpha = clamp(Math.min(L_.t * 4, (2.4 - L_.t) * 2), 0, 1); txo(g, '~ ' + L_.text + ' ~', VW / 2, 30 + cy0 * 1.1, '#ffd95e', '#1a1426', 0.5); g.globalAlpha = 1; }
   // minimap
-  const mw = GRID * 7, mh = GRID * 5, mx = VW - mw - 6, my = 5, doors = G.sealed.length, pr = knocking();
+  const mcw = N ? 5 : 7, mch = N ? 4 : 5, mw = GRID * mcw, mh = GRID * mch, mx = VW - mw - 6, my = 5, doors = G.sealed.length, pr = knocking();
   g.fillStyle = 'rgba(13,10,26,0.6)'; g.fillRect(mx - 2, my - 2, mw + 4, mh + 4); g.fillStyle = '#3b2d4f'; g.fillRect(mx - 2, my - 2, mw + 4, 1); g.fillRect(mx - 2, my + mh + 1, mw + 4, 1); g.fillRect(mx - 2, my - 2, 1, mh + 4); g.fillRect(mx + mw + 1, my - 2, 1, mh + 4);
-  drawMap(g, mx, my, 7, 5, true);
-  txo(g, G.rooms.length + (G.rooms.length === 1 ? ' room  ' : ' rooms  ') + doors + (doors === 1 ? ' door' : ' doors'), VW - 6, my + mh + 5, '#9aa3b5', '#1a1426', 1);
-  txo(g, 'knocking x' + pr.toFixed(2), VW - 6, my + mh + 14, pr > 1.45 ? '#ff7a7a' : pr > 1.1 ? '#ffd95e' : '#b5e85a', '#1a1426', 1);
+  drawMap(g, mx, my, mcw, mch, true);
+  txo(g, N ? doors + (doors === 1 ? ' door' : ' doors') : G.rooms.length + (G.rooms.length === 1 ? ' room  ' : ' rooms  ') + doors + (doors === 1 ? ' door' : ' doors'), VW - 6, my + mh + 5, '#9aa3b5', '#1a1426', 1);
+  txo(g, (N ? 'x' : 'knocking x') + pr.toFixed(2), VW - 6, my + mh + 14, pr > 1.45 ? '#ff7a7a' : pr > 1.1 ? '#ffd95e' : '#b5e85a', '#1a1426', 1);
   // loadout: weapons, then charms wrapping upward
   if (App.mode !== 'draft') {
     const ly = VH - 21; let lx = drawLoadout(g, 5, ly, P, true) + 4, row = 0; const x0 = lx;
@@ -117,5 +121,5 @@ function renderHUD(g) {
     panel(g, x, y, w, h, '#ffd95e', '#241d3a'); lines.forEach((ln, i) => txt(g, ln, VW / 2, y + 4 + i * 10, '#fff8e8', 0.5));
   }
   if (Input.stick.on) { const st = Input.stick; pxRing(g, st.ox, st.oy, 22, 'rgba(255,248,232,0.45)'); pxRing(g, st.ox + st.x * 22, st.oy + st.y * 22, 8, '#ffd95e'); pxRing(g, st.ox + st.x * 22, st.oy + st.y * 22, 7, '#ffd95e'); }
-  if (Input.touch && App.mode === 'play') { g.fillStyle = 'rgba(13,10,26,0.6)'; g.fillRect(VW / 2 + 44, 3, 13, 13); g.fillStyle = '#d8dbe6'; g.fillRect(VW / 2 + 48, 6, 2, 7); g.fillRect(VW / 2 + 52, 6, 2, 7); }
+  if (Input.touch && App.mode === 'play') { const r = pauseMark(), px = Math.round(r.x + r.w / 2) - 7; g.fillStyle = 'rgba(13,10,26,0.6)'; g.fillRect(px, 3, 13, 13); g.fillStyle = '#d8dbe6'; g.fillRect(px + 4, 6, 2, 7); g.fillRect(px + 8, 6, 2, 7); }
 }

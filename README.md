@@ -99,6 +99,10 @@ it and is optional. Without it the game starts on the title screen.
 With a mouse you can also walk by dragging, as on a touch screen: set `Mouse walk` to `DRAG` in the pause
 menu, then hold the button and drag. The game remembers the choice.
 
+On a phone the game takes two screen pixels for each of its own and lays every screen out for the phone
+held upright or on its side. In a draft held upright one card is shown at a time: tap the card in the
+middle to build it, a card at the side to look at it.
+
 The first draft walks you through a card: the room, the boon, the doors and the Stairwell. Later drafts
 explain one new thing each, the first time a card shows it. Weapons fire on their own. `index.html?seed=123` pins the run's random seed. Progress is saved in
 `localStorage` under `roomwright.v2`.

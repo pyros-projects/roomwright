@@ -8,6 +8,7 @@ window.RW = {
   coach(on) { App.coach = !!on; },                                     // false = no card lessons in drafts (the checks and the bot use this)
   coachPlan, cardPart, stairsLocked, knockBack, knockTier, KNOCK, draftLayout, pauseLayout, hintFor, view: () => ({ VW, VH, SCALE }),
   titleLayout, changesLayout, CHANGES, CHANGELOG_MD, FONT,             // the title's entries and the changelog
+  pauseMark, deckLayout, narrow, short, onPhone, TAP,
   Share, shareCard, shareAsText, shareFacts, shareRoute, sharePicture, shareText, shareAt, SHARE_SQ, SHARE_URL,
   Daily, dailyInfo, dailyOf, startDaily, endItems, dailyDone, dailyClose, dailyLine, dailyEndLine, dailyTitleLine,
   DICE, HOUSE, PAL, PHASE, PHASES, OVER, overloads, overloadBurst, roomLinks, previewOver, updateDirector, musicPlan, GROW_WAYS, Player, playerLayout, openPlayer, closePlayer, DANCERS, // what the plan gives the music, and the music player
