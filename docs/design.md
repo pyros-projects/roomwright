@@ -102,6 +102,28 @@ The numbers are `HOUSE` in `src/24-floors.js` and the three rows of `MON` in
   joined by an open doorway resonate: +40% room power each, per link. Stone resonates with anything.
   The draft card previews the bonus for the spot you are about to build on. A three-star room with
   two links is five and a half times a lone one-star room.
+- **Overloads.** A room at three stars with two resonance links overloads by itself. Every 20
+  seconds it lets go of one burst in its element across the whole room. It needs no button, it
+  fires whether or not you are in the room, and it never hurts you. A ring of pips on the room's
+  floor fills up as it charges and blinks just before it goes. A hexed or besieged room does not
+  charge. The draft card says OVERLOAD when a pick would bring a room that far (the new room, a
+  neighbour that gains its second link, or every room of a type that gains its third star), and
+  the coach explains it once. The bursts, all scaled by the room's power:
+
+  | Element | Every monster in the room |
+  |---|---|
+  | Fire | is scorched and burns on for four seconds |
+  | Frost | is frozen for three seconds (wardens are not) |
+  | Steel | takes the heaviest blow of the eight |
+  | Stone | is thrown back and pinned where it lands for a second |
+  | Wild | is rooted for three seconds and poisoned for three |
+  | Shadow | is marked for six seconds: everything hits it half as hard again |
+  | Lore | is marked for four seconds, and every glint on the floor flies to you |
+  | Water | is washed back; if you stand in the room and have no shield, you get one |
+
+  A warden takes the damage but is not frozen, pinned, rooted or thrown. It follows the screen's
+  rules: a ring in the element's colour and one sound, no flash of the screen. The rooms that the
+  title builds behind its logo overload too, without sound. The numbers are `OVER` in `src/42-director.js`.
 - **Evolutions.** Each weapon evolves in one specific room: reach level 5, then walk into that room
   on the current floor. Twelve weapons evolve in starter rooms. The other twelve evolve in rooms
   native to one floor or belonging to one delver, so you have to build that room before you leave

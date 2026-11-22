@@ -411,6 +411,79 @@
       { fresh(142); const d = RW.spawnMon('die', P.x + 60, P.y); d.shootT = 0.05; let n = 0; for (let i = 0; i < 400 && !n; i++) { RW.step(1); n = G.ebullets.length; }
         RW.killMon(d); G.hits.length = 0; const b0 = G.ebullets[0]; if (b0) { b0.x = P.x - 3; b0.y = P.y - 4; b0.vx = 20; b0.vy = 0; } P.inv = 0; P.shield = 0; RW.step(3);
         ok('dice: a die throws a ring of bullets, and one that hits is filed as a bullet from a die', n >= 8 && G.hits.length === 1 && G.hits[0].by === 'die' && G.hits[0].how === 'bullet', n + ' bullets, ' + JSON.stringify(G.hits)); } }
+    /* ---- room overloads (#15) ---- */
+    { const EL = { fire: 'ember', frost: 'frost', steel: 'spikes', stone: 'hall', wild: 'garden', shadow: 'den', lore: 'library', water: 'fountain' }, O = RW.OVER;
+      // a room of `type` at three stars between two rooms that resonate with it (Stone Halls resonate with everything)
+      const rig = (type, seed) => { fresh(seed || 171); G.dir.ti = 99; const a = build('hall', [1, 1, 1, 1]), r = build(type, [1, 1, 1, 1], G.sealed.find(d => d.room === a)), b = build('hall', [1, 1, 1, 1], G.sealed.find(d => d.room === r)); G.roomLv[type] = 3; RW.recalcLinks(); return { a, r, b }; };
+      ok('overload: the numbers the docs give', O.every === 20 && O.stars === 3 && O.links === 2 && Object.keys(O.dmg).sort().join() === Object.keys(RW.ELEMENTS).sort().join(), JSON.stringify(O));
+      // when a room overloads: three stars and two links, both needed; never the hearth
+      { const { r } = rig('ember'), links = RW.roomLinks(r), yes = RW.overloads(r); G.roomLv.ember = 2; const two = RW.overloads(r); G.roomLv.ember = 3; const d = r.resDir.indexOf(1); r.resDir[d] = 0; const one = RW.overloads(r); r.resDir[d] = 1;
+        const h = G.rooms[0], hd = h.resDir.slice(); G.roomLv.hearth = 3; h.resDir = [1, 1, 0, 0]; const hearth = RW.overloads(h); h.resDir = hd; delete G.roomLv.hearth;
+        ok('overload: a room overloads at three stars with two resonance links, and with less of either it does not; the hearth never does', links >= 2 && yes && !two && !one && !hearth, JSON.stringify({ links, yes, two, one, hearth })); }
+      // the clock: it charges by itself, shows the charge, fires after 20 seconds whether or not the delver is there, and never hurts the delver
+      { const { r } = rig('ember'); P.x = G.rooms[0].px + 60; P.y = G.rooms[0].py + 60; const m = RW.spawnMon('tin', r.px + RW.K.CWP / 2 + 30, r.py + RW.K.CHP / 2); m.emerge = 0; m.max = m.hp = 1e6; G.dir.calm = 1e9;
+        const mx = m.x, my = m.y, hold = n => { for (let f = 0; f < n; f++) { m.x = mx; m.y = my; RW.step(1); } };
+        r.over = 0; hold(60 * 10); const half = r.over; let fired = -1; const hp0 = m.hp; for (let f = 0; f < 60 * 12 && fired < 0; f++) { const was = r.over; hold(1); if (r.over < was) fired = f; }
+        const away = fired >= 0 && m.hp < hp0 - 1 && m.burnT > 0;
+        P.x = r.px + RW.K.CWP / 2; P.y = r.py + RW.K.CHP / 2; P.inv = 0; P.shield = 0; const hurt0 = G.stats.hurt; r.over = 0.999; RW.step(3); const safe = G.stats.hurt === hurt0;
+        ok('overload: the room charges over 20 seconds, fires while the delver is elsewhere, and is safe to stand in', Math.abs(half - 0.5) < 0.03 && away && safe && Math.abs(10 + fired / 60 - 20) < 0.6, 'charge after 10 s: ' + half.toFixed(2) + ', fired after ' + (10 + fired / 60).toFixed(1) + ' s, the delver in the room took ' + (G.stats.hurt - hurt0)); }
+      // a room that is switched off does not charge
+      { const { r } = rig('ember'); G.dir.calm = 1e9; r.over = 0.5; r.hexT = 5; RW.step(120); ok('overload: a hexed room does not charge', Math.abs(r.over - 0.5) < 1e-6, r.over); }
+      // each element's burst
+      { const res = {}, bad = [];
+        for (const el in EL) { const { r } = rig(EL[el], 172); G.dir.calm = 1e9; const cx = r.px + RW.K.CWP / 2, cy = r.py + RW.K.CHP / 2; let x = cx + 36, y = cy + 20; for (let k = 0; k < 40 && RW.blocked(x, y, RW.K.F_WALK); k++) { x = cx + 20 + k * 3; y = cy + 30; }
+          const m = RW.spawnMon('bones', x, y); m.emerge = 0; m.max = m.hp = 1e6; const out = RW.spawnMon('bones', G.rooms[0].px + 80, G.rooms[0].py + 80); out.emerge = 0; out.max = out.hp = 1e6;
+          const g0 = { k: 'glint', x: G.rooms[0].px + 200, y: G.rooms[0].py + 60, v: 1, vx: 0, vy: 0, t: 1, mag: false, ms: 70, gone: false }; G.picks.push(g0);
+          P.x = cx - 30; P.y = cy + 40; for (let k = 0; k < 40 && RW.blocked(P.x, P.y, RW.K.F_WALK); k++) P.x += 4; P.inv = 0; P.shield = 0; P.hp = P.maxHp; const hurt0 = G.stats.hurt, hp0 = m.hp;
+          r.over = 0.9999; RW.step(2);
+          const want = O.dmg[el] * RW.roomPow(r), d0 = Math.hypot(m.x - cx, m.y - cy);
+          res[el] = { dmg: Math.round(hp0 - m.hp), want: Math.round(want), stun: +m.stun.toFixed(1), burn: m.burnT > 0, root: +m.rootT.toFixed(1), mark: m.markT > 0 ? m.mark : 0, shield: P.shield, mag: g0.mag, outside: out.hp < 1e6, hurt: G.stats.hurt - hurt0 };
+          m.stun = 0; RW.step(8); res[el].push = Math.round(Math.hypot(m.x - cx, m.y - cy) - d0);
+          const q = res[el]; if (q.dmg < q.want * 0.95) bad.push(el + ': ' + q.dmg + ' damage, ' + q.want + ' expected'); if (q.outside) bad.push(el + ': reaches outside the room'); if (q.hurt) bad.push(el + ': hurts the delver'); }
+        const q = res;
+        ok('overload: every element has its burst, in the room only, and none hurts the delver', bad.length === 0, bad.join('; '));
+        ok('overload: fire burns, frost freezes for three seconds, stone pins, wild roots and poisons, shadow and lore mark, lore calls the glints, water shields, steel hits hardest',
+          q.fire.burn && q.frost.stun >= 2.9 && q.stone.root >= 0.9 && q.wild.root >= 2.9 && q.wild.burn && q.shadow.mark >= 0.5 && q.lore.mark >= 0.5 && q.lore.mag && !q.fire.mag && q.water.shield === 1 && q.fire.shield === 0 && Object.keys(q).every(el => el === 'steel' || q.steel.want > q[el].want),
+          JSON.stringify(Object.fromEntries(Object.entries(q).map(([k, v]) => [k, v.dmg]))));
+        ok('overload: stone and water throw the monsters back, the others do not', q.stone.push > 6 && q.water.push > 6 && ['fire', 'frost', 'steel', 'wild', 'shadow', 'lore'].every(el => q[el].push < 4), JSON.stringify(Object.fromEntries(Object.entries(q).map(([k, v]) => [k, v.push])))); }
+      // a root is three seconds, also in a field that slows; a warden is not frozen, stunned, rooted or thrown; water shields only in the room and only without a shield
+      { const { r } = rig('garden', 174); G.dir.calm = 1e9; const cx = r.px + RW.K.CWP / 2, cy = r.py + RW.K.CHP / 2; let x = cx + 36, y = cy + 20; for (let k = 0; k < 40 && RW.blocked(x, y, RW.K.F_WALK); k++) { x = cx + 20 + k * 3; y = cy + 30; }
+        const m = RW.spawnMon('bones', x, y); m.emerge = 0; m.max = m.hp = 1e6; RW.addZone(x, y, 40, 30, 'drift', 0, { slow: 0.5 }); P.x = G.rooms[0].px + 60; P.y = G.rooms[0].py + 60; r.over = 0.9999; RW.step(2); const at0 = m.rootT; RW.step(60 * 3 + 12);
+        ok('overload: a root lasts three seconds, also in a field that slows', at0 >= 2.9 && m.rootT <= 0, 'rooted for ' + at0.toFixed(1) + ' s, ' + m.rootT.toFixed(2) + ' s left after 3.2 s'); }
+      { const out = {}; for (const [el, type] of [['frost', 'frost'], ['stone', 'hall'], ['wild', 'garden']]) { const { r } = rig(type, 175); G.dir.calm = 1e9; const cx = r.px + RW.K.CWP / 2, cy = r.py + RW.K.CHP / 2, w = RW.spawnMon('gatejaw', cx + 30, cy + 20); w.emerge = 0; w.st = 0; w.stT = 99; const hp0 = w.hp, x0 = w.x; P.x = G.rooms[0].px + 60; P.y = G.rooms[0].py + 60; r.over = 0.9999; RW.step(2); out[el] = { hurt: w.hp < hp0, stun: w.stun, root: w.rootT, moved: Math.abs(w.x - x0) > 3 }; }
+        ok('overload: a warden takes the damage but is not frozen, pinned, rooted or thrown', Object.values(out).every(o => o.hurt && !o.stun && !o.root && !o.moved), JSON.stringify(out)); }
+      { const shield = (inside, has) => { const { r } = rig('fountain', 176); G.dir.calm = 1e9; const cx = r.px + RW.K.CWP / 2, cy = r.py + RW.K.CHP / 2; if (inside) { P.x = cx - 30; P.y = cy + 40; for (let k = 0; k < 40 && RW.blocked(P.x, P.y, RW.K.F_WALK); k++) P.x += 4; } else { P.x = G.rooms[0].px + 60; P.y = G.rooms[0].py + 60; } RW.step(2); P.shield = has; r.over = 0.9999; RW.step(2); return P.shield; };
+        const got = [shield(true, 0), shield(true, 1), shield(false, 0)]; ok('overload: water shields a delver who stands in the room and has no shield, and nobody else', got.join() === '1,1,0', got.join()); }
+      // what is heard and filed: one sound and the tip in a run, the damage on the room's account; behind the title nothing sounds and nothing shakes
+      { const run = demo => { const { r } = rig('library', 177); G.dir.calm = 1e9; G.demo = demo; const cx = r.px + RW.K.CWP / 2, cy = r.py + RW.K.CHP / 2, m = RW.spawnMon('bones', cx + 36, cy + 30); m.emerge = 0; m.max = m.hp = 1e6; P.x = cx - 30; P.y = cy + 40; delete RW.Save.data.tips.overload; G.shake = 0;
+          const heard = [], play = RW.Snd.play; RW.Snd.play = (n, a) => { heard.push(n); return play(n, a); }; try { r.over = 0.9999; RW.step(2); } finally { RW.Snd.play = play; }
+          const t = RW.state().tally.find(x => /library/.test(x.key)); return { sound: heard.filter(n => n === 'overload').length, shake: G.shake > 0, tip: !!RW.Save.data.tips.overload, credit: t ? Math.round(t.dmg) : 0, hit: m.hp < 1e6 }; };
+        const play = run(false), demo = run(true); G.demo = false;
+        ok('overload: in a run it sounds once, shakes, leaves its tip and files its damage under the room; behind the title it is silent and still', play.sound === 1 && play.shake && play.tip && play.credit > 0 && demo.sound === 0 && !demo.shake && !demo.tip && demo.hit, JSON.stringify({ play, demo })); }
+      // what is drawn: the ring of pips on the floor (not on a hexed room), and OVERLOAD on the card
+      { const { r } = rig('ember', 178); G.dir.calm = 1e9; const cvs = document.getElementById('game'), c2 = cvs.getContext('2d'), V = RW.view(); P.x = r.px + RW.K.CWP / 2 - 60; P.y = r.py + RW.K.CHP / 2 + 50; P.inv = 0; RW.step(40); G.fxs.length = 0; G.parts.length = 0; G.texts.length = 0;
+        const look = (over, hex) => { r.over = over; r.hexT = hex; G.shake = 0; RW.render(); const cam = G.view, x = Math.round(r.px + RW.K.CWP / 2 - cam.cx) - 30, y = Math.round(r.py + RW.K.CHP / 2 - cam.cy) - 21; return Array.from(c2.getImageData(x, y, 60, 5).data).join(); };
+        const none = look(0, 0), half = look(0.5, 0), hexed = look(0.5, 3), hexedNone = look(0, 3); r.hexT = 0; r.over = 0;
+        ok('overload: the room shows its charge as a ring of pips on its floor, and a hexed room shows none', half !== none && hexed === hexedNone); }
+      // the card: it says when a pick brings a room to overload
+      { fresh(173); G.dir.ti = 99; const a = build('hall', [1, 1, 1, 1]), r = build('ember', [1, 1, 1, 1], G.sealed.find(d => d.room === a)); G.roomLv.ember = 3; RW.recalcLinks();
+        const door = G.sealed.find(d => d.room === r); P.keys = 9; RW.openDraft(door); const D = G.draft, c = D.cards[0]; c.type = 'hall'; c.want = [1, 1, 1, 1]; RW.refreshCard(c, D.cx, D.cy, D.entry); const closes = c.over;
+        c.type = 'frost'; RW.refreshCard(c, D.cx, D.cy, D.entry); const other = c.over; G.roomLv.ember = 2; c.type = 'hall'; RW.refreshCard(c, D.cx, D.cy, D.entry); const two = c.over; G.roomLv.ember = 3; RW.refreshCard(c, D.cx, D.cy, D.entry);
+        D.sel = 0; const plan = RW.coachPlan(D, true).map(s => s.id); RW.closeDraft && RW.closeDraft();
+        ok('overload: a card that gives a three-star room its second resonating neighbour says so, and the coach has a lesson for it', closes === 1 && other === 0 && two === 0 && plan.includes('c_over'), JSON.stringify({ closes, other, two, plan }));
+        // the other two ways: a type's third star, and the new room itself between two rooms that resonate with it
+        const R2 = rig('ember', 179); G.roomLv.ember = 2; const star = RW.previewOver(0, 0, 'ember', [0, 0, 0, 0], 3), noStar = RW.previewOver(0, 0, 'ember', [0, 0, 0, 0], 2); G.roomLv.ember = 3;
+        const DIR = [[0, -1], [1, 0], [0, 1], [-1, 0]], GR = RW.K.GRID; let self = -1, selfTwo = -1;
+        for (let d = 0; d < 4 && self < 0; d++) { const X = R2.b.cx + DIR[d][0], Y = R2.b.cy + DIR[d][1]; if (X < 1 || Y < 1 || X > GR - 2 || Y > GR - 2 || G.cells[Y * GR + X]) continue;
+          // the empty cell beside the last hall, with a second hall put beside it for the moment
+          const e2 = (d + 1) % 4, X2 = X + DIR[e2][0], Y2 = Y + DIR[e2][1], idx = Y2 * GR + X2; if (G.cells[idx]) continue; G.cells[idx] = R2.a;
+          const doors = [0, 0, 0, 0]; doors[(d + 2) % 4] = 2; doors[e2] = 2; G.roomLv.frost = 3; self = RW.previewOver(X, Y, 'frost', doors, 3); selfTwo = RW.previewOver(X, Y, 'frost', doors, 2); G.cells[idx] = null; delete G.roomLv.frost; }
+        ok('overload: the card also counts a type that gains its third star and the new room itself, and not a pick that leaves it at two stars', star === 1 && noStar === 0 && self === 1 && selfTwo === 0, JSON.stringify({ star, noStar, self, selfTwo }));
+        { fresh(180); G.dir.ti = 99; const a2 = build('hall', [1, 1, 1, 1]); const door = G.sealed.find(d => d.room === a2); P.keys = 9; RW.openDraft(door); const D = G.draft, c = D.cards[0], cvs = document.getElementById('game'), c2 = cvs.getContext('2d'), V = RW.view(); D.t = 9; D.sel = 1; RW.step(40);
+          const look = over => { c.over = over; RW.render(); return Array.from(c2.getImageData(0, 0, V.VW, V.VH).data).filter((v, i) => i % 97 === 0).join(); }, L = RW.draftLayout(), fits = L.rects[0].w;
+          const frames = n => { const seen = new Set(); for (let i = 0; i < 8; i++) { RW.step(4); seen.add(look(n)); } return seen; }, with1 = frames(1), with0 = frames(0);
+          ok('overload: the card writes OVERLOAD on its plan when the pick brings a room there', [...with1].some(x => !with0.has(x)) && fits > 60, with1.size + ' and ' + with0.size + ' pictures'); RW.closeDraft(); } }
+    }
     /* ---- the house (#12): a dealer, a roulette wheel, a slot machine ---- */
     { const HZ = 60, wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
       const mk = (id, dist, seed) => { fresh(seed || 161); G.dir.calm = 1e9; G.rooms[0].props = []; const e = RW.spawnMon(id, P.x + dist, P.y); e.emerge = 0; e.shootT = 0.05; e.hp = e.max = 1e6; return e; };

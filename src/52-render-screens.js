@@ -41,6 +41,7 @@ function drawPlan(g, card, x, y, w, h) {   // 3x3 neighbourhood blueprint: where
     g.fillStyle = ELEMENTS[me.el === 'stone' ? nb.el : me.el].col; g.fillRect(sx - k, sy - 1, k * 2 + 1, 2); g.fillRect(sx - 1, sy - k, 2, k * 2 + 1);
   }
   if (card.res > 0) txo(g, '+' + Math.round(card.res * (CURVE.res + 0.1 * charm('trowel')) * 100) + '%', x + 2, y + 2, ELEMENTS[me.el].col, '#1a1426');
+  if (card.over > 0) txo(g, 'OVERLOAD', x + 2, y + h - (card.evo && w < 96 ? 19 : 10), (Math.floor(frameT * 4) & 1) ? '#fff8e8' : '#ffd95e', '#1a1426');      // this pick brings a room to overload (#15)
   if (card.evo) { const b = SPR['i_' + card.evo.id]; g.globalAlpha = card.evo.ready ? 1 : 0.55; ds(g, b, x + w - 9, y + 9); g.globalAlpha = 1; txo(g, card.evo.ready ? 'EVOLVE!' : 'Lv' + card.evo.lv + '/5', x + w - 2, y + h - 10, card.evo.ready ? ((Math.floor(frameT * 4) & 1) ? '#ffd95e' : '#fff8e8') : '#9aa3b5', '#1a1426', 1); }
 }
 function drawCard(g, card, r, sel, t, i) {

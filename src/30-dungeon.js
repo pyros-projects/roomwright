@@ -140,6 +140,15 @@ function recalcLinks() {
   }
 }
 // how much resonance a room of `type` would get if placed at (cx,cy) with these doors
+// How many rooms a pick would bring to overload (#15): the new room itself, a neighbour that gains its second
+// resonance link, or rooms of the type when the pick gives it its third star.
+function previewOver(cx, cy, type, doors, lvTo) {
+  const me = { el: ROOM_TYPES[type].el }, gain = new Map(); let n = 0, links = 0;
+  for (let d = 0; d < 4; d++) { if (doors[d] < 2) continue; const nx = cx + DIRS[d].x, ny = cy + DIRS[d].y, nb = inGrid(nx, ny) ? G.cells[ny * GRID + nx] : null; if (nb && resonates(me, nb)) { links++; gain.set(nb, 1); } }
+  if (ROOM_TYPES[type].tier !== 'x' && lvTo >= OVER.stars && links >= OVER.links) n++;
+  for (const r of G.rooms) { if (r.def.tier === 'x' || overloads(r)) continue; const lv = r.type === type ? lvTo : roomLevel(r.type); if (lv >= OVER.stars && roomLinks(r) + (gain.get(r) || 0) >= OVER.links) n++; }
+  return n;
+}
 function previewRes(cx, cy, type, doors) {
   let res = 0; const me = { el: ROOM_TYPES[type].el };
   for (let d = 0; d < 4; d++) { if (doors[d] < 2) continue; const nx = cx + DIRS[d].x, ny = cy + DIRS[d].y, nb = inGrid(nx, ny) ? G.cells[ny * GRID + nx] : null; if (nb && resonates(me, nb)) res += resWorth(nb); }

@@ -44,7 +44,7 @@ const Snd = (() => {
     src.connect(flt); flt.connect(g); g.connect(o.bus || sfxBus); src.start(t0, Math.random() * 0.5); src.stop(t0 + d + 0.05);
   }
   const GAP = { hit: 0.05, kill: 0.045, glint: 0.035, shoot: 0.07, bounce: 0.06, zap: 0.09, boom: 0.07, knock: 0.14, spike: 0.25, swing: 0.08, burn: 0.3, tick: 0.05, ebullet: 0.12,
-    freeze: 0.09, dig: 0.3, fuse: 0.25, sting: 0.12, saw: 0.3, shield: 0.2, hex: 0.5, cards: 0.2, wheel: 0.1, slot: 0.3 };
+    freeze: 0.09, dig: 0.3, fuse: 0.25, sting: 0.12, saw: 0.3, shield: 0.2, hex: 0.5, cards: 0.2, wheel: 0.1, slot: 0.3, overload: 0.25 };
   const FX = {
     hit() { noise(0.05, { v: 0.1, f: 1700, ft: 'bandpass' }); tone(180, 0.05, { v: 0.05, f2: 100 }); },
     kill() { tone(500 + fxr() * 180, 0.09, { v: 0.06, f2: 900 + fxr() * 200, type: 'triangle' }); noise(0.05, { v: 0.05, f: 3200, ft: 'highpass' }); },
@@ -95,6 +95,7 @@ const Snd = (() => {
     squish() { noise(0.14, { v: 0.07, f: 500, f2: 250 }); tone(160, 0.1, { v: 0.05, f2: 90, type: 'sine' }); },
     windup() { for (let i = 0; i < 4; i++) tone(500 + i * 90, 0.04, { v: 0.04, t: i * 0.05, type: 'square' }); },
     dice() { for (let i = 0; i < 3; i++) tone(900 + fxr() * 500, 0.03, { v: 0.04, t: i * 0.04, type: 'triangle' }); },
+    overload() { tone(110, 0.45, { v: 0.09, f2: 520, type: 'sawtooth' }); noise(0.28, { v: 0.08, f: 700, f2: 4200, ft: 'bandpass', t: 0.16 }); tone(880, 0.3, { v: 0.05, type: 'triangle', t: 0.2 }); },      // a room lets go (#15)
     // the house (#12): a riffle of cards, the ball clicking over the wheel's frets, a machine's reels and its bell
     cards() { for (let i = 0; i < 5; i++) noise(0.03, { v: 0.09, f: 3400, ft: 'highpass', t: i * 0.035 }); },
     wheel() { tone(1250 + fxr() * 250, 0.025, { v: 0.05, type: 'square' }); noise(0.02, { v: 0.04, f: 4200, ft: 'highpass' }); },

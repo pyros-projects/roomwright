@@ -57,6 +57,7 @@ What changed for a player, newest first. The game shows the same text: CHANGELOG
 
 - You, enemy bullets and pickups are now drawn above every blast, glow, spark and number, and above the screen's flash.
 - An elite's death has a ring, a boom and a shake; a warden's a bigger ring. The screen never flashes more than three times a second.
+- Rooms overload: a room at three stars with two resonating neighbours lets go of a burst in its element every 20 seconds, by itself. Fire burns, frost freezes, water shields you if you stand in it, and so on for all eight. The draft card says OVERLOAD when a pick gets a room there.
 - The house: three new monsters, one on each floor. The dealer fans five cards, the roulette wheel sweeps an arm of balls round, the slot machine shows three symbols and pays out the attack they name. Each comes alone the first time.
 - Going back to the title from a run is no longer deafening. The rooms that the title builds behind its logo used to sound all at once.
 - Each warden has a bullet phase at 60% of its health: Gatejaw's rings with a turning gap, Mother Morel's bloom of spores, the Unmaker's walls with doorways. A banner names it, and walking finds the way through.
@@ -350,7 +351,7 @@ const Snd = (() => {
     src.connect(flt); flt.connect(g); g.connect(o.bus || sfxBus); src.start(t0, Math.random() * 0.5); src.stop(t0 + d + 0.05);
   }
   const GAP = { hit: 0.05, kill: 0.045, glint: 0.035, shoot: 0.07, bounce: 0.06, zap: 0.09, boom: 0.07, knock: 0.14, spike: 0.25, swing: 0.08, burn: 0.3, tick: 0.05, ebullet: 0.12,
-    freeze: 0.09, dig: 0.3, fuse: 0.25, sting: 0.12, saw: 0.3, shield: 0.2, hex: 0.5, cards: 0.2, wheel: 0.1, slot: 0.3 };
+    freeze: 0.09, dig: 0.3, fuse: 0.25, sting: 0.12, saw: 0.3, shield: 0.2, hex: 0.5, cards: 0.2, wheel: 0.1, slot: 0.3, overload: 0.25 };
   const FX = {
     hit() { noise(0.05, { v: 0.1, f: 1700, ft: 'bandpass' }); tone(180, 0.05, { v: 0.05, f2: 100 }); },
     kill() { tone(500 + fxr() * 180, 0.09, { v: 0.06, f2: 900 + fxr() * 200, type: 'triangle' }); noise(0.05, { v: 0.05, f: 3200, ft: 'highpass' }); },
@@ -401,6 +402,7 @@ const Snd = (() => {
     squish() { noise(0.14, { v: 0.07, f: 500, f2: 250 }); tone(160, 0.1, { v: 0.05, f2: 90, type: 'sine' }); },
     windup() { for (let i = 0; i < 4; i++) tone(500 + i * 90, 0.04, { v: 0.04, t: i * 0.05, type: 'square' }); },
     dice() { for (let i = 0; i < 3; i++) tone(900 + fxr() * 500, 0.03, { v: 0.04, t: i * 0.04, type: 'triangle' }); },
+    overload() { tone(110, 0.45, { v: 0.09, f2: 520, type: 'sawtooth' }); noise(0.28, { v: 0.08, f: 700, f2: 4200, ft: 'bandpass', t: 0.16 }); tone(880, 0.3, { v: 0.05, type: 'triangle', t: 0.2 }); },      // a room lets go (#15)
     // the house (#12): a riffle of cards, the ball clicking over the wheel's frets, a machine's reels and its bell
     cards() { for (let i = 0; i < 5; i++) noise(0.03, { v: 0.09, f: 3400, ft: 'highpass', t: i * 0.035 }); },
     wheel() { tone(1250 + fxr() * 250, 0.025, { v: 0.05, type: 'square' }); noise(0.02, { v: 0.04, f: 4200, ft: 'highpass' }); },
@@ -3110,6 +3112,15 @@ function recalcLinks() {
   }
 }
 // how much resonance a room of `type` would get if placed at (cx,cy) with these doors
+// How many rooms a pick would bring to overload (#15): the new room itself, a neighbour that gains its second
+// resonance link, or rooms of the type when the pick gives it its third star.
+function previewOver(cx, cy, type, doors, lvTo) {
+  const me = { el: ROOM_TYPES[type].el }, gain = new Map(); let n = 0, links = 0;
+  for (let d = 0; d < 4; d++) { if (doors[d] < 2) continue; const nx = cx + DIRS[d].x, ny = cy + DIRS[d].y, nb = inGrid(nx, ny) ? G.cells[ny * GRID + nx] : null; if (nb && resonates(me, nb)) { links++; gain.set(nb, 1); } }
+  if (ROOM_TYPES[type].tier !== 'x' && lvTo >= OVER.stars && links >= OVER.links) n++;
+  for (const r of G.rooms) { if (r.def.tier === 'x' || overloads(r)) continue; const lv = r.type === type ? lvTo : roomLevel(r.type); if (lv >= OVER.stars && roomLinks(r) + (gain.get(r) || 0) >= OVER.links) n++; }
+  return n;
+}
 function previewRes(cx, cy, type, doors) {
   let res = 0; const me = { el: ROOM_TYPES[type].el };
   for (let d = 0; d < 4; d++) { if (doors[d] < 2) continue; const nx = cx + DIRS[d].x, ny = cy + DIRS[d].y, nb = inGrid(nx, ny) ? G.cells[ny * GRID + nx] : null; if (nb && resonates(me, nb)) res += resWorth(nb); }
@@ -3581,7 +3592,7 @@ function cornerSlide(P, axis, s, step, mask) {
 function spawnMon(type, x, y, hpMul) {
   const def = MON[type];
   const e = { def, type, id: G.nextId++, x, y, r: def.r, fr: Math.min(def.r, 5.5), hp: 1, max: 1, kx: 0, ky: 0, flash: 0, anim: rr(0, 3), wob: rr(0, TAU), face: 1,
-    emerge: 0, evx: 0, evy: 0, slow: 0, slowT: 0, stun: 0, burnT: 0, burn: 0, burnTick: 0, chill: 0, mark: 0, markT: 0, dead: false, moonT: -9, gl: -1,
+    emerge: 0, evx: 0, evy: 0, slow: 0, slowT: 0, stun: 0, burnT: 0, burn: 0, burnTick: 0, chill: 0, mark: 0, markT: 0, rootT: 0, dead: false, moonT: -9, gl: -1,
     shootT: def.shot ? rr(def.shot.cd[0], def.shot.cd[1]) : 0, st: 0, stT: 0, cx: 0, cy: 0, goal: null, life: 0, boon: null, keys: 1 };
   e.max = e.hp = Math.max(1, Math.round(def.hp * (def.boss ? 1 : CURVE.hp(G.floor, G.t / 60)) * (hpMul || 1) * (stake(5) ? 1.2 : 1)));
   G.mons.push(e); return e;
@@ -3696,6 +3707,7 @@ function updateMons(dt) {
     if (e.stun > 0) { e.stun -= dt; e.kx = e.ky = 0; if (dp < e.r + P.r + 1) hurtPlayer(def.dmg, e); continue; }
     let sp = def.spd * (e.haste || 1);
     if (e.slowT > 0) { e.slowT -= dt; sp *= 1 - e.slow; }
+    if (e.rootT > 0) { e.rootT -= dt; sp *= 0.05; }                     // rooted by a Wild room's overload: a timer of its own, so no slow field can stretch it
     if (live && room.type === 'frost') { sp *= Math.max(0.3, 1 - 0.38 * roomMul(room) * P.sealPow); e.chill = 0.2; } else if (e.chill > 0) e.chill -= dt;
     if (live && G.tag[Math.floor(e.y / T) * GWT + Math.floor(e.x / T)] === TAG_BRAMBLE && !def.fly && !def.phase) sp *= 0.72;
     if (def.mimic && e.st === 0) { if (dp < 54) { e.st = 1; sfx('breach'); G.shake = Math.max(G.shake, 3); } else continue; }
@@ -3980,7 +3992,7 @@ function updateZones(dt) {
     if (z.kind === 'fire' || z.kind === 'spore') { if (z.t > 0.35 && Math.hypot(P.x - z.x, P.y - z.y) < z.r + 2 && P.dashT <= 0) hurtPlayer(1, null, z.mby || z.kind); }
     else if (z.tick <= 0) { z.tick = 0.4; nearMons(z.x, z.y, z.r, e => {
       if (e.dead || Math.hypot(e.x - z.x, e.y - z.y) >= z.r + e.r) return;
-      if (z.sticky) { e.mark = z.sticky; e.markT = 0.7; }
+      if (z.sticky && !(e.markT > 0.7 && e.mark >= z.sticky)) { e.mark = z.sticky; e.markT = 0.7; }      // (a longer, stronger mark stays)
       if (z.slow && !e.def.boss) { e.slow = Math.max(e.slowT > 0 ? e.slow : 0, z.slow); e.slowT = 0.6; }
       hurtMon(e, z.dmg * 0.4, 0, 0, 0, 'room');
     }); }
@@ -4705,6 +4717,44 @@ const BOSS_AI = {
   },
 };
 
+// ---- room overloads (#15) ----
+// A room at three stars with at least two resonance links overloads on its own clock: every OVER.every seconds it lets
+// go of one burst in its element, across the whole room. It needs no button, it fires whether or not you are in the
+// room, and it never hurts you. The room shows the charge on its floor (room.over runs from 0 to 1). A warden takes
+// the damage, but it is not frozen, pinned, rooted or thrown.
+//   fire    every monster in the room is scorched and burns on
+//   frost   ... is frozen solid for three seconds
+//   steel   ... takes the heaviest blow of the eight
+//   stone   ... is thrown back and pinned where it lands for a second
+//   wild    ... is rooted for three seconds and poisoned
+//   shadow  ... is marked for six seconds: everything hits it half as hard again
+//   lore    ... is marked for four seconds, and every glint on the floor flies to you
+//   water   ... is washed back, and if you stand in the room you get a shield (when you have none)
+const OVER = { every: 20, stars: 3, links: 2, dmg: { fire: 30, frost: 12, steel: 60, stone: 26, wild: 18, shadow: 10, lore: 10, water: 14 } };
+const roomLinks = room => room.resDir[0] + room.resDir[1] + room.resDir[2] + room.resDir[3];
+const overloads = room => room.def.tier !== 'x' && roomLevel(room.type) >= OVER.stars && roomLinks(room) >= OVER.links;
+function overloadBurst(room, inRoom, here) {
+  const el = room.def.el, pow = OVER.dmg[el] * roomPow(room), cx = room.px + CWP / 2, cy = room.py + CHP / 2, P = G.P, col = ELEMENTS[el].col;
+  inRoom(room, e => {
+    const dx = e.x - cx, dy = e.y - cy, d = Math.hypot(dx, dy) || 1, boss = e.def.boss;
+    hurtMon(e, pow, dx / d, dy / d, el === 'stone' ? 300 : el === 'water' ? 260 : 0, 'room');
+    if (e.dead) return;
+    if (el === 'fire') { e.burnT = 4; e.burn = 0.2 * pow; e.burnBy = BY; }
+    else if (el === 'frost' && !boss) e.stun = Math.max(e.stun, 3);
+    else if (el === 'stone' && !boss) e.rootT = Math.max(e.rootT, 1);
+    else if (el === 'wild') { if (!boss) e.rootT = 3; e.burnT = 3; e.burn = 0.15 * pow; e.burnBy = BY; }
+    else if (el === 'shadow') { e.mark = Math.max(e.markT > 0 ? e.mark : 0, 0.5); e.markT = 6; }
+    else if (el === 'lore') { e.mark = Math.max(e.markT > 0 ? e.mark : 0, 0.5); e.markT = 4; }
+  });
+  if (el === 'lore') for (const p of G.picks) if (p.k === 'glint') p.mag = true;
+  if (el === 'water' && here && P.shield < 1) addShield(1);
+  // what it looks like: a ring in the element's colour over the whole room, sparks, and one sound (#14: no flash of the screen)
+  G.fxs.push({ k: 'tide', x: cx, y: cy, R: 150, t: 0, d: 0.7, col });
+  for (let i = 0; i < 18; i++) { const a = fxr() * TAU, r = 20 + fxr() * 90; part(cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.7, Math.cos(a) * 40, Math.sin(a) * 40 - 20, 0.5 + fxr() * 0.4, col, 2); }
+  if (!G.demo && Math.abs(P.x - cx) < CWP * 1.5 && Math.abs(P.y - cy) < CHP * 1.5) { sfx('overload'); G.shake = Math.max(G.shake, here ? 4 : 2); }      // (the title's showcase stays silent and still)
+  tip('overload', 'A room with three stars and two resonating neighbours overloads by itself, every ' + OVER.every + ' seconds.');
+}
+
 // ---- room powers ----
 function onRoomReady(room) {
   const P = G.P;
@@ -4730,6 +4780,7 @@ function updateRooms(dt) {
     if (room.hexT > 0) { room.hexT -= dt; if (room.hexT <= 0 && room.type === 'library') recalc(); continue; }   // hexed or besieged: switched off
     room.timer += dt;
     const here = room === cur, mul = roomMul(room);
+    if (overloads(room)) { room.over = (room.over || 0) + dt / OVER.every; if (room.over >= 1) { room.over = 0; overloadBurst(room, inRoom, here); BY = 'r:' + room.type; } } else room.over = 0;
     switch (room.type) {
       case 'fountain': {
         const f = room.fountain; room.charge = Math.min(1, room.charge + dt * mul / 24);
@@ -4901,6 +4952,7 @@ function refreshCard(c, cx, cy, entry) {
   c.plan = planDoors(cx, cy, entry, c.want);
   c.lv = lv; c.lvTo = own ? Math.min(def.max, lv + 1) : Math.min(def.max, 1 + (charm('blueprint') ? 1 : 0));
   c.res = previewRes(cx, cy, c.type, c.plan.doors);
+  c.over = previewOver(cx, cy, c.type, c.plan.doors, c.lvTo);
   c.mul = 1; c.hidden = c.type === 'dice';
   if (c.hidden) c.mul = 2;
   for (let d = 0; d < 4; d++) { const nx = cx + DIRS[d].x, ny = cy + DIRS[d].y, nb = inGrid(nx, ny) ? G.cells[ny * GRID + nx] : null; if (nb && nb.type === 'script' && roomLive(nb)) c.mul = 2; }
@@ -4997,7 +5049,7 @@ function chooseStairs() {
 /* ============================ 13b CARD COACH ========================== */
 // Teaches the draft card on the card itself. The first draft walks through its parts: the room, the boon,
 // the doors, the Stairwell. Later drafts explain one new thing each, the first time a card shows it: a
-// level-up, resonance, an evolution, a dead end, the open Stairwell, and what to do with a hand you do not want. H (or the EXPLAIN chip) explains the
+// level-up, resonance, an overload, an evolution, a dead end, the open Stairwell, and what to do with a hand you do not want. H (or the EXPLAIN chip) explains the
 // selected card again at any time. A lesson is shown once per save (Save.data.tips). RW.coach(false)
 // switches the coach off for automated runs.
 const stairsLocked = () => (G.dir.boss || G.dir.stairsBuilt || G.bossDown) ? 0 : Math.max(0, STAIRS_MIN - G.fstat.rooms);   // rooms still to draft before the Stairwell is offered
@@ -5017,12 +5069,13 @@ function coachPlan(D, all) {
     ? 'You own this room. Draft it again and every room of its type gains a star: stronger for the whole run.'
     : 'This room type has all its stars. Another one still adds its power to the floor.');
   const res = i => add('c_res', i, 'plan', 'RESONANCE', 'The room next door has the same element. Joined by a doorway, each makes the other stronger: the +% on the map.');
+  const over = i => add('c_over', i, 'plan', 'OVERLOAD', 'Three stars and two resonating neighbours: with this pick a room overloads. Every ' + OVER.every + ' seconds it lets go of a burst in its element, by itself.');
   const evo = i => { const e = cards[i].evo, w = WEAPONS[e.id]; add('c_evo', i, 'plan', 'EVOLUTION', e.ready ? w.name + ' is ready. Walk into this room and it evolves.' : w.name + ' evolves in this room. Bring it to level ' + w.max + ', then walk in.'); };
   const back = () => add('c_back', -1, 'chip', 'NOTHING YOU WANT?', 'Esc is free, and every door holds its own cards. Or knock back (R): new cards here, and what waits behind the door comes out. A second knock on the same floor costs far more.');
   const first = f => cards.findIndex(f);
   let i = D.sel;
   if (all) {                          // H: everything the selected card shows
-    const c = cards[i]; room(i); if (c.lv > 0) stars(i); if (c.res > 0) res(i); if (c.evo) evo(i); boon(i);
+    const c = cards[i]; room(i); if (c.lv > 0) stars(i); if (c.res > 0) res(i); if (c.over > 0) over(i); if (c.evo) evo(i); boon(i);
     if (c.plan.fresh === 0) dead(i); else doors(i);
     if (D.stairs) stairs(); else if (D.locked) locked();
     if (D.rerolls <= 0) back();
@@ -5032,6 +5085,7 @@ function coachPlan(D, all) {
   } else if (D.stairs && !seen.c_stairs) stairs();      // later drafts: one new thing, when it first shows
   else if (!seen.c_stars && (i = first(c => c.lv > 0 && c.lvTo > c.lv)) >= 0) stars(i);
   else if (!seen.c_res && (i = first(c => c.res > 0)) >= 0) res(i);
+  else if (!seen.c_over && (i = first(c => c.over > 0)) >= 0) over(i);
   else if (!seen.c_evo && (i = first(c => c.evo)) >= 0) evo(i);
   else if (!seen.c_dead && (i = first(c => c.plan.fresh === 0)) >= 0) dead(i);
   else if (!seen.c_back && D.rerolls <= 0) back();      // nothing else new: what to do with a hand you do not want
@@ -5263,6 +5317,11 @@ function renderWorld(g) {
       if (boss.st === 3 && r && boss.wall >= 0 && (Math.floor(t * 12) & 1)) { const p = doorPos(r, boss.wall), hz = !(boss.wall & 1); g.fillStyle = 'rgba(255,106,106,0.55)'; g.fillRect(Math.round(p.x - (hz ? 24 : 16) - cx), Math.round(p.y - (hz ? 16 : 24) - cy), hz ? 48 : 32, hz ? 32 : 48); }
     }
   }
+  // an overloading room shows its charge on its floor: a ring of pips in its element's colour that fills up, and blinks just before it goes (#15)
+  for (const r of G.rooms) if (r.over > 0 && r.reveal >= 1 && r.hexT <= 0 && vis(r.px + CWP / 2, r.py + CHP / 2, 40)) {
+    const x = r.px + CWP / 2 - cx, y = r.py + CHP / 2 - cy, col = ELEMENTS[r.def.el].col, lit = Math.round(r.over * 24), blink = r.over > 0.92 && (Math.floor(t * 10) & 1);
+    for (let i = 0; i < 24; i++) { const a = -Math.PI / 2 + i / 24 * TAU, on = i < lit; g.fillStyle = on ? (blink ? '#fff8e8' : col) : 'rgba(13,10,26,0.4)'; g.fillRect(Math.round(x + Math.cos(a) * 27) - 1, Math.round(y + Math.sin(a) * 18) - 1, on ? 3 : 2, on ? 3 : 2); }
+  }
   // shadows (also those of the hearts and keys, which are drawn on the top layer), then depth-sorted actors
   for (const p of G.picks) if (p.k !== 'glint' && vis(p.x, p.y, 12)) ds(g, SPR.sh_s, p.x - cx, p.y - cy + 2);
   drawList.length = 0;
@@ -5324,7 +5383,7 @@ function renderWorld(g) {
     } else if (f.k === 'icicle') ds(g, SPR.fx_icicle, f.x - cx, f.y - cy - Math.round((1 - k) * 34));
     else if (f.k === 'tide') {
       const x = f.x - cx, y = f.y - cy, r = f.R * easeOut(k); g.globalAlpha = 1 - k * 0.6;
-      pxRing(g, x, y, r, f.hot ? '#ffd2a6' : '#9cecf2', 0.9); pxRing(g, x, y, Math.max(1, r - 2), '#fff8e8', 0.9); pxRing(g, x, y, Math.max(1, r - 5), f.hot ? '#f6923a' : '#4c97e8', 0.9); g.globalAlpha = 1;
+      pxRing(g, x, y, r, f.col || (f.hot ? '#ffd2a6' : '#9cecf2'), 0.9); pxRing(g, x, y, Math.max(1, r - 2), '#fff8e8', 0.9); pxRing(g, x, y, Math.max(1, r - 5), f.col || (f.hot ? '#f6923a' : '#4c97e8'), 0.9); g.globalAlpha = 1;
     } else if (f.k === 'breath') {                 // a flickering cone of flame from your mouth
       const x = P.x - cx, y = P.y - 5 - cy, rs = RNG(f.seed + Math.floor(t * 30));
       for (let i = 0; i < 54; i++) {
@@ -5578,6 +5637,7 @@ function drawPlan(g, card, x, y, w, h) {   // 3x3 neighbourhood blueprint: where
     g.fillStyle = ELEMENTS[me.el === 'stone' ? nb.el : me.el].col; g.fillRect(sx - k, sy - 1, k * 2 + 1, 2); g.fillRect(sx - 1, sy - k, 2, k * 2 + 1);
   }
   if (card.res > 0) txo(g, '+' + Math.round(card.res * (CURVE.res + 0.1 * charm('trowel')) * 100) + '%', x + 2, y + 2, ELEMENTS[me.el].col, '#1a1426');
+  if (card.over > 0) txo(g, 'OVERLOAD', x + 2, y + h - (card.evo && w < 96 ? 19 : 10), (Math.floor(frameT * 4) & 1) ? '#fff8e8' : '#ffd95e', '#1a1426');      // this pick brings a room to overload (#15)
   if (card.evo) { const b = SPR['i_' + card.evo.id]; g.globalAlpha = card.evo.ready ? 1 : 0.55; ds(g, b, x + w - 9, y + 9); g.globalAlpha = 1; txo(g, card.evo.ready ? 'EVOLVE!' : 'Lv' + card.evo.lv + '/5', x + w - 2, y + h - 10, card.evo.ready ? ((Math.floor(frameT * 4) & 1) ? '#ffd95e' : '#fff8e8') : '#9aa3b5', '#1a1426', 1); }
 }
 function drawCard(g, card, r, sel, t, i) {
@@ -6530,7 +6590,7 @@ window.RW = {
   coach(on) { App.coach = !!on; },                                     // false = no card lessons in drafts (the checks and the bot use this)
   coachPlan, cardPart, stairsLocked, knockBack, knockTier, KNOCK, draftLayout, pauseLayout, hintFor, view: () => ({ VW, VH, SCALE }),
   titleLayout, changesLayout, CHANGES, CHANGELOG_MD, FONT,             // the title's entries and the changelog
-  DICE, HOUSE, PAL, PHASE, PHASES, updateDirector, musicPlan, GROW_WAYS, Player, playerLayout, openPlayer, closePlayer, DANCERS, // what the plan gives the music, and the music player
+  DICE, HOUSE, PAL, PHASE, PHASES, OVER, overloads, overloadBurst, roomLinks, previewOver, updateDirector, musicPlan, GROW_WAYS, Player, playerLayout, openPlayer, closePlayer, DANCERS, // what the plan gives the music, and the music player
   tallyList, tallyShare, record: runRecord, endLayout, siegeTarget, dreadMul, knocking, wardenShare, swiftLeft, doorPressure,
   STAKES, stake, stakesOpen, stakeOf, prepLayout, floorMix,           // the Stakes ladder                 // the damage tally, and the census record of the run as it stands
   census() { const c = Save.data.census; if (console.table) console.table(c.map(r => Object.assign({}, r, { by: r.by.join(' < '), how: (r.how || []).join(' < ') }))); return c; },                                   // true = the page stops ticking itself; drive it with step()

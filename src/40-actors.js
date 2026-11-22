@@ -282,7 +282,7 @@ function cornerSlide(P, axis, s, step, mask) {
 function spawnMon(type, x, y, hpMul) {
   const def = MON[type];
   const e = { def, type, id: G.nextId++, x, y, r: def.r, fr: Math.min(def.r, 5.5), hp: 1, max: 1, kx: 0, ky: 0, flash: 0, anim: rr(0, 3), wob: rr(0, TAU), face: 1,
-    emerge: 0, evx: 0, evy: 0, slow: 0, slowT: 0, stun: 0, burnT: 0, burn: 0, burnTick: 0, chill: 0, mark: 0, markT: 0, dead: false, moonT: -9, gl: -1,
+    emerge: 0, evx: 0, evy: 0, slow: 0, slowT: 0, stun: 0, burnT: 0, burn: 0, burnTick: 0, chill: 0, mark: 0, markT: 0, rootT: 0, dead: false, moonT: -9, gl: -1,
     shootT: def.shot ? rr(def.shot.cd[0], def.shot.cd[1]) : 0, st: 0, stT: 0, cx: 0, cy: 0, goal: null, life: 0, boon: null, keys: 1 };
   e.max = e.hp = Math.max(1, Math.round(def.hp * (def.boss ? 1 : CURVE.hp(G.floor, G.t / 60)) * (hpMul || 1) * (stake(5) ? 1.2 : 1)));
   G.mons.push(e); return e;
@@ -397,6 +397,7 @@ function updateMons(dt) {
     if (e.stun > 0) { e.stun -= dt; e.kx = e.ky = 0; if (dp < e.r + P.r + 1) hurtPlayer(def.dmg, e); continue; }
     let sp = def.spd * (e.haste || 1);
     if (e.slowT > 0) { e.slowT -= dt; sp *= 1 - e.slow; }
+    if (e.rootT > 0) { e.rootT -= dt; sp *= 0.05; }                     // rooted by a Wild room's overload: a timer of its own, so no slow field can stretch it
     if (live && room.type === 'frost') { sp *= Math.max(0.3, 1 - 0.38 * roomMul(room) * P.sealPow); e.chill = 0.2; } else if (e.chill > 0) e.chill -= dt;
     if (live && G.tag[Math.floor(e.y / T) * GWT + Math.floor(e.x / T)] === TAG_BRAMBLE && !def.fly && !def.phase) sp *= 0.72;
     if (def.mimic && e.st === 0) { if (dp < 54) { e.st = 1; sfx('breach'); G.shake = Math.max(G.shake, 3); } else continue; }
@@ -681,7 +682,7 @@ function updateZones(dt) {
     if (z.kind === 'fire' || z.kind === 'spore') { if (z.t > 0.35 && Math.hypot(P.x - z.x, P.y - z.y) < z.r + 2 && P.dashT <= 0) hurtPlayer(1, null, z.mby || z.kind); }
     else if (z.tick <= 0) { z.tick = 0.4; nearMons(z.x, z.y, z.r, e => {
       if (e.dead || Math.hypot(e.x - z.x, e.y - z.y) >= z.r + e.r) return;
-      if (z.sticky) { e.mark = z.sticky; e.markT = 0.7; }
+      if (z.sticky && !(e.markT > 0.7 && e.mark >= z.sticky)) { e.mark = z.sticky; e.markT = 0.7; }      // (a longer, stronger mark stays)
       if (z.slow && !e.def.boss) { e.slow = Math.max(e.slowT > 0 ? e.slow : 0, z.slow); e.slowT = 0.6; }
       hurtMon(e, z.dmg * 0.4, 0, 0, 0, 'room');
     }); }

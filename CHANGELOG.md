@@ -6,6 +6,7 @@ What changed for a player, newest first. The game shows the same text: CHANGELOG
 
 - You, enemy bullets and pickups are now drawn above every blast, glow, spark and number, and above the screen's flash.
 - An elite's death has a ring, a boom and a shake; a warden's a bigger ring. The screen never flashes more than three times a second.
+- Rooms overload: a room at three stars with two resonating neighbours lets go of a burst in its element every 20 seconds, by itself. Fire burns, frost freezes, water shields you if you stand in it, and so on for all eight. The draft card says OVERLOAD when a pick gets a room there.
 - The house: three new monsters, one on each floor. The dealer fans five cards, the roulette wheel sweeps an arm of balls round, the slot machine shows three symbols and pays out the attack they name. Each comes alone the first time.
 - Going back to the title from a run is no longer deafening. The rooms that the title builds behind its logo used to sound all at once.
 - Each warden has a bullet phase at 60% of its health: Gatejaw's rings with a turning gap, Mother Morel's bloom of spores, the Unmaker's walls with doorways. A banner names it, and walking finds the way through.

@@ -179,6 +179,11 @@ function renderWorld(g) {
       if (boss.st === 3 && r && boss.wall >= 0 && (Math.floor(t * 12) & 1)) { const p = doorPos(r, boss.wall), hz = !(boss.wall & 1); g.fillStyle = 'rgba(255,106,106,0.55)'; g.fillRect(Math.round(p.x - (hz ? 24 : 16) - cx), Math.round(p.y - (hz ? 16 : 24) - cy), hz ? 48 : 32, hz ? 32 : 48); }
     }
   }
+  // an overloading room shows its charge on its floor: a ring of pips in its element's colour that fills up, and blinks just before it goes (#15)
+  for (const r of G.rooms) if (r.over > 0 && r.reveal >= 1 && r.hexT <= 0 && vis(r.px + CWP / 2, r.py + CHP / 2, 40)) {
+    const x = r.px + CWP / 2 - cx, y = r.py + CHP / 2 - cy, col = ELEMENTS[r.def.el].col, lit = Math.round(r.over * 24), blink = r.over > 0.92 && (Math.floor(t * 10) & 1);
+    for (let i = 0; i < 24; i++) { const a = -Math.PI / 2 + i / 24 * TAU, on = i < lit; g.fillStyle = on ? (blink ? '#fff8e8' : col) : 'rgba(13,10,26,0.4)'; g.fillRect(Math.round(x + Math.cos(a) * 27) - 1, Math.round(y + Math.sin(a) * 18) - 1, on ? 3 : 2, on ? 3 : 2); }
+  }
   // shadows (also those of the hearts and keys, which are drawn on the top layer), then depth-sorted actors
   for (const p of G.picks) if (p.k !== 'glint' && vis(p.x, p.y, 12)) ds(g, SPR.sh_s, p.x - cx, p.y - cy + 2);
   drawList.length = 0;
@@ -240,7 +245,7 @@ function renderWorld(g) {
     } else if (f.k === 'icicle') ds(g, SPR.fx_icicle, f.x - cx, f.y - cy - Math.round((1 - k) * 34));
     else if (f.k === 'tide') {
       const x = f.x - cx, y = f.y - cy, r = f.R * easeOut(k); g.globalAlpha = 1 - k * 0.6;
-      pxRing(g, x, y, r, f.hot ? '#ffd2a6' : '#9cecf2', 0.9); pxRing(g, x, y, Math.max(1, r - 2), '#fff8e8', 0.9); pxRing(g, x, y, Math.max(1, r - 5), f.hot ? '#f6923a' : '#4c97e8', 0.9); g.globalAlpha = 1;
+      pxRing(g, x, y, r, f.col || (f.hot ? '#ffd2a6' : '#9cecf2'), 0.9); pxRing(g, x, y, Math.max(1, r - 2), '#fff8e8', 0.9); pxRing(g, x, y, Math.max(1, r - 5), f.col || (f.hot ? '#f6923a' : '#4c97e8'), 0.9); g.globalAlpha = 1;
     } else if (f.k === 'breath') {                 // a flickering cone of flame from your mouth
       const x = P.x - cx, y = P.y - 5 - cy, rs = RNG(f.seed + Math.floor(t * 30));
       for (let i = 0; i < 54; i++) {

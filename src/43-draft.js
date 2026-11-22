@@ -40,6 +40,7 @@ function refreshCard(c, cx, cy, entry) {
   c.plan = planDoors(cx, cy, entry, c.want);
   c.lv = lv; c.lvTo = own ? Math.min(def.max, lv + 1) : Math.min(def.max, 1 + (charm('blueprint') ? 1 : 0));
   c.res = previewRes(cx, cy, c.type, c.plan.doors);
+  c.over = previewOver(cx, cy, c.type, c.plan.doors, c.lvTo);
   c.mul = 1; c.hidden = c.type === 'dice';
   if (c.hidden) c.mul = 2;
   for (let d = 0; d < 4; d++) { const nx = cx + DIRS[d].x, ny = cy + DIRS[d].y, nb = inGrid(nx, ny) ? G.cells[ny * GRID + nx] : null; if (nb && nb.type === 'script' && roomLive(nb)) c.mul = 2; }

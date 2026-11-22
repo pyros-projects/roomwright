@@ -1,7 +1,7 @@
 /* ============================ 13b CARD COACH ========================== */
 // Teaches the draft card on the card itself. The first draft walks through its parts: the room, the boon,
 // the doors, the Stairwell. Later drafts explain one new thing each, the first time a card shows it: a
-// level-up, resonance, an evolution, a dead end, the open Stairwell, and what to do with a hand you do not want. H (or the EXPLAIN chip) explains the
+// level-up, resonance, an overload, an evolution, a dead end, the open Stairwell, and what to do with a hand you do not want. H (or the EXPLAIN chip) explains the
 // selected card again at any time. A lesson is shown once per save (Save.data.tips). RW.coach(false)
 // switches the coach off for automated runs.
 const stairsLocked = () => (G.dir.boss || G.dir.stairsBuilt || G.bossDown) ? 0 : Math.max(0, STAIRS_MIN - G.fstat.rooms);   // rooms still to draft before the Stairwell is offered
@@ -21,12 +21,13 @@ function coachPlan(D, all) {
     ? 'You own this room. Draft it again and every room of its type gains a star: stronger for the whole run.'
     : 'This room type has all its stars. Another one still adds its power to the floor.');
   const res = i => add('c_res', i, 'plan', 'RESONANCE', 'The room next door has the same element. Joined by a doorway, each makes the other stronger: the +% on the map.');
+  const over = i => add('c_over', i, 'plan', 'OVERLOAD', 'Three stars and two resonating neighbours: with this pick a room overloads. Every ' + OVER.every + ' seconds it lets go of a burst in its element, by itself.');
   const evo = i => { const e = cards[i].evo, w = WEAPONS[e.id]; add('c_evo', i, 'plan', 'EVOLUTION', e.ready ? w.name + ' is ready. Walk into this room and it evolves.' : w.name + ' evolves in this room. Bring it to level ' + w.max + ', then walk in.'); };
   const back = () => add('c_back', -1, 'chip', 'NOTHING YOU WANT?', 'Esc is free, and every door holds its own cards. Or knock back (R): new cards here, and what waits behind the door comes out. A second knock on the same floor costs far more.');
   const first = f => cards.findIndex(f);
   let i = D.sel;
   if (all) {                          // H: everything the selected card shows
-    const c = cards[i]; room(i); if (c.lv > 0) stars(i); if (c.res > 0) res(i); if (c.evo) evo(i); boon(i);
+    const c = cards[i]; room(i); if (c.lv > 0) stars(i); if (c.res > 0) res(i); if (c.over > 0) over(i); if (c.evo) evo(i); boon(i);
     if (c.plan.fresh === 0) dead(i); else doors(i);
     if (D.stairs) stairs(); else if (D.locked) locked();
     if (D.rerolls <= 0) back();
@@ -36,6 +37,7 @@ function coachPlan(D, all) {
   } else if (D.stairs && !seen.c_stairs) stairs();      // later drafts: one new thing, when it first shows
   else if (!seen.c_stars && (i = first(c => c.lv > 0 && c.lvTo > c.lv)) >= 0) stars(i);
   else if (!seen.c_res && (i = first(c => c.res > 0)) >= 0) res(i);
+  else if (!seen.c_over && (i = first(c => c.over > 0)) >= 0) over(i);
   else if (!seen.c_evo && (i = first(c => c.evo)) >= 0) evo(i);
   else if (!seen.c_dead && (i = first(c => c.plan.fresh === 0)) >= 0) dead(i);
   else if (!seen.c_back && D.rerolls <= 0) back();      // nothing else new: what to do with a hand you do not want

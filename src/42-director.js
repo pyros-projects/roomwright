@@ -344,6 +344,44 @@ const BOSS_AI = {
   },
 };
 
+// ---- room overloads (#15) ----
+// A room at three stars with at least two resonance links overloads on its own clock: every OVER.every seconds it lets
+// go of one burst in its element, across the whole room. It needs no button, it fires whether or not you are in the
+// room, and it never hurts you. The room shows the charge on its floor (room.over runs from 0 to 1). A warden takes
+// the damage, but it is not frozen, pinned, rooted or thrown.
+//   fire    every monster in the room is scorched and burns on
+//   frost   ... is frozen solid for three seconds
+//   steel   ... takes the heaviest blow of the eight
+//   stone   ... is thrown back and pinned where it lands for a second
+//   wild    ... is rooted for three seconds and poisoned
+//   shadow  ... is marked for six seconds: everything hits it half as hard again
+//   lore    ... is marked for four seconds, and every glint on the floor flies to you
+//   water   ... is washed back, and if you stand in the room you get a shield (when you have none)
+const OVER = { every: 20, stars: 3, links: 2, dmg: { fire: 30, frost: 12, steel: 60, stone: 26, wild: 18, shadow: 10, lore: 10, water: 14 } };
+const roomLinks = room => room.resDir[0] + room.resDir[1] + room.resDir[2] + room.resDir[3];
+const overloads = room => room.def.tier !== 'x' && roomLevel(room.type) >= OVER.stars && roomLinks(room) >= OVER.links;
+function overloadBurst(room, inRoom, here) {
+  const el = room.def.el, pow = OVER.dmg[el] * roomPow(room), cx = room.px + CWP / 2, cy = room.py + CHP / 2, P = G.P, col = ELEMENTS[el].col;
+  inRoom(room, e => {
+    const dx = e.x - cx, dy = e.y - cy, d = Math.hypot(dx, dy) || 1, boss = e.def.boss;
+    hurtMon(e, pow, dx / d, dy / d, el === 'stone' ? 300 : el === 'water' ? 260 : 0, 'room');
+    if (e.dead) return;
+    if (el === 'fire') { e.burnT = 4; e.burn = 0.2 * pow; e.burnBy = BY; }
+    else if (el === 'frost' && !boss) e.stun = Math.max(e.stun, 3);
+    else if (el === 'stone' && !boss) e.rootT = Math.max(e.rootT, 1);
+    else if (el === 'wild') { if (!boss) e.rootT = 3; e.burnT = 3; e.burn = 0.15 * pow; e.burnBy = BY; }
+    else if (el === 'shadow') { e.mark = Math.max(e.markT > 0 ? e.mark : 0, 0.5); e.markT = 6; }
+    else if (el === 'lore') { e.mark = Math.max(e.markT > 0 ? e.mark : 0, 0.5); e.markT = 4; }
+  });
+  if (el === 'lore') for (const p of G.picks) if (p.k === 'glint') p.mag = true;
+  if (el === 'water' && here && P.shield < 1) addShield(1);
+  // what it looks like: a ring in the element's colour over the whole room, sparks, and one sound (#14: no flash of the screen)
+  G.fxs.push({ k: 'tide', x: cx, y: cy, R: 150, t: 0, d: 0.7, col });
+  for (let i = 0; i < 18; i++) { const a = fxr() * TAU, r = 20 + fxr() * 90; part(cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.7, Math.cos(a) * 40, Math.sin(a) * 40 - 20, 0.5 + fxr() * 0.4, col, 2); }
+  if (!G.demo && Math.abs(P.x - cx) < CWP * 1.5 && Math.abs(P.y - cy) < CHP * 1.5) { sfx('overload'); G.shake = Math.max(G.shake, here ? 4 : 2); }      // (the title's showcase stays silent and still)
+  tip('overload', 'A room with three stars and two resonating neighbours overloads by itself, every ' + OVER.every + ' seconds.');
+}
+
 // ---- room powers ----
 function onRoomReady(room) {
   const P = G.P;
@@ -369,6 +407,7 @@ function updateRooms(dt) {
     if (room.hexT > 0) { room.hexT -= dt; if (room.hexT <= 0 && room.type === 'library') recalc(); continue; }   // hexed or besieged: switched off
     room.timer += dt;
     const here = room === cur, mul = roomMul(room);
+    if (overloads(room)) { room.over = (room.over || 0) + dt / OVER.every; if (room.over >= 1) { room.over = 0; overloadBurst(room, inRoom, here); BY = 'r:' + room.type; } } else room.over = 0;
     switch (room.type) {
       case 'fountain': {
         const f = room.fountain; room.charge = Math.min(1, room.charge + dt * mul / 24);

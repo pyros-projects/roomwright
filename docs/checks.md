@@ -27,7 +27,9 @@ console error, then runs five scripts:
   most, door pressure per floor, the knocking late in the clock, a warden's fury, each warden's bullet phase (it starts at
   60% of its health, once, after a tell; a delver that only walks gets through it unhurt at three
   distances, calm and enraged; standing still is hit; enraged it is over sooner), each rule of
-  Stakes in force from its step on, the house (the dealer's and the wheel's tell and pattern, that standing
+  Stakes in force from its step on, room overloads (when a room overloads and when not, the
+  20 seconds, that it fires with the delver elsewhere and never hurts the delver, that a hexed room
+  does not charge, each element's burst, the card's OVERLOAD and the coach's lesson), the house (the dealer's and the wheel's tell and pattern, that standing
   is hit and the move each asks for is not; the slot machine's reels, which show what is coming for
   over half a second, its three payouts and that backing off beats them; each one's first entrance
   by itself), dice in ordinary waves (from which minute on each floor, how
